@@ -192,8 +192,8 @@ int cricket_restore(int argc, char* argv[])
     CUDBGAPI cudbgAPI;
     cricketWarpInfo warp_info = {0};
     cricket_callstack callstack;
-    char* patched_binary = "/home/eiling/ma/poc/debug/patched_binary";
-    const char *ckp_dir = "/home/eiling/ma/poc/debug/ckp";
+    char* patched_binary = "/home/nei/tmp/cricket-ckp/patched_binary";
+    const char *ckp_dir = "/home/nei/tmp/cricket-ckp";
     //const char *ckp_dir = "/global/work/share/ckp";
     const char *kernel_name;
     uint32_t active_lanes;
@@ -778,7 +778,7 @@ int cricket_restore(int argc, char* argv[])
 #define CRICKET_PROFILE 1
 int cricket_checkpoint(int argc, char* argv[])
 {
-    char *ckp_dir = "/home/eiling/ma/poc/debug/ckp";
+    char *ckp_dir = "/home/nei/tmp/cricket-ckp";
     //char *ckp_dir = "/global/work/share/ckp";
     uint32_t numDev = 0;
     const char *kernel_name = NULL;

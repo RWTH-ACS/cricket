@@ -4,7 +4,8 @@ GDB_SRC = /home/nei/projects/cuda-gdb
 CUDA_SRC = /usr/local/cuda
 
 CC = gcc
-INCLUDES = -I$(GDB_SRC)/build/bfd -I$(GDB_SRC)/build/gdb -I$(GDB_SRC)/include/ -I$(GDB_SRC)/gdb -I$(GDB_SRC)/gdb/common/ -I$(GDB_SRC)/bfd/ -I$(CUDA_SRC)/include
+INCLUDES = -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common
+#INCLUDES = -I$(GDB_SRC)/build/bfd -I$(GDB_SRC)/build/gdb -I$(GDB_SRC)/include/ -I$(GDB_SRC)/gdb -I$(GDB_SRC)/gdb/common/ -I$(GDB_SRC)/bfd/ -I$(CUDA_SRC)/include
 DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=$(GDB_SRC)/gdb/proc-service.list
 SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
 CFLAGS = -std=gnu99 $(INCLUDES)
