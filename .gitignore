@@ -1,0 +1,12 @@
+/build/
+*~
+.clang_complete
+.project
+.cproject
+.settings/
+.vscode/
+.directory
+*.swp
+
+# YouCompleteMe
+.ycm_extra_conf.py
