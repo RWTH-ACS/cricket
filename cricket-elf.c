@@ -918,7 +918,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename, crick
             goto cleanup;
         }
 
-        //printf("relative_bpt: %lx, bpt_num: %d\n", relative_bpt, bpt_num);
+        printf("relative_bpt: %lx, bpt_num: %d\n", relative_bpt, bpt_num);
 
         if (bpt_num == 0) {
             printf("no room in \"%s\" available\n", section->name);
@@ -964,7 +964,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename, crick
             goto cleanup;
         }
 
-        int ctrl_offset = 4 - (relative_bpt % (4*8)/8);
+        int ctrl_offset = 4 - (relative_bpt % (4*8))/8;
         data_size = sizeof(uint64_t)*((ssy_num*2+cal_num*2+3) + (ssy_num*2+cal_num*2+3)/3 + 2);
         data_i=0;
         if ((data = malloc(data_size)) == NULL) {

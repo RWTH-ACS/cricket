@@ -319,7 +319,7 @@ int cricket_restore(int argc, char* argv[])
     uint64_t relative_ssy;
     uint64_t jmptbl_address;
     const char *fn;
-    uint32_t predicate = 0;
+    uint32_t predicate = 1;
     uint64_t cur_address = 0;
     uint64_t start_address = 0;
     uint64_t jmptable_addr;
