@@ -1,6 +1,6 @@
 #MIT License...
 
-GDB_SRC = /home/nei/projects/cuda-gdb
+GDB_SRC = /global/cluster/cuda-gdb
 CUDA_SRC = /usr/local/cuda
 
 CC = gcc
