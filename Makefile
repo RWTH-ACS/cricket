@@ -26,7 +26,7 @@ DEPS := $(addsuffix .d,$(BUILD_BASE))
 OBJS := $(addsuffix .o,$(BUILD_BASE))
 
 
-.PHONY: all clean show
+.PHONY: all clean show tests
 
 all: $(DEPS) $(BINARY)
 
@@ -46,8 +46,13 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | build
 	$(CC) $(CFLAGS) $(INC_DIRS) -c $< -o $@
 
 clean:
-	@echo -e "\033[31m-----> Cleaning up\033[0m"
+	@echo -e "\033[31m----> Cleaning up\033[0m"
 	rm -rf $(BUILD_DIR) $(BINARY)
+	@echo -e "\033[31m----> Cleaning up test kernels\033[0m"
+	$(MAKE) -C tests clean
+
+tests:
+	$(MAKE) -C tests
 
 show: # For debugging purposes
 	@echo -e '\033[36mBINARY      \033[0m' $(BINARY)
