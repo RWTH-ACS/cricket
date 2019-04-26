@@ -1,42 +1,62 @@
 #MIT License...
+BINARY = cricket
 
 GDB_SRC = /global/cluster/cuda-gdb
 CUDA_SRC = /usr/local/cuda
 
 CC = gcc
-INCLUDES = -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common
-#INCLUDES = -I$(GDB_SRC)/build/bfd -I$(GDB_SRC)/build/gdb -I$(GDB_SRC)/include/ -I$(GDB_SRC)/gdb -I$(GDB_SRC)/gdb/common/ -I$(GDB_SRC)/bfd/ -I$(CUDA_SRC)/include
-DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=$(GDB_SRC)/gdb/proc-service.list
-SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
-CFLAGS = -std=gnu99 $(INCLUDES)
 LD = gcc
-LDFLAGS = $(CFLAGS) $(DLIBS)
-BINARY = cricket
 
-FILES := debug.o \
-		 cricket-cr.o \
-		 cricket-device.o \
-		 cricket-stack.o \
-		 cricket-register.o \
-		 cricket-file.o \
-		 cricket-heap.o \
-		 cricket-elf.o
+SRC_DIR := src
+INC_DIRS := -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common -Iinclude
+LIB_DIR := lib
+BUILD_DIR := build
 
-.PHONY: all depend clean
-all : $(BINARY)
+DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=$(GDB_SRC)/gdb/proc-service.list
+# Order of .a files is important!
+SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
+SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
+CFLAGS = -std=gnu99 
+LDFLAGS = $(CFLAGS) 
+# generate the names like src/main.o src/main.d
+SRCS_C := $(wildcard $(SRC_DIR)/*.c)
+SRCS_BASE := $(patsubst %.c,%,$(SRCS_C))
+BUILD_BASE := $(addprefix $(BUILD_DIR)/, $(notdir $(SRCS_BASE)))
+DEPS := $(addsuffix .d,$(BUILD_BASE))
+OBJS := $(addsuffix .o,$(BUILD_BASE))
 
-%.o : %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(BINARY) : $(FILES)
-	$(LD) $(LDFLAGS) -o $@ $^ $(SLIBS)
+.PHONY: all clean show
 
-#.depend : $(FILES:.o=.cu)
-#	$(CC) -MM $(CFLAGS) $(FILES:.o=.cu) > $@
+all: $(DEPS) $(BINARY)
 
-#depend : .depend
+build:  # create the build/ directory if it doesn't exist
+	mkdir -p $@
 
-clean :
-	rm -f *.elf *.hex *.o *.d .depend *~ $(BINARY)
+$(BINARY): $(OBJS) | build
+	@echo -e "\033[34m----> Linking $@ \033[0m"
+	$(LD) $(LDFLAGS) $(DLIBS) -o $@ $^ $(SLIBS)
 
-#include .depend
+$(BUILD_DIR)/%.d: $(SRC_DIR)/%.c | build
+	@echo -e "\033[32m----> Generate dependency file for $<\033[0m"
+	$(CC) $(CFLAGS) $(INC_DIRS) -MM -MT$(@:.d=.o) -o $@ $<
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | build
+	@echo -e "\033[33m----> Compiling $<\033[0m"
+	$(CC) $(CFLAGS) $(INC_DIRS) -c $< -o $@
+
+clean:
+	@echo -e "\033[31m-----> Cleaning up\033[0m"
+	rm -rf $(BUILD_DIR) $(BINARY)
+
+show: # For debugging purposes
+	@echo -e '\033[36mBINARY      \033[0m' $(BINARY)
+	@echo -e '\033[36mSRCS_C      \033[0m' $(SRCS_C)
+	@echo -e '\033[36mDLIBS       \033[0m' $(DLIBS)
+	@echo -e '\033[36mSLIBS       \033[0m' $(SLIBS)
+	@echo -e '\033[36mSOURCE_BASE \033[0m' $(SRCS_BASE)
+	@echo -e '\033[36mBUILD_BASE  \033[0m' $(BUILD_BASE)
+	@echo -e '\033[36mDEPS        \033[0m' $(DEPS)
+	@echo -e '\033[36mOBJS        \033[0m' $(OBJS)
+
+include $(wildcard build/*.d)
