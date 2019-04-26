@@ -1,1218 +1,1071 @@
-/* Top level stuff for GDB, the GNU debugger.
-
-   Copyright (C) 1986-2013 Free Software Foundation, Inc.
-
-   This file is part of GDB.
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
-
-/*
- * NVIDIA CUDA Debugger CUDA-GDB Copyright (C) 2007-2013 NVIDIA Corporation
- * Modified from the original GDB file referenced above by the CUDA-GDB 
- * team at NVIDIA <cudatools@nvidia.com>.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 3 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "defs.h"
-#include "top.h"
-#include "target.h"
+#include <stdio.h>
+#include "cudadebugger.h"
+#include "cuda-api.h"
+#include "cuda-options.h"
 #include "inferior.h"
-#include "symfile.h"
+#include "top.h"
+#include "bfd.h"
+#include "cuda-tdep.h"
+#include "objfiles.h"
+#include "cuda-state.h"
 #include "gdbcore.h"
-
-#include "exceptions.h"
-#include "getopt.h"
-
-#include <sys/types.h>
-#include "gdb_stat.h"
-#include <ctype.h>
-
-#include "gdb_string.h"
-#include "event-loop.h"
-#include "ui-out.h"
-
+#include "regcache.h"
+#include "cli/cli-cmds.h"
+#include "cli/cli-setshow.h"
 #include "interps.h"
 #include "main.h"
-#include "source.h"
-#include "cli/cli-cmds.h"
-#include "python/python.h"
-#include "objfiles.h"
-#include "auto-load.h"
-#include "cuda-gdb.h"
+#include <dlfcn.h>
+#include <sys/time.h>
 
-#include "filenames.h"
-
-/* The selected interpreter.  This will be used as a set command
-   variable, so it should always be malloc'ed - since
-   do_setshow_command will free it.  */
-char *interpreter_p;
-
-/* Whether xdb commands will be handled.  */
-int xdb_commands = 0;
-
-/* Whether dbx commands will be handled.  */
-int dbx_commands = 0;
-
-/* System root path, used to find libraries etc.  */
-char *gdb_sysroot = 0;
-
-/* GDB datadir, used to store data files.  */
-char *gdb_datadir = 0;
-
-/* Non-zero if GDB_DATADIR was provided on the command line.
-   This doesn't track whether data-directory is set later from the
-   command line, but we don't reread system.gdbinit when that happens.  */
-static int gdb_datadir_provided = 0;
-
-/* If gdb was configured with --with-python=/path,
-   the possibly relocated path to python's lib directory.  */
-char *python_libdir = 0;
+#include "cricket-cr.h"
+#include "cricket-device.h"
+#include "cricket-stack.h"
+#include "cricket-register.h"
+#include "cricket-file.h"
+#include "cricket-heap.h"
+#include "cricket-elf.h"
 
 struct ui_file *gdb_stdout;
 struct ui_file *gdb_stderr;
 struct ui_file *gdb_stdlog;
 struct ui_file *gdb_stdin;
-/* Target IO streams.  */
-struct ui_file *gdb_stdtargin;
 struct ui_file *gdb_stdtarg;
 struct ui_file *gdb_stdtargerr;
+struct ui_file *gdb_stdtargin;
 
-/* True if --batch or --batch-silent was seen.  */
-int batch_flag = 0;
-
-/* Support for the --batch-silent option.  */
-int batch_silent = 0;
-
-/* Support for --return-child-result option.
-   Set the default to -1 to return error in the case
-   that the program does not run or does not complete.  */
-int return_child_result = 0;
-int return_child_result_value = -1;
+CUDBGAPI cudbgAPI = NULL;
 
 
-/* GDB as it has been invoked from the command line (i.e. argv[0]).  */
-char *gdb_program_name;
-
-static void print_gdb_help (struct ui_file *);
-
-/* Relocate a file or directory.  PROGNAME is the name by which gdb
-   was invoked (i.e., argv[0]).  INITIAL is the default value for the
-   file or directory.  FLAG is true if the value is relocatable, false
-   otherwise.  Returns a newly allocated string; this may return NULL
-   under the same conditions as make_relative_prefix.  */
-
-static char *
-relocate_path (const char *progname, const char *initial, int flag)
+static void print_binary32(uint32_t num)
 {
-  if (flag)
-    return make_relative_prefix (progname, BINDIR, initial);
-  return xstrdup (initial);
-}
-
-/* Like relocate_path, but specifically checks for a directory.
-   INITIAL is relocated according to the rules of relocate_path.  If
-   the result is a directory, it is used; otherwise, INITIAL is used.
-   The chosen directory is then canonicalized using lrealpath.  This
-   function always returns a newly-allocated string.  */
-
-char *
-relocate_gdb_directory (const char *initial, int flag)
-{
-  char *dir;
-
-  dir = relocate_path (gdb_program_name, initial, flag);
-  if (dir)
-    {
-      struct stat s;
-
-      if (*dir == '\0' || stat (dir, &s) != 0 || !S_ISDIR (s.st_mode))
-	{
-	  xfree (dir);
-	  dir = NULL;
-	}
+    uint8_t i;
+    for (i=0; i != 32; ++i) {
+        if (num & (1LLU<<31))
+            printf("1");
+        else
+            printf("0");
+        num <<= 1;
     }
-  if (!dir)
-    dir = xstrdup (initial);
-
-  /* Canonicalize the directory.  */
-  if (*dir)
-    {
-      char *canon_sysroot = lrealpath (dir);
-
-      if (canon_sysroot)
-	{
-	  xfree (dir);
-	  dir = canon_sysroot;
-	}
+    printf("\n");
+}
+static void print_binary64(uint64_t num)
+{
+    uint8_t i;
+    for (i=0; i != 64; ++i) {
+        if (num & (1LLU<<63))
+            printf("1");
+        else
+            printf("0");
+        num <<= 1;
     }
-
-  return dir;
+    printf("\n");
 }
 
-/* Compute the locations of init files that GDB should source and
-   return them in SYSTEM_GDBINIT, HOME_GDBINIT, LOCAL_GDBINIT.  If
-   there is no system gdbinit (resp. home gdbinit and local gdbinit)
-   to be loaded, then SYSTEM_GDBINIT (resp. HOME_GDBINIT and
-   LOCAL_GDBINIT) is set to NULL.  */
-static void
-get_init_files (char **system_gdbinit,
-		char **home_gdbinit,
-		char **local_gdbinit)
+bool cricket_print_lane_states(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop)
 {
-  static char *sysgdbinit = NULL;
-  static char *homeinit = NULL;
-  static char *localinit = NULL;
-  static int initialized = 0;
+    uint64_t warp_mask;
+    uint64_t warp_mask_broken;
+    uint32_t lanemask;
+    CUDBGResult res;
+    for (int sm = 0; sm != dev_prop->numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(0, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask > 0) {
+            printf("SM %u: %llx - ", sm, warp_mask);
+            print_binary64(warp_mask);
+        }
+        res = cudbgAPI->readBrokenWarps(0, sm, &warp_mask_broken);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask > 0) {
+            printf("broken:%s- ", (sm>10?"  ":" "));
+            print_binary64(warp_mask_broken);
+        }
 
-  if (!initialized)
-    {
-      struct stat homebuf, cwdbuf, s;
-      char *homedir;
+        for (uint8_t warp=0; warp != dev_prop->numWarps; warp++) {
+            if (warp_mask & (1LU<<warp)) {
 
-      if (SYSTEM_GDBINIT[0])
-	{
-	  int datadir_len = strlen (GDB_DATADIR);
-	  int sys_gdbinit_len = strlen (SYSTEM_GDBINIT);
-	  char *relocated_sysgdbinit;
-
-	  /* If SYSTEM_GDBINIT lives in data-directory, and data-directory
-	     has been provided, search for SYSTEM_GDBINIT there.  */
-	  if (gdb_datadir_provided
-	      && datadir_len < sys_gdbinit_len
-	      && filename_ncmp (SYSTEM_GDBINIT, GDB_DATADIR, datadir_len) == 0
-	      && IS_DIR_SEPARATOR (SYSTEM_GDBINIT[datadir_len]))
-	    {
-	      /* Append the part of SYSTEM_GDBINIT that follows GDB_DATADIR
-		 to gdb_datadir.  */
-	      char *tmp_sys_gdbinit = xstrdup (&SYSTEM_GDBINIT[datadir_len]);
-	      char *p;
-
-	      for (p = tmp_sys_gdbinit; IS_DIR_SEPARATOR (*p); ++p)
-		continue;
-	      relocated_sysgdbinit = concat (gdb_datadir, SLASH_STRING, p,
-					     NULL);
-	      xfree (tmp_sys_gdbinit);
-	    }
-	  else
-	    {
-	      relocated_sysgdbinit = relocate_path (gdb_program_name,
-						    SYSTEM_GDBINIT,
-						    SYSTEM_GDBINIT_RELOCATABLE);
-	    }
-	  if (relocated_sysgdbinit && stat (relocated_sysgdbinit, &s) == 0)
-	    sysgdbinit = relocated_sysgdbinit;
-	  else
-	    xfree (relocated_sysgdbinit);
-	}
-
-      homedir = getenv ("HOME");
-
-      /* If the .gdbinit file in the current directory is the same as
-	 the $HOME/.gdbinit file, it should not be sourced.  homebuf
-	 and cwdbuf are used in that purpose.  Make sure that the stats
-	 are zero in case one of them fails (this guarantees that they
-	 won't match if either exists).  */
-
-      memset (&homebuf, 0, sizeof (struct stat));
-      memset (&cwdbuf, 0, sizeof (struct stat));
-
-      if (homedir)
-	{
-	  homeinit = xstrprintf ("%s/%s", homedir, gdbinit);
-	  if (stat (homeinit, &homebuf) != 0)
-	    {
-	      xfree (homeinit);
-	      homeinit = NULL;
-	    }
-	}
-
-      if (stat (gdbinit, &cwdbuf) == 0)
-	{
-	  if (!homeinit
-	      || memcmp ((char *) &homebuf, (char *) &cwdbuf,
-			 sizeof (struct stat)))
-	    localinit = gdbinit;
-	}
-      
-      initialized = 1;
-    }
-
-  *system_gdbinit = sysgdbinit;
-  *home_gdbinit = homeinit;
-  *local_gdbinit = localinit;
-}
-
-/* Call command_loop.  If it happens to return, pass that through as a
-   non-zero return status.  */
-
-static int
-captured_command_loop (void *data)
-{
-  /* Top-level execution commands can be run on the background from
-     here on.  */
-  interpreter_async = 1;
-
-  current_interp_command_loop ();
-  /* FIXME: cagney/1999-11-05: A correct command_loop() implementaton
-     would clean things up (restoring the cleanup chain) to the state
-     they were just prior to the call.  Technically, this means that
-     the do_cleanups() below is redundant.  Unfortunately, many FUNCs
-     are not that well behaved.  do_cleanups should either be replaced
-     with a do_cleanups call (to cover the problem) or an assertion
-     check to detect bad FUNCs code.  */
-  do_cleanups (all_cleanups ());
-  /* If the command_loop returned, normally (rather than threw an
-     error) we try to quit.  If the quit is aborted, catch_errors()
-     which called this catch the signal and restart the command
-     loop.  */
-  quit_command (NULL, instream == stdin);
-  return 1;
-}
-
-/* Arguments of --command option and its counterpart.  */
-typedef struct cmdarg {
-  /* Type of this option.  */
-  enum {
-    /* Option type -x.  */
-    CMDARG_FILE,
-
-    /* Option type -ex.  */
-    CMDARG_COMMAND,
-
-    /* Option type -ix.  */
-    CMDARG_INIT_FILE,
-    
-    /* Option type -iex.  */
-    CMDARG_INIT_COMMAND
-  } type;
-
-  /* Value of this option - filename or the GDB command itself.  String memory
-     is not owned by this structure despite it is 'const'.  */
-  char *string;
-} cmdarg_s;
-
-/* Define type VEC (cmdarg_s).  */
-DEF_VEC_O (cmdarg_s);
-
-static int
-captured_main (void *data)
-{
-  struct captured_main_args *context = data;
-  int argc = context->argc;
-  char **argv = context->argv;
-  static int quiet = 0;
-  static int set_args = 0;
-  static int inhibit_home_gdbinit = 0;
-
-  /* Pointers to various arguments from command line.  */
-  char *symarg = NULL;
-  char *execarg = NULL;
-  char *pidarg = NULL;
-  char *corearg = NULL;
-  char *pid_or_core_arg = NULL;
-  char *cdarg = NULL;
-  char *ttyarg = NULL;
-
-  /* These are static so that we can take their address in an
-     initializer.  */
-  static int print_help;
-  static int print_version;
-
-  /* Pointers to all arguments of --command option.  */
-  VEC (cmdarg_s) *cmdarg_vec = NULL;
-  struct cmdarg *cmdarg_p;
-
-  /* Indices of all arguments of --directory option.  */
-  char **dirarg;
-  /* Allocated size.  */
-  int dirsize;
-  /* Number of elements used.  */
-  int ndir;
-
-  /* gdb init files.  */
-  char *system_gdbinit;
-  char *home_gdbinit;
-  char *local_gdbinit;
-
-  int i;
-  int save_auto_load;
-  struct objfile *objfile;
-
-  struct cleanup *pre_stat_chain;
-
-#ifdef HAVE_SBRK
-  /* Set this before calling make_command_stats_cleanup.  */
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  lim_at_start = (char *) sbrk (0);
-#pragma clang diagnostic pop
-#else
-  lim_at_start = (char *) sbrk (0);
-#endif /* __clang__ */
-#endif
-
-  pre_stat_chain = make_command_stats_cleanup (0);
-
-#if defined (HAVE_SETLOCALE) && defined (HAVE_LC_MESSAGES)
-  setlocale (LC_MESSAGES, "");
-#endif
-#if defined (HAVE_SETLOCALE)
-  setlocale (LC_CTYPE, "");
-#endif
-  textdomain (PACKAGE);
-
-  bfd_init ();
-
-  make_cleanup (VEC_cleanup (cmdarg_s), &cmdarg_vec);
-  dirsize = 1;
-  dirarg = (char **) xmalloc (dirsize * sizeof (*dirarg));
-  ndir = 0;
-
-  clear_quit_flag ();
-  saved_command_line = (char *) xmalloc (saved_command_line_size);
-  saved_command_line[0] = '\0';
-  instream = stdin;
-
-  gdb_stdout = stdio_fileopen (stdout);
-  gdb_stderr = stdio_fileopen (stderr);
-  gdb_stdlog = gdb_stderr;	/* for moment */
-  gdb_stdtarg = gdb_stderr;	/* for moment */
-  gdb_stdin = stdio_fileopen (stdin);
-  gdb_stdtargerr = gdb_stderr;	/* for moment */
-  gdb_stdtargin = gdb_stdin;	/* for moment */
-
-#ifdef __MINGW32__
-  /* On Windows, argv[0] is not necessarily set to absolute form when
-     GDB is found along PATH, without which relocation doesn't work.  */
-  gdb_program_name = windows_get_absolute_argv0 (argv[0]);
-#else
-  gdb_program_name = xstrdup (argv[0]);
-#endif
-
-  if (! getcwd (gdb_dirbuf, sizeof (gdb_dirbuf)))
-    /* Don't use *_filtered or warning() (which relies on
-       current_target) until after initialize_all_files().  */
-    fprintf_unfiltered (gdb_stderr,
-			_("%s: warning: error finding "
-			  "working directory: %s\n"),
-                        argv[0], safe_strerror (errno));
-    
-  current_directory = gdb_dirbuf;
-
-  /* Set the sysroot path.  */
-  gdb_sysroot = relocate_gdb_directory (TARGET_SYSTEM_ROOT,
-					TARGET_SYSTEM_ROOT_RELOCATABLE);
-
-  debug_file_directory = relocate_gdb_directory (DEBUGDIR,
-						 DEBUGDIR_RELOCATABLE);
-
-  gdb_datadir = relocate_gdb_directory (GDB_DATADIR,
-					GDB_DATADIR_RELOCATABLE);
-
-#ifdef WITH_PYTHON_PATH
-  {
-    /* For later use in helping Python find itself.  */
-    char *tmp = concat (WITH_PYTHON_PATH, SLASH_STRING, "lib", NULL);
-
-    python_libdir = relocate_gdb_directory (tmp, PYTHON_PATH_RELOCATABLE);
-    xfree (tmp);
-  }
-#endif
-
-#ifdef RELOC_SRCDIR
-  add_substitute_path_rule (RELOC_SRCDIR,
-			    make_relative_prefix (gdb_program_name, BINDIR,
-						  RELOC_SRCDIR));
-#endif
-
-  /* There will always be an interpreter.  Either the one passed into
-     this captured main, or one specified by the user at start up, or
-     the console.  Initialize the interpreter to the one requested by 
-     the application.  */
-  interpreter_p = xstrdup (context->interpreter_p);
-
-  /* Parse arguments and options.  */
-  {
-    int c;
-    /* When var field is 0, use flag field to record the equivalent
-       short option (or arbitrary numbers starting at 10 for those
-       with no equivalent).  */
-    enum {
-      OPT_SE = 10,
-      OPT_CD,
-      OPT_ANNOTATE,
-      OPT_STATISTICS,
-      OPT_TUI,
-      OPT_NOWINDOWS,
-      OPT_WINDOWS,
-      OPT_IX,
-      OPT_IEX,
-      OPT_CUDA_USE_LOCKFILE
-    };
-    static struct option long_options[] =
-    {
-      {"tui", no_argument, 0, OPT_TUI},
-      {"xdb", no_argument, &xdb_commands, 1},
-      {"dbx", no_argument, &dbx_commands, 1},
-      {"readnow", no_argument, &readnow_symbol_files, 1},
-      {"r", no_argument, &readnow_symbol_files, 1},
-      {"quiet", no_argument, &quiet, 1},
-      {"q", no_argument, &quiet, 1},
-      {"silent", no_argument, &quiet, 1},
-      {"nh", no_argument, &inhibit_home_gdbinit, 1},
-      {"nx", no_argument, &inhibit_gdbinit, 1},
-      {"n", no_argument, &inhibit_gdbinit, 1},
-      {"batch-silent", no_argument, 0, 'B'},
-      {"batch", no_argument, &batch_flag, 1},
-
-    /* This is a synonym for "--annotate=1".  --annotate is now
-       preferred, but keep this here for a long time because people
-       will be running emacses which use --fullname.  */
-      {"fullname", no_argument, 0, 'f'},
-      {"f", no_argument, 0, 'f'},
-
-      {"annotate", required_argument, 0, OPT_ANNOTATE},
-      {"help", no_argument, &print_help, 1},
-      {"se", required_argument, 0, OPT_SE},
-      {"symbols", required_argument, 0, 's'},
-      {"s", required_argument, 0, 's'},
-      {"exec", required_argument, 0, 'e'},
-      {"e", required_argument, 0, 'e'},
-      {"core", required_argument, 0, 'c'},
-      {"c", required_argument, 0, 'c'},
-      {"pid", required_argument, 0, 'p'},
-      {"p", required_argument, 0, 'p'},
-      {"command", required_argument, 0, 'x'},
-      {"eval-command", required_argument, 0, 'X'},
-      {"version", no_argument, &print_version, 1},
-      {"x", required_argument, 0, 'x'},
-      {"ex", required_argument, 0, 'X'},
-      {"init-command", required_argument, 0, OPT_IX},
-      {"init-eval-command", required_argument, 0, OPT_IEX},
-      {"ix", required_argument, 0, OPT_IX},
-      {"iex", required_argument, 0, OPT_IEX},
-#ifdef GDBTK
-      {"tclcommand", required_argument, 0, 'z'},
-      {"enable-external-editor", no_argument, 0, 'y'},
-      {"editor-command", required_argument, 0, 'w'},
-#endif
-      {"ui", required_argument, 0, 'i'},
-      {"interpreter", required_argument, 0, 'i'},
-      {"i", required_argument, 0, 'i'},
-      {"directory", required_argument, 0, 'd'},
-      {"d", required_argument, 0, 'd'},
-      {"data-directory", required_argument, 0, 'D'},
-      {"cd", required_argument, 0, OPT_CD},
-      {"tty", required_argument, 0, 't'},
-      {"baud", required_argument, 0, 'b'},
-      {"b", required_argument, 0, 'b'},
-      {"nw", no_argument, NULL, OPT_NOWINDOWS},
-      {"nowindows", no_argument, NULL, OPT_NOWINDOWS},
-      {"w", no_argument, NULL, OPT_WINDOWS},
-      {"windows", no_argument, NULL, OPT_WINDOWS},
-      {"statistics", no_argument, 0, OPT_STATISTICS},
-      {"write", no_argument, &write_files, 1},
-      {"args", no_argument, &set_args, 1},
-      {"l", required_argument, 0, 'l'},
-      {"return-child-result", no_argument, &return_child_result, 1},
-      {"cuda-use-lockfile", required_argument, 0, OPT_CUDA_USE_LOCKFILE},
-      {0, no_argument, 0, 0}
-    };
-
-    while (1)
-      {
-	int option_index;
-
-	c = getopt_long_only (argc, argv, "",
-			      long_options, &option_index);
-	if (c == EOF || set_args)
-	  break;
-
-	/* Long option that takes an argument.  */
-	if (c == 0 && long_options[option_index].flag == 0)
-	  c = long_options[option_index].val;
-
-	switch (c)
-	  {
-	  case 0:
-	    /* Long option that just sets a flag.  */
-	    break;
-	  case OPT_SE:
-	    symarg = optarg;
-	    execarg = optarg;
-	    break;
-	  case OPT_CD:
-	    cdarg = optarg;
-	    break;
-	  case OPT_ANNOTATE:
-	    /* FIXME: what if the syntax is wrong (e.g. not digits)?  */
-	    annotation_level = atoi (optarg);
-	    break;
-	  case OPT_STATISTICS:
-	    /* Enable the display of both time and space usage.  */
-	    set_display_time (1);
-	    set_display_space (1);
-	    break;
-	  case OPT_TUI:
-	    /* --tui is equivalent to -i=tui.  */
-#ifdef TUI
-	    xfree (interpreter_p);
-	    interpreter_p = xstrdup (INTERP_TUI);
-#else
-	    fprintf_unfiltered (gdb_stderr,
-				_("%s: TUI mode is not supported\n"),
-				argv[0]);
-	    exit (1);
-#endif
-	    break;
-	  case OPT_WINDOWS:
-	    /* FIXME: cagney/2003-03-01: Not sure if this option is
-               actually useful, and if it is, what it should do.  */
-#ifdef GDBTK
-	    /* --windows is equivalent to -i=insight.  */
-	    xfree (interpreter_p);
-	    interpreter_p = xstrdup (INTERP_INSIGHT);
-#endif
-	    use_windows = 1;
-	    break;
-	  case OPT_NOWINDOWS:
-	    /* -nw is equivalent to -i=console.  */
-	    xfree (interpreter_p);
-	    interpreter_p = xstrdup (INTERP_CONSOLE);
-	    use_windows = 0;
-	    break;
-	  case OPT_CUDA_USE_LOCKFILE:
-            {
-              /* Whether cuda-gdb should create a global lock file */
-              extern int cuda_use_lockfile;
-              cuda_use_lockfile = (atoi (optarg) != 0);
-              break;
+                res = cudbgAPI->readValidLanes(0, sm, warp, &lanemask);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+                printf("warp %u (valid): %lx - ", warp, lanemask);
+                print_binary32(lanemask);
+                res = cudbgAPI->readActiveLanes(0, sm, warp, &lanemask);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+                printf("warp %u (active): %lx - ", warp, lanemask);
+                print_binary32(lanemask);
             }
-	  case 'f':
-	    annotation_level = 1;
-	    /* We have probably been invoked from emacs.  Disable
-	       window interface.  */
-	    use_windows = 0;
-	    break;
-	  case 's':
-	    symarg = optarg;
-	    break;
-	  case 'e':
-	    execarg = optarg;
-	    break;
-	  case 'c':
-	    corearg = optarg;
-	    break;
-	  case 'p':
-	    pidarg = optarg;
-	    break;
-	  case 'x':
-	    {
-	      struct cmdarg cmdarg = { CMDARG_FILE, optarg };
-
-	      VEC_safe_push (cmdarg_s, cmdarg_vec, &cmdarg);
-	    }
-	    break;
-	  case 'X':
-	    {
-	      struct cmdarg cmdarg = { CMDARG_COMMAND, optarg };
-
-	      VEC_safe_push (cmdarg_s, cmdarg_vec, &cmdarg);
-	    }
-	    break;
-	  case OPT_IX:
-	    {
-	      struct cmdarg cmdarg = { CMDARG_INIT_FILE, optarg };
-
-	      VEC_safe_push (cmdarg_s, cmdarg_vec, &cmdarg);
-	    }
-	    break;
-	  case OPT_IEX:
-	    {
-	      struct cmdarg cmdarg = { CMDARG_INIT_COMMAND, optarg };
-
-	      VEC_safe_push (cmdarg_s, cmdarg_vec, &cmdarg);
-	    }
-	    break;
-	  case 'B':
-	    batch_flag = batch_silent = 1;
-	    gdb_stdout = ui_file_new();
-	    break;
-	  case 'D':
-	    xfree (gdb_datadir);
-	    gdb_datadir = xstrdup (optarg);
-	    gdb_datadir_provided = 1;
-	    break;
-#ifdef GDBTK
-	  case 'z':
-	    {
-	      extern int gdbtk_test (char *);
-
-	      if (!gdbtk_test (optarg))
-		{
-		  fprintf_unfiltered (gdb_stderr,
-				      _("%s: unable to load "
-					"tclcommand file \"%s\""),
-				      argv[0], optarg);
-		  exit (1);
-		}
-	      break;
-	    }
-	  case 'y':
-	    /* Backwards compatibility only.  */
-	    break;
-	  case 'w':
-	    {
-	      /* Set the external editor commands when gdb is farming out files
-		 to be edited by another program.  */
-	      extern char *external_editor_command;
-
-	      external_editor_command = xstrdup (optarg);
-	      break;
-	    }
-#endif /* GDBTK */
-	  case 'i':
-	    xfree (interpreter_p);
-	    interpreter_p = xstrdup (optarg);
-	    break;
-	  case 'd':
-	    dirarg[ndir++] = optarg;
-	    if (ndir >= dirsize)
-	      {
-		dirsize *= 2;
-		dirarg = (char **) xrealloc ((char *) dirarg,
-					     dirsize * sizeof (*dirarg));
-	      }
-	    break;
-	  case 't':
-	    ttyarg = optarg;
-	    break;
-	  case 'q':
-	    quiet = 1;
-	    break;
-	  case 'b':
-	    {
-	      int i;
-	      char *p;
-
-	      i = strtol (optarg, &p, 0);
-	      if (i == 0 && p == optarg)
-
-		/* Don't use *_filtered or warning() (which relies on
-		   current_target) until after initialize_all_files().  */
-
-		fprintf_unfiltered
-		  (gdb_stderr,
-		   _("warning: could not set baud rate to `%s'.\n"), optarg);
-	      else
-		baud_rate = i;
-	    }
-            break;
-	  case 'l':
-	    {
-	      int i;
-	      char *p;
-
-	      i = strtol (optarg, &p, 0);
-	      if (i == 0 && p == optarg)
-
-		/* Don't use *_filtered or warning() (which relies on
-		   current_target) until after initialize_all_files().  */
-
-		fprintf_unfiltered (gdb_stderr,
-				    _("warning: could not set "
-				      "timeout limit to `%s'.\n"), optarg);
-	      else
-		remote_timeout = i;
-	    }
-	    break;
-
-	  case '?':
-	    fprintf_unfiltered (gdb_stderr,
-				_("Use `%s --help' for a "
-				  "complete list of options.\n"),
-				argv[0]);
-	    exit (1);
-	  }
-      }
-
-    /* If --help or --version, disable window interface.  */
-    if (print_help || print_version)
-      {
-	use_windows = 0;
-      }
-
-    if (batch_flag)
-      quiet = 1;
-  }
-
-  /* Initialize all files.  Give the interpreter a chance to take
-     control of the console via the deprecated_init_ui_hook ().  */
-  gdb_init (gdb_program_name);
-
-  /* Now that gdb_init has created the initial inferior, we're in
-     position to set args for that inferior.  */
-  if (set_args)
-    {
-      /* The remaining options are the command-line options for the
-	 inferior.  The first one is the sym/exec file, and the rest
-	 are arguments.  */
-      if (optind >= argc)
-	{
-	  fprintf_unfiltered (gdb_stderr,
-			      _("%s: `--args' specified but "
-				"no program specified\n"),
-			      argv[0]);
-	  exit (1);
-	}
-      symarg = argv[optind];
-      execarg = argv[optind];
-      ++optind;
-      set_inferior_args_vector (argc - optind, &argv[optind]);
+        }
     }
-  else
-    {
-      /* OK, that's all the options.  */
-
-      /* The first argument, if specified, is the name of the
-	 executable.  */
-      if (optind < argc)
-	{
-	  symarg = argv[optind];
-	  execarg = argv[optind];
-	  optind++;
-	}
-
-      /* If the user hasn't already specified a PID or the name of a
-	 core file, then a second optional argument is allowed.  If
-	 present, this argument should be interpreted as either a
-	 PID or a core file, whichever works.  */
-      if (pidarg == NULL && corearg == NULL && optind < argc)
-	{
-	  pid_or_core_arg = argv[optind];
-	  optind++;
-	}
-
-      /* Any argument left on the command line is unexpected and
-	 will be ignored.  Inform the user.  */
-      if (optind < argc)
-	fprintf_unfiltered (gdb_stderr,
-			    _("Excess command line "
-			      "arguments ignored. (%s%s)\n"),
-			    argv[optind],
-			    (optind == argc - 1) ? "" : " ...");
-    }
-
-  /* Lookup gdbinit files.  Note that the gdbinit file name may be
-     overriden during file initialization, so get_init_files should be
-     called after gdb_init.  */
-  get_init_files (&system_gdbinit, &home_gdbinit, &local_gdbinit);
-
-  /* Do these (and anything which might call wrap_here or *_filtered)
-     after initialize_all_files() but before the interpreter has been
-     installed.  Otherwize the help/version messages will be eaten by
-     the interpreter's output handler.  */
-
-  if (print_version)
-    {
-      print_gdb_version (gdb_stdout);
-      wrap_here ("");
-      printf_filtered ("\n");
-      exit (0);
-    }
-
-  if (print_help)
-    {
-      print_gdb_help (gdb_stdout);
-      fputs_unfiltered ("\n", gdb_stdout);
-      exit (0);
-    }
-
-  /* FIXME: cagney/2003-02-03: The big hack (part 1 of 2) that lets
-     GDB retain the old MI1 interpreter startup behavior.  Output the
-     copyright message before the interpreter is installed.  That way
-     it isn't encapsulated in MI output.  */
-  if (!quiet && strcmp (interpreter_p, INTERP_MI1) == 0)
-    {
-      /* Print all the junk at the top, with trailing "..." if we are
-         about to read a symbol file (possibly slowly).  */
-      print_gdb_version (gdb_stdout);
-      if (symarg)
-	printf_filtered ("..");
-      wrap_here ("");
-      printf_filtered ("\n");
-      gdb_flush (gdb_stdout);	/* Force to screen during slow
-				   operations.  */
-    }
-
-  /* Install the default UI.  All the interpreters should have had a
-     look at things by now.  Initialize the default interpreter.  */
-
-  {
-    /* Find it.  */
-    struct interp *interp = interp_lookup (interpreter_p);
-
-    if (interp == NULL)
-      error (_("Interpreter `%s' unrecognized"), interpreter_p);
-    /* Install it.  */
-    if (!interp_set (interp, 1))
-      {
-        fprintf_unfiltered (gdb_stderr,
-			    "Interpreter `%s' failed to initialize.\n",
-                            interpreter_p);
-        exit (1);
-      }
-  }
-
-  /* FIXME: cagney/2003-02-03: The big hack (part 2 of 2) that lets
-     GDB retain the old MI1 interpreter startup behavior.  Output the
-     copyright message after the interpreter is installed when it is
-     any sane interpreter.  */
-  if (!quiet && !current_interp_named_p (INTERP_MI1))
-    {
-      /* Print all the junk at the top, with trailing "..." if we are
-         about to read a symbol file (possibly slowly).  */
-      print_gdb_version (gdb_stdout);
-      if (symarg)
-	printf_filtered ("..");
-      wrap_here ("");
-      printf_filtered ("\n");
-      gdb_flush (gdb_stdout);	/* Force to screen during slow
-				   operations.  */
-    }
-
-  /* Set off error and warning messages with a blank line.  */
-  error_pre_print = "\n";
-  quit_pre_print = error_pre_print;
-  warning_pre_print = _("\nwarning: ");
-
-  /* Read and execute the system-wide gdbinit file, if it exists.
-     This is done *before* all the command line arguments are
-     processed; it sets global parameters, which are independent of
-     what file you are debugging or what directory you are in.  */
-  if (system_gdbinit && !inhibit_gdbinit)
-    catch_command_errors (source_script, system_gdbinit, 0, RETURN_MASK_ALL);
-
-  /* Read and execute $HOME/.gdbinit file, if it exists.  This is done
-     *before* all the command line arguments are processed; it sets
-     global parameters, which are independent of what file you are
-     debugging or what directory you are in.  */
-
-  if (home_gdbinit && !inhibit_gdbinit && !inhibit_home_gdbinit)
-    catch_command_errors (source_script, home_gdbinit, 0, RETURN_MASK_ALL);
-
-  /* Process '-ix' and '-iex' options early.  */
-  for (i = 0; VEC_iterate (cmdarg_s, cmdarg_vec, i, cmdarg_p); i++)
-    switch (cmdarg_p->type)
-    {
-      case CMDARG_INIT_FILE:
-        catch_command_errors (source_script, cmdarg_p->string,
-			      !batch_flag, RETURN_MASK_ALL);
-	break;
-      case CMDARG_INIT_COMMAND:
-        catch_command_errors (execute_command, cmdarg_p->string,
-			      !batch_flag, RETURN_MASK_ALL);
-	break;
-    }
-
-  /* Now perform all the actions indicated by the arguments.  */
-  if (cdarg != NULL)
-    {
-      catch_command_errors (cd_command, cdarg, 0, RETURN_MASK_ALL);
-    }
-
-  for (i = 0; i < ndir; i++)
-    catch_command_errors (directory_switch, dirarg[i], 0, RETURN_MASK_ALL);
-  xfree (dirarg);
-
-  /* Skip auto-loading section-specified scripts until we've sourced
-     local_gdbinit (which is often used to augment the source search
-     path).  */
-  save_auto_load = global_auto_load;
-  global_auto_load = 0;
-
-  if (execarg != NULL
-      && symarg != NULL
-      && strcmp (execarg, symarg) == 0)
-    {
-      /* The exec file and the symbol-file are the same.  If we can't
-         open it, better only print one error message.
-         catch_command_errors returns non-zero on success!  */
-      if (catch_command_errors (exec_file_attach, execarg,
-				!batch_flag, RETURN_MASK_ALL))
-	catch_command_errors (symbol_file_add_main, symarg,
-			      !batch_flag, RETURN_MASK_ALL);
-    }
-  else
-    {
-      if (execarg != NULL)
-	catch_command_errors (exec_file_attach, execarg,
-			      !batch_flag, RETURN_MASK_ALL);
-      if (symarg != NULL)
-	catch_command_errors (symbol_file_add_main, symarg,
-			      !batch_flag, RETURN_MASK_ALL);
-    }
-
-  if (corearg && pidarg)
-    error (_("Can't attach to process and specify "
-	     "a core file at the same time."));
-
-  if (corearg != NULL)
-    catch_command_errors (core_file_command, corearg,
-			  !batch_flag, RETURN_MASK_ALL);
-  else if (pidarg != NULL)
-    catch_command_errors (attach_command, pidarg,
-			  !batch_flag, RETURN_MASK_ALL);
-  else if (pid_or_core_arg)
-    {
-      /* The user specified 'gdb program pid' or gdb program core'.
-	 If pid_or_core_arg's first character is a digit, try attach
-	 first and then corefile.  Otherwise try just corefile.  */
-
-      if (isdigit (pid_or_core_arg[0]))
-	{
-	  if (catch_command_errors (attach_command, pid_or_core_arg,
-				    !batch_flag, RETURN_MASK_ALL) == 0)
-	    catch_command_errors (core_file_command, pid_or_core_arg,
-				  !batch_flag, RETURN_MASK_ALL);
-	}
-      else /* Can't be a pid, better be a corefile.  */
-	catch_command_errors (core_file_command, pid_or_core_arg,
-			      !batch_flag, RETURN_MASK_ALL);
-    }
-
-  if (ttyarg != NULL)
-    set_inferior_io_terminal (ttyarg);
-
-  /* Error messages should no longer be distinguished with extra output.  */
-  error_pre_print = NULL;
-  quit_pre_print = NULL;
-  warning_pre_print = _("warning: ");
-
-  /* Read the .gdbinit file in the current directory, *if* it isn't
-     the same as the $HOME/.gdbinit file (it should exist, also).  */
-  if (local_gdbinit)
-    {
-      auto_load_local_gdbinit_pathname = gdb_realpath (local_gdbinit);
-
-      if (!inhibit_gdbinit && auto_load_local_gdbinit
-	  && file_is_auto_load_safe (local_gdbinit,
-				     _("auto-load: Loading .gdbinit "
-				       "file \"%s\".\n"),
-				     local_gdbinit))
-	{
-	  auto_load_local_gdbinit_loaded = 1;
-
-	  catch_command_errors (source_script, local_gdbinit, 0,
-				RETURN_MASK_ALL);
-	}
-    }
-
-  /* Now that all .gdbinit's have been read and all -d options have been
-     processed, we can read any scripts mentioned in SYMARG.
-     We wait until now because it is common to add to the source search
-     path in local_gdbinit.  */
-  global_auto_load = save_auto_load;
-  ALL_OBJFILES (objfile)
-    load_auto_scripts_for_objfile (objfile);
-
-  /* Process '-x' and '-ex' options.  */
-  for (i = 0; VEC_iterate (cmdarg_s, cmdarg_vec, i, cmdarg_p); i++)
-    switch (cmdarg_p->type)
-    {
-      case CMDARG_FILE:
-        catch_command_errors (source_script, cmdarg_p->string,
-			      !batch_flag, RETURN_MASK_ALL);
-	break;
-      case CMDARG_COMMAND:
-        catch_command_errors (execute_command, cmdarg_p->string,
-			      !batch_flag, RETURN_MASK_ALL);
-	break;
-    }
-
-  /* Read in the old history after all the command files have been
-     read.  */
-  init_history ();
-
-  if (batch_flag)
-    {
-      /* We have hit the end of the batch file.  */
-      quit_force (NULL, 0);
-    }
-
-  /* Show time and/or space usage.  */
-  do_cleanups (pre_stat_chain);
-
-  /* NOTE: cagney/1999-11-07: There is probably no reason for not
-     moving this loop and the code found in captured_command_loop()
-     into the command_loop() proper.  The main thing holding back that
-     change - SET_TOP_LEVEL() - has been eliminated.  */
-  while (1)
-    {
-      catch_errors (captured_command_loop, 0, "", RETURN_MASK_ALL);
-    }
-  /* No exit -- exit is through quit_command.  */
+    return true;
+cuda_error:
+    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+    return false;
 }
 
-int
-gdb_main (struct captured_main_args *args)
+bool cricket_all_warps_broken(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop)
 {
-  use_windows = args->use_windows;
-  catch_errors (captured_main, args, "", RETURN_MASK_ALL);
-  /* The only way to end up here is by an error (normal exit is
-     handled by quit_force()), hence always return an error status.  */
-  return 1;
+    uint64_t warp_mask;
+    uint64_t warp_mask_broken;
+    CUDBGResult res;
+    for (int sm = 0; sm != dev_prop->numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(0, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            fprintf(stderr, "%d:", __LINE__);
+            goto cuda_error;
+        }
+        res = cudbgAPI->readBrokenWarps(0, sm, &warp_mask_broken);
+        if (res != CUDBG_SUCCESS) {
+            fprintf(stderr, "%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask != warp_mask_broken)
+            return false;
+    }
+    return true;
+cuda_error:
+    fprintf(stderr, "Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+    return false;
 }
 
-int main (int argc, char **argv)
+bool cricket_init_gdb(char *name)
 {
-    struct captured_main_args args;
-    memset (&args, 0, sizeof(args));
-    args.argc = argc;
-    args.argv = argv;
-    args.use_windows = 0;
-    args.interpreter_p = INTERP_CONSOLE;
-    return gdb_main (&args);
+    /* initialize gdb streams, necessary for gdb_init */
+    gdb_stdout = ui_file_new();
+    gdb_stderr = stdio_fileopen(stderr);
+    gdb_stdlog = gdb_stderr;
+    gdb_stdtarg = gdb_stderr;
+    gdb_stdin = stdio_fileopen(stdin);
+    gdb_stdtargerr = gdb_stderr;
+    gdb_stdtargin = gdb_stdin;
+    instream = fopen("/dev/null","r");
+
+    /* initialize gdb paths */
+    gdb_sysroot = strdup("");
+    debug_file_directory = strdup(DEBUGDIR);
+    gdb_datadir = strdup(GDB_DATADIR);
+
+    /* tell gdb that we do not want to run an interactive shell */
+    batch_flag = 1;
+
+    /* initialize BFD, the binary file descriptor library */
+    bfd_init();
+
+    /* initialize GDB */
+    printf("gdb_init...\n");
+    gdb_init(name);
+
+    char *interpreter_p = strdup(INTERP_CONSOLE);
+    struct interp *interp = interp_lookup(interpreter_p);
+    interp_set(interp,1);
+    return true;
 }
 
-
-/* Don't use *_filtered for printing help.  We don't want to prompt
-   for continue no matter how small the screen or how much we're going
-   to print.  */
-
-static void
-print_gdb_help (struct ui_file *stream)
+int cricket_analyze(int argc, char* argv[])
 {
-  char *system_gdbinit;
-  char *home_gdbinit;
-  char *local_gdbinit;
+    if (argc != 3) {
+        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        return -1;
+    }
+    printf("Analyzing \"%s\"\n", argv[2]);
+    if (!cricket_elf_analyze(argv[2])) {
+        printf("cricket analyze unsuccessful\n");
+        return -1;
+    }
+    return 0;
+}
+#define CRICKET_PROFILE 1
+int cricket_restore(int argc, char* argv[])
+{
+    CUDBGResult res;
+    CUDBGAPI cudbgAPI;
+    cricketWarpInfo warp_info = {0};
+    cricket_callstack callstack;
+    char* patched_binary = "/home/nei/tmp/cricket-ckp/patched_binary";
+    const char *ckp_dir = "/home/nei/tmp/cricket-ckp";
+    //const char *ckp_dir = "/global/work/share/ckp";
+    const char *kernel_name;
+    uint32_t active_lanes;
+    uint32_t first_warp;
+    cricket_jmptable_index *jmptbl;
+    uint64_t warp_mask;
+    size_t jmptbl_len;
+    if (argc != 3) {
+        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        return -1;
+    }
 
-  get_init_files (&system_gdbinit, &home_gdbinit, &local_gdbinit);
-
-  fputs_unfiltered (_("\
-This is the GNU debugger with CUDA support.  Usage:\n\n\
-    cuda-gdb [options] [executable-file [core-file or process-id]]\n\
-    cuda-gdb [options] --args executable-file [inferior-arguments ...]\n\n\
-Options:\n\n\
-"), stream);
-  fputs_unfiltered (_("\
-  --args             Arguments after executable-file are passed to inferior\n\
-"), stream);
-  fputs_unfiltered (_("\
-  -b BAUDRATE        Set serial port baud rate used for remote debugging.\n\
-  --batch            Exit after processing options.\n\
-  --batch-silent     As for --batch, but suppress all gdb stdout output.\n\
-  --return-child-result\n\
-                     GDB exit code will be the child's exit code.\n\
-  --cd=DIR           Change current directory to DIR.\n\
-  --command=FILE, -x Execute GDB commands from FILE.\n\
-  --eval-command=COMMAND, -ex\n\
-                     Execute a single GDB command.\n\
-                     May be used multiple times and in conjunction\n\
-                     with --command.\n\
-  --init-command=FILE, -ix Like -x but execute it before loading inferior.\n\
-  --init-eval-command=COMMAND, -iex Like -ex but before loading inferior.\n\
-  --core=COREFILE    Analyze the core dump COREFILE.\n\
-  --pid=PID          Attach to running process PID.\n\
-"), stream);
-  fputs_unfiltered (_("\
-  --dbx              DBX compatibility mode.\n\
-  --directory=DIR    Search for source files in DIR.\n\
-  --exec=EXECFILE    Use EXECFILE as the executable.\n\
-  --fullname         Output information used by emacs-GDB interface.\n\
-  --help             Print this message.\n\
-"), stream);
-  fputs_unfiltered (_("\
-  --interpreter=INTERP\n\
-                     Select a specific interpreter / user interface\n\
-"), stream);
-  fputs_unfiltered (_("\
-  -l TIMEOUT         Set timeout in seconds for remote debugging.\n\
-  --nw		     Do not use a window interface.\n\
-  --nx               Do not read any "), stream);
-  fputs_unfiltered (gdbinit, stream);
-  fputs_unfiltered (_(" files.\n\
-  --nh               Do not read "), stream);
-  fputs_unfiltered (gdbinit, stream);
-  fputs_unfiltered (_(" file from home directory.\n\
-  --quiet            Do not print version number on startup.\n\
-  --readnow          Fully read symbol files on first access.\n\
-"), stream);
-  fputs_unfiltered (_("\
-  --se=FILE          Use FILE as symbol file and executable file.\n\
-  --symbols=SYMFILE  Read symbols from SYMFILE.\n\
-  --tty=TTY          Use TTY for input/output by the program being debugged.\n\
-"), stream);
-#if defined(TUI)
-  fputs_unfiltered (_("\
-  --tui              Use a terminal user interface.\n\
-"), stream);
+#ifdef CRICKET_PROFILE
+    struct timeval a,b,c,d,e,f,g;
+    gettimeofday(&a, NULL);
 #endif
-  fputs_unfiltered (_("\
-  --version          Print version information and then exit.\n\
-  -w                 Use a window interface.\n\
-  --write            Set writing into executable and core files.\n\
-  --xdb              XDB compatibility mode.\n\
-"), stream);
-  fputs_unfiltered (_("\n\
-CUDA-specific options:\n\n\
-"), stream);
-  fputs_unfiltered (_("\
-  --cuda-use-lockfile=VALUE\n\
-                     If VALUE == 0, don't create a lock file for cuda-gdb.\n\
-                     Default behavior is to create a lock file.\n\
-"), stream);
-  fputs_unfiltered (_("\n\
-At startup, GDB reads the following init files and executes their commands:\n\
-"), stream);
-  if (system_gdbinit)
-    fprintf_unfiltered (stream, _("\
-   * system-wide init file: %s\n\
-"), system_gdbinit);
-  if (home_gdbinit)
-    fprintf_unfiltered (stream, _("\
-   * user-specific init file: %s\n\
-"), home_gdbinit);
-  if (local_gdbinit)
-    fprintf_unfiltered (stream, _("\
-   * local init file (see also 'set auto-load local-gdbinit'): ./%s\n\
-"), local_gdbinit);
-/* CUDA */
-    fprintf_unfiltered (stream, _("\
-   * local cuda-gdb init file: ./%s\n\
-"), GDBINIT_FILENAME);
-  fputs_unfiltered (_("\n\
-For more information, type \"help\" from within GDB, or consult the\n\
-GDB manual (available as on-line info or a printed manual).\n\
-For more information about CUDA-related features, type \"help cuda\"\n\
-or \"help info cuda\" from within GDB, or consult the CUDA-GDB manual.\n\
-Report CUDA-related bugs to \"cuda-debugger-bugs@nvidia.com\".\n\
-"), stream);
-  if (REPORT_BUGS_TO[0] && stream == gdb_stdout)
-    fprintf_unfiltered (stream, _("\
-Report bugs to \"%s\".\n\
-"), REPORT_BUGS_TO);
+    if (!cricket_elf_patch_all(argv[2], patched_binary, &jmptbl, &jmptbl_len)) {
+        fprintf(stderr, "cricket-cr: error while patching binary\n");
+        return -1;
+    }
+
+    for (size_t i = 0; i < jmptbl_len; ++i) {
+        printf("\t\"%s\"\n", jmptbl[i].function_name);
+        for (size_t j=0; j < jmptbl[i].ssy_num; ++j) {
+            printf("\t\tSSY@%lx->%lx\n", jmptbl[i].ssy[j].address, jmptbl[i].ssy[j].destination);
+        }
+        for (size_t j=0; j < jmptbl[i].cal_num; ++j) {
+            printf("\t\tPRET@%lx->%lx\n", jmptbl[i].cal[j].address, jmptbl[i].cal[j].destination);
+        }
+        printf("\tSYNC@%lx\n\n", jmptbl[i].sync_address);
+    }
+
+    for (first_warp=0; first_warp != 32; first_warp++) {
+        warp_info.warp = first_warp;
+        if (cricket_cr_read_pc(&warp_info, CRICKET_CR_NOLANE, ckp_dir, &callstack)) {
+            //fprintf(stderr, "cricket-cr: error while reading pc memory\n");
+            break;
+        }
+    }
+    kernel_name = callstack.function_names[callstack.callstack_size-1];
+#ifdef CRICKET_PROFILE
+    gettimeofday(&b, NULL);
+#endif
+/*
+    if (!cricket_elf_restore_patch(argv[2], patched_binary, &callstack)) {
+        printf("cricket patch unsuccessful\n");
+        return -1;
+    }*/
+    //return 0;
+    cricket_init_gdb(patched_binary);
+
+    /* load files */
+    exec_file_attach(patched_binary, !batch_flag);
+    symbol_file_add_main(patched_binary, !batch_flag);
+
+    struct cmd_list_element *cl;
+    tbreak_command((char*)kernel_name, !batch_flag);
+
+    char *prun = "run";
+    cl = lookup_cmd(&prun, cmdlist, "", 0, 1);
+    cmd_func(cl, prun, !batch_flag);
+
+
+    if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
+        printf("Cuda api not initialized!\n");
+        return -1;
+   // } else if (cuda_api_get_attach_state() != CUDA_ATTACH_STATE_COMPLETE) {
+      //  printf("Cuda api not attached!\n");
+      //  return -1;
+    } else {
+        printf("Cuda api initialized and attached!\n");
+    }
+
+    /* get CUDA debugger API */
+    res = cudbgGetAPI (CUDBG_API_VERSION_MAJOR,
+                       CUDBG_API_VERSION_MINOR,
+                       CUDBG_API_VERSION_REVISION, &cudbgAPI);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+    printf("cricket: got CUDA debugging API\n");
+
+    uint32_t numDev = 0;
+    if (!cricket_device_get_num(cudbgAPI, &numDev)) {
+        printf("error getting device num\n");
+        goto detach;
+    } else if (numDev != 1) {
+        printf("expected exactly one CUDA device. Found %u\n", numDev);
+        goto detach;
+    }
+
+    CricketDeviceProp dev_prop;
+    if (!cricket_device_get_prop(cudbgAPI, 0, &dev_prop)) {
+        printf("error getting device properties\n");
+        goto detach;
+    }
+    printf("cricket: identified device:\n");
+    cricket_device_print_prop(&dev_prop);
+
+    while (!cricket_all_warps_broken(cudbgAPI, &dev_prop)) {
+        printf("waiting for warps to break...\n");
+        usleep(500);
+    }
+    printf("cricket: all warps are now stopped!\n");
+#ifdef CRICKET_PROFILE
+    gettimeofday(&c, NULL);
+#endif
+    /* All warps have hit the breakpoint and we can now restore the device state */
+
+    //printf("cricket: current lane states:\n");
+    //cricket_print_lane_states(cudbgAPI, &dev_prop);
+
+    //cricket_cr_kernel_name(cudbgAPI, 0,0,0, &kernel_name);
+    //printf("cricket: kernel-name: \"%s\"\n", kernel_name);
+
+    uint32_t lanemask;
+    uint64_t sswarps;
+    warp_info.dev = 0;
+    warp_info.dev_prop = &dev_prop;
+    cricket_jmptable_index *index;
+    cricket_jmptable_index *kernelindex;
+    uint64_t relative_ssy;
+    uint64_t jmptbl_address;
+    const char *fn;
+    uint32_t predicate = 1;
+    uint64_t cur_address = 0;
+    uint64_t start_address = 0;
+    uint64_t jmptable_addr;
+    uint64_t rb_address;
+    bool found_callstack = false;
+
+    if (!cricket_elf_get_jmptable_index(jmptbl, jmptbl_len, kernel_name, &kernelindex)) {
+        fprintf(stderr, "get jmptable entry failed\n");
+        goto detach;
+    }
+    if (kernelindex == NULL) {
+        fprintf(stderr, "kernel %s not found\n", kernel_name);
+        goto detach;
+    }
+    start_address = kernelindex->start_address + 0x8;
+    if (start_address % (4*8) == 0) {
+        start_address += 0x8;
+    }
+    printf("start_address: %x, virt: %x, relative: %x\n", start_address, callstack.pc[callstack.callstack_size-1].virt, callstack.pc[callstack.callstack_size-1].relative);
+    //if (callstack.callstack_size == 1) {
+        cudbgAPI->readVirtualPC(0,0,first_warp,0,&rb_address);
+        printf("rb %x\n", rb_address);
+        jmptable_addr = rb_address + kernelindex->start_address-0x8;
+   // } else {
+   //     jmptable_addr = callstack.pc[callstack.callstack_size-1].virt - callstack.pc[callstack.callstack_size-1].relative + kernelindex->start_address;
+   // }
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask == 0) {
+            continue;
+        }
+                cudbgAPI->readVirtualPC(0,sm,first_warp,0,&rb_address);
+                printf("\trb address: %lx\n", rb_address);
+        printf("sm %d: resuming warps %x until %x\n", sm, warp_mask, jmptable_addr);
+        res = cudbgAPI->resumeWarpsUntilPC(warp_info.dev, sm, warp_mask, jmptable_addr);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+
+                cudbgAPI->readVirtualPC(0,sm,first_warp,0,&rb_address);
+                printf("\trb address: %lx\n", rb_address);
+
+
+        if (!cricket_cr_sm_broken(cudbgAPI, warp_info.dev, sm)) {
+            printf("waiting for sm to break...\n");
+            while (!cricket_cr_sm_broken(cudbgAPI, warp_info.dev, sm)) {
+                usleep(500);
+            }
+        }
+    }
+    printf("SMs at jmptable\n");
+#ifdef CRICKET_PROFILE
+    gettimeofday(&d, NULL);
+#endif
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        printf("sm %d\n", sm);
+        res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask == 0) {
+            continue;
+        }
+        warp_info.sm = sm;
+
+
+        for (uint64_t warp=0; warp != dev_prop.numWarps; warp++) {
+            if (warp_mask & (1LU<<warp)) {
+                printf("\twarp %d\n", warp);
+
+                cur_address = start_address;
+
+                warp_info.warp = warp;
+
+                res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp, &lanemask);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+
+                for (uint32_t lane=0; lane != dev_prop.numLanes; lane++) {
+                    if (lanemask & (1LU<<lane)) {
+                        res = cudbgAPI->writePredicates(0, sm, warp, lane, 1, &predicate);
+                        if (res != CUDBG_SUCCESS) {
+                            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                            goto detach;
+                        }
+                    }
+                }
+                res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+                cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                printf("\tcur_address: %lx, rb address: %lx\n", cur_address, rb_address);
+                index = kernelindex;
+
+                if (!cricket_cr_read_pc(&warp_info, CRICKET_CR_NOLANE, ckp_dir, &callstack)) {
+                    printf("cricket-cr: did not find callstack. exiting warp...\n");
+                    for (uint32_t lane=0; lane != warp_info.dev_prop->numLanes; lane++) {
+                        if (lanemask & (1LU<<lane)) {
+                            res = cudbgAPI->writeRegister(warp_info.dev, warp_info.sm, warp_info.warp, lane, CRICKET_JMX_ADDR_REG, ((uint32_t)(index->exit_address-cur_address-0x8)));
+                            if (res != CUDBG_SUCCESS) {
+                                fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                                goto detach;
+                            }
+                        }
+                    }
+                    res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                    if (res != CUDBG_SUCCESS) {
+                        printf("%d:", __LINE__);
+                        goto cuda_error;
+                    }
+                    cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                    printf("\tsuccess (exit) (%lx = %lx) \n", index->exit_address, rb_address);
+                    continue;
+                    //goto detach;
+                }
+
+
+                for (int c_level = callstack.callstack_size-1; c_level+1 > 0; --c_level) {
+                    fn = callstack.function_names[c_level];
+                    printf("\t\tc_level: %d, fn: %s\n", c_level, fn);
+
+                    if (index->ssy_num > 0) {
+                        printf("\t\trestoring ssy\n");
+                        if (!cricket_cr_rst_ssy(cudbgAPI, &warp_info, &callstack, c_level, index->ssy, index->ssy_num, &cur_address)) {
+                            fprintf(stderr, "error restoring SSY\n");
+                            goto detach;
+                        }
+                        cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                        printf("\tcur_address: %lx, rb address: %lx\n", cur_address, rb_address);
+                        printf("\t\tsuccess (ssy)\n");
+                    }
+                    if (c_level > 0) {
+                        printf("\t\trestoring subcall\n");
+                        if (!cricket_cr_rst_subcall(cudbgAPI, &warp_info, &callstack, c_level, index->cal, index->cal_num, &cur_address)) {
+                            fprintf(stderr, "error restoring CAL\n");
+                            goto detach;
+                        }
+
+                        if (!cricket_elf_get_jmptable_index(jmptbl, jmptbl_len, callstack.function_names[c_level-1], &index)) {
+                            fprintf(stderr, "get jmptable entry failed\n");
+                            goto detach;
+                        }
+                        if (index == NULL) {
+                            jmptable_addr = callstack.pc[c_level-1].absolute;
+                            cur_address = callstack.pc[c_level-1].relative;
+                        } else {
+                            jmptable_addr = callstack.pc[c_level-1].absolute-callstack.pc[c_level-1].relative+index->start_address+0x8;
+                            cur_address = index->start_address+0x8;
+                        }
+                        
+                        for (uint32_t lane=0; lane != warp_info.dev_prop->numLanes; lane++) {
+                            if (lanemask & (1LU<<lane)) {
+                                res = cudbgAPI->writeRegister(warp_info.dev, warp_info.sm, warp_info.warp, lane, CRICKET_JMX_ADDR_REG, ((uint32_t)(jmptable_addr)));
+                                if (res != CUDBG_SUCCESS) {
+                                    fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                                    goto detach;
+                                }
+                            }
+                        }
+
+                        res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                        if (res != CUDBG_SUCCESS) {
+                            printf("%d:", __LINE__);
+                            goto cuda_error;
+                        }
+                        cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                        printf("\tcur_address: %lx, rb address: %lx\n", cur_address, rb_address);
+                        printf("\t\tsuccess (subcall)\n");
+                        if (c_level-1 == 0 && cur_address == callstack.pc[c_level-1].relative) {
+                            break;
+                        }
+                    }
+                }
+                //handle SYNC
+                int predicate_value;
+                if (callstack.active_lanes != callstack.valid_lanes) {
+                    for (uint32_t lane=0; lane != warp_info.dev_prop->numLanes; lane++) {
+                        if (lanemask & (1LU<<lane)) {
+                            res = cudbgAPI->writeRegister(warp_info.dev, warp_info.sm, warp_info.warp, lane, CRICKET_JMX_ADDR_REG, ((uint32_t)(index->sync_address-cur_address-0x8)));
+                            if (res != CUDBG_SUCCESS) {
+                                fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                                goto detach;
+                            }
+                            if (callstack.active_lanes & (1LU<<lane)) {
+                                predicate_value = 0;
+                            } else {
+                                predicate_value = 1;
+                            }
+                            res = cudbgAPI->writePredicates(0, sm, warp, lane, 1, &predicate_value);
+                            if (res != CUDBG_SUCCESS) {
+                                fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                                goto detach;
+                            }
+                        }
+                    }
+                    res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                    if (res != CUDBG_SUCCESS) {
+                        printf("%d:", __LINE__);
+                        goto cuda_error;
+                    }
+                    res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                    if (res != CUDBG_SUCCESS) {
+                        printf("%d:", __LINE__);
+                        goto cuda_error;
+                    }
+                    cur_address = index->sync_address+0x8;
+                    cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                    printf("\tsuccess (sync) (%lx = %lx) \n", cur_address, rb_address);
+                    cudbgAPI->readPC(0,sm,warp,1,&rb_address);
+                    printf("\tsuccess (sync2) (%lx = %lx) \n", cur_address, rb_address);
+                    uint32_t al, vl;
+                    cudbgAPI->readActiveLanes(0,sm,warp,&al);
+                    cudbgAPI->readValidLanes(0,sm,warp,&vl);
+                    printf("valid: %x, active: %x, goal: %x\n", vl, al, callstack.active_lanes);
+                }
+                if (cur_address != callstack.pc[0].relative) {
+                    printf("\tjumping to checkpointed PC %lx\n", callstack.pc[0].relative);
+                    for (uint32_t lane=0; lane != warp_info.dev_prop->numLanes; lane++) {
+                        if (lanemask & (1LU<<lane)) {
+                            res = cudbgAPI->writeRegister(warp_info.dev, warp_info.sm, warp_info.warp, lane, CRICKET_JMX_ADDR_REG, ((uint32_t)(callstack.pc[0].relative-cur_address-0x8)));
+                            if (res != CUDBG_SUCCESS) {
+                                fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__, cudbgGetErrorString(res));
+                                goto detach;
+                            }
+                        }
+                    }
+                    res = cudbgAPI->singleStepWarp(0,sm, warp,&sswarps);
+                    if (res != CUDBG_SUCCESS) {
+                        printf("%d:", __LINE__);
+                        goto cuda_error;
+                    }
+                    cudbgAPI->readPC(0,sm,warp,0,&rb_address);
+                    printf("\tsuccess (pc) (%lx = %lx) \n", callstack.pc[0].relative, rb_address);
+
+                } else {
+                    printf("\tlowest call level has no jmptable. restored to PC %lx\n", callstack.pc[0].relative);
+                }
+
+            }
+
+
+        }
+    }
+
+#ifdef CRICKET_PROFILE
+    gettimeofday(&e, NULL);
+#endif
+
+    uint64_t pc_rb;
+    //TODO: get proper jmp target
+ /*   uint64_t jmp_addr = callstack.pc[callstack.callstack_size-1].virt-callstack.pc[callstack.callstack_size-1].relative + entry->address - 0x8;
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        if (warp_mask != 0) {
+            res = cudbgAPI->resumeWarpsUntilPC(warp_info.dev, sm, warp_mask, jmp_addr);
+            if (res != CUDBG_SUCCESS) {
+                printf("%d:", __LINE__);
+                goto cuda_error;
+            }
+        }
+
+    }
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        for (uint64_t warp=0; warp != dev_prop.numWarps; warp++) {
+            if (warp_mask & (1LU<<warp)) {
+
+                res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp, &lanemask);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+                warp_info.sm = sm;
+                warp_info.warp = warp;
+                warp_info.kernel_name = kernel_name;
+
+                for (uint32_t lane=0; lane != dev_prop.numLanes; lane++) {
+                    if (lanemask & (1LU<<lane)) {
+                        cricket_cr_rst_pc(cudbgAPI, &warp_info, lane, &callstack);
+                    }
+                }
+            }
+        }
+    }
+
+    res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+    res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+
+
+    cudbgAPI->readPC(0, 0,0,0, &pc_rb);
+    printf("cricket: pre JMX relative PC: %llx\n", pc_rb);
+
+    res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+*/
+
+    cricket_elf_info elf_info;
+    cricket_elf_get_info(kernel_name, &elf_info);
+    printf("cricket: stack-size: %u, param-addr: %u, param-size: %u\n", elf_info.stack_size, elf_info.param_addr, elf_info.param_size);
+
+
+    if (!cricket_cr_rst_globals(cudbgAPI, ckp_dir)) {
+        printf("cricket: global variable memory restores unsuccessful\n");
+    } else {
+        printf("cricket: restored global variables\n");
+    }
+
+    if (!cricket_cr_rst_params(cudbgAPI, ckp_dir, &elf_info, 0,0,0)) {
+        printf("cricket: parameter restore unsuccessful\n");
+    } else {
+        printf("cricket: restored parameters\n");
+    }
+
+    warp_info.dev = 0;
+    warp_info.dev_prop = &dev_prop;
+
+#ifdef CRICKET_PROFILE
+    gettimeofday(&f, NULL);
+#endif
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        for (uint64_t warp=0; warp != dev_prop.numWarps; warp++) {
+            if (warp_mask & (1LU<<warp)) {
+
+
+                cudbgAPI->readActiveLanes(0,sm,warp,&active_lanes);
+
+                res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp, &lanemask);
+                if (res != CUDBG_SUCCESS) {
+                    printf("%d:", __LINE__);
+                    goto cuda_error;
+                }
+                warp_info.sm = sm;
+                warp_info.warp = warp;
+                warp_info.kernel_name = kernel_name;
+                warp_info.stack_size = elf_info.stack_size;
+
+
+                if (!cricket_cr_rst_shared(cudbgAPI, ckp_dir, &elf_info, 0,sm,warp)) {
+                    printf("cricket: shared memory restore unsuccessful (size: %d)\n",elf_info.shared_size);
+                    continue;
+                } else {
+                    printf("cricket: restored shared memory\n");
+                }
+
+
+                for (uint32_t lane=0; lane != dev_prop.numLanes; lane++) {
+                    if (lanemask & (1LU<<lane)) {
+                        //cudbgAPI->readPC(0, warp,sm,lane, &pc_rb);
+                        //if not active do not say readback is incorrect, if relative%4==0 then rb is after the control instruction
+                        /*if (!(active_lanes & (1<<lane))) {
+                            printf("cricket: lane %u not active (PC: %lx)\n", lane, pc_rb);
+                        } else if ((callstack.pc[0].relative % (4*8) == 0 && pc_rb != callstack.pc[0].relative+0x8) ||
+                                   (callstack.pc[0].relative % (4*8) != 0 && pc_rb != callstack.pc[0].relative)) {
+                            printf("cricket: lane %u: readback PC (%lx) is not correct (%lx)\n", lane, pc_rb, callstack.pc[0].relative);
+                        }*/
+
+                        cricket_cr_rst_lane(cudbgAPI, &warp_info, lane, ckp_dir);
+                    }
+                }
+                //printf("cricket: verified restored PCs\n");
+                printf("cricket: restored warp D%uS%uW%u\n", 0, sm, warp);
+
+            }
+        }
+    }
+#ifdef CRICKET_PROFILE
+    gettimeofday(&g, NULL);
+    double bt = ((double)((b.tv_sec*1000000+b.tv_usec)-(a.tv_sec*1000000+a.tv_usec)))/1000000.;
+    double ct = ((double)((c.tv_sec*1000000+c.tv_usec)-(b.tv_sec*1000000+b.tv_usec)))/1000000.;
+    double dt = ((double)((d.tv_sec*1000000+d.tv_usec)-(b.tv_sec*1000000+b.tv_usec)))/1000000.;
+    double et = ((double)((e.tv_sec*1000000+e.tv_usec)-(d.tv_sec*1000000+d.tv_usec)))/1000000.;
+    double ft = ((double)((f.tv_sec*1000000+f.tv_usec)-(e.tv_sec*1000000+e.tv_usec)))/1000000.;
+    double gt = ((double)((g.tv_sec*1000000+g.tv_usec)-(f.tv_sec*1000000+f.tv_usec)))/1000000.;
+    double comt = ((double)((g.tv_sec*1000000+g.tv_usec)-(a.tv_sec*1000000+a.tv_usec)))/1000000.;
+    printf("complete time:\n\tPROFILE patch: %f s\n\tPROFILE runattach: %f s\n\tPROFILE tojmptbl: %f s\n\tPROFILE jmptbl: %f s\n\tPROFILE globals: %f s\n\tPROFILE inkernel %f s\n\tPROFILE complete: %f s\n",bt,ct,dt,et,ft,gt,comt);
+#endif
+/*
+    CUDBGException_t exc = 0;
+    uint64_t errorPC;
+    uint64_t virtpc;
+    bool valid;
+    uint32_t val;
+
+    for (int i=0; i != 60; ++i) {
+        res = cudbgAPI->singleStepWarp(0,0,first_warp,&sswarps);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+
+        res = cudbgAPI->readPC(0,0,first_warp,0,&pc_rb);
+        res = cudbgAPI->readVirtualPC(0,0,first_warp,0,&virtpc);
+        printf("pc: %lx, %lx\n", pc_rb, virtpc);
+
+        for (uint32_t lane=0; lane != 16; lane++) {
+                cudbgAPI->readLaneException(0, 0, first_warp, lane, &exc);
+                cudbgAPI->readErrorPC(0,0,first_warp,&errorPC, &valid);
+                if (exc != 0) printf("%lx: lane %u: %u, errorPC: %llx, %u\n", pc_rb, lane, exc, errorPC, valid);
+        }
+    }*/
+    printf("resuming device...\n");
+ detach:
+    cricket_elf_free_jumptable(&jmptbl, jmptbl_len);
+    cricket_cr_free_callstack(&callstack);
+    /* Detach from process (CPU and GPU) */
+    detach_command(NULL, !batch_flag);
+    /* finalize, i.e. clean up CUDA debugger API */
+    cuda_api_finalize();
+    /* quit GDB. TODO: Why is this necccessary? */
+    quit_force (NULL, 0);
+    return 0;
+ cuda_error:
+    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+    return -1;
+}
+
+#define CRICKET_PROFILE 1
+int cricket_checkpoint(int argc, char* argv[])
+{
+    char *ckp_dir = "/home/nei/tmp/cricket-ckp";
+    //char *ckp_dir = "/global/work/share/ckp";
+    uint32_t numDev = 0;
+    const char *kernel_name = NULL;
+    const char *warp_kn;
+    uint64_t *warp_mask;
+    uint32_t calldepth;
+    uint64_t relative_ssy;
+    cricket_callstack callstack;
+    cricket_function_info *function_info = NULL;
+    uint32_t first_warp = 0;
+    size_t fi_num;
+    int ret = -1;
+    CUDBGResult res;
+    CUDBGAPI cudbgAPI;
+#ifdef CRICKET_PROFILE
+    struct timeval a,b,c,d,e,f;
+    struct timeval la,lb,lc,ld,le,lf, lg;
+    gettimeofday(&a, NULL);
+#endif
+
+
+    if (argc != 3) {
+        printf("wrong number of arguments, use: %s <pid>\n", argv[0]);
+        return -1;
+    }
+
+    cricket_init_gdb(argv[0]);
+
+
+    /* attach to process (both CPU and GPU) */
+    printf("attaching...\n");
+    attach_command(argv[2], !batch_flag);
+
+    if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
+        printf("Cuda api not initialized!\n");
+        return -1;
+    } else if (cuda_api_get_attach_state() != CUDA_ATTACH_STATE_COMPLETE) {
+        printf("Cuda api not attached!\n");
+        return -1;
+    } else {
+        printf("Cuda api initialized and attached!\n");
+    }
+#ifdef CRICKET_PROFILE
+    gettimeofday(&b, NULL);
+#endif
+
+    /* get CUDA debugger API */
+    res = cudbgGetAPI (CUDBG_API_VERSION_MAJOR,
+                       CUDBG_API_VERSION_MINOR,
+                       CUDBG_API_VERSION_REVISION, &cudbgAPI);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+    printf("got API\n");
+
+    if (!cricket_device_get_num(cudbgAPI, &numDev)) {
+        printf("error getting device num\n");
+        goto detach;
+    } else if (numDev != 1) {
+        printf("expected exactly one CUDA device. Found %u\n", numDev);
+        goto detach;
+    }
+
+    CricketDeviceProp dev_prop;
+    if (!cricket_device_get_prop(cudbgAPI, 0, &dev_prop)) {
+        printf("error getting device properties\n");
+        goto detach;
+    }
+    cricket_device_print_prop(&dev_prop);
+
+    warp_mask = malloc(sizeof(uint64_t)*dev_prop.numSMs);
+
+
+    res = cudbgAPI->readValidWarps(0, 0, warp_mask);
+    if (res != CUDBG_SUCCESS) {
+        printf("%d:", __LINE__);
+        goto cuda_error;
+    }
+    for (first_warp=0; first_warp != dev_prop.numWarps; first_warp++) {
+        if (*warp_mask & (1LU<<first_warp)) {
+            if (cricket_cr_kernel_name(cudbgAPI, 0,0,first_warp, &kernel_name)) {
+                break;
+            }
+        }
+    }
+    if (kernel_name == NULL) {
+        fprintf(stderr, "cricket-checkpoint: error getting kernel name!\n");
+        goto detach;
+    } else {
+        printf("checkpointing kernel with name: \"%s\"\n", kernel_name);
+    }
+
+    if (!cricket_elf_build_fun_info(&function_info, &fi_num)) {
+        fprintf(stderr, "failed to build function info array\n");
+        goto detach;
+    }
+   /* for (int i = 0; i < fi_num; ++i) {
+        printf("name: %s, has_room: %d, room %lu\n", function_info[i].name, function_info[i].has_room, function_info[i].room);
+    }*/
+
+    cricket_elf_info elf_info;
+    cricket_elf_get_info(kernel_name, &elf_info);
+    printf("stack-size: %u, param-addr: %u, param-size: %u, param-num: %u\n", elf_info.stack_size, elf_info.param_addr, elf_info.param_size, elf_info.param_num);
+
+    cricketWarpInfo warp_info = {0};
+    warp_info.dev = 0;
+    warp_info.dev_prop = &dev_prop;
+    warp_info.sm = 0;
+    warp_info.warp = 0;
+
+#ifdef CRICKET_PROFILE
+    gettimeofday(&d, NULL);
+#endif
+
+    for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        res = cudbgAPI->readValidWarps(0, sm, warp_mask+sm);
+        if (res != CUDBG_SUCCESS) {
+            printf("%d:", __LINE__);
+            goto cuda_error;
+        }
+        printf("SM %u: %llx - ", sm, warp_mask[sm]);
+        print_binary64(warp_mask[sm]);
+
+        for (uint8_t warp=0; warp != dev_prop.numWarps; warp++) {
+            if (warp_mask[sm] & (1LU<<warp)) {
+
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&la, NULL);
+#endif
+                if (!cricket_cr_kernel_name(cudbgAPI, 0, sm, warp, &warp_kn)) {
+                    fprintf(stderr, "cricket-checkpoint: could not get kernel name for D%uS%uW%u\n", 0,sm,warp);
+                    goto detach;
+                }
+                if (strcmp(warp_kn, kernel_name) != 0) {
+                    fprintf(stderr, "cricket-checkpoint: found kernel \"%s\" while checkpointing kernel \"%s\". only one kernel can be checkpointed\n");
+                    goto detach;
+                }
+
+                warp_info.sm = sm;
+                warp_info.warp = warp;
+                warp_info.kernel_name = kernel_name;
+                warp_info.stack_size = elf_info.stack_size;
+
+                if (!cricket_cr_callstack(cudbgAPI, &warp_info, CRICKET_CR_NOLANE, &callstack)) {
+                    fprintf(stderr, "failed to get callstack\n");
+                    goto detach;
+                }
+
+
+                printf("SM %u warp %u (active): %lx - ", sm, warp, callstack.active_lanes);
+                print_binary32(callstack.active_lanes);
+                printf("SM %u warp %u (valid): %lx - ", sm, warp, callstack.valid_lanes);
+                print_binary32(callstack.valid_lanes);
+
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&lc, NULL);
+#endif
+                if (!cricket_cr_make_checkpointable(cudbgAPI, &warp_info, function_info, fi_num, &callstack)) {
+                    fprintf(stderr, "cricket-checkpoint: could not make checkpointable.\n");
+                    goto detach;
+                }
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&ld, NULL);
+#endif
+
+                if (!cricket_cr_ckp_pc(cudbgAPI, &warp_info, CRICKET_CR_NOLANE, ckp_dir, &callstack)) {
+                    fprintf(stderr, "cricket-checkpoint: ckp_pc failed\n");
+                    goto detach;
+                }
+                cricket_cr_free_callstack(&callstack);
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&le, NULL);
+#endif
+                for (uint8_t lane=0; lane != dev_prop.numLanes; lane++) {
+                    if (callstack.valid_lanes & (1LU<<lane)) {
+                        cricket_cr_ckp_lane(cudbgAPI, &warp_info, lane, ckp_dir);
+
+                    }
+                }
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&lf, NULL);
+#endif
+
+                if (!cricket_cr_ckp_shared(cudbgAPI, ckp_dir, &elf_info, 0,sm,warp)) {
+                    printf("cricket_cr_ckp_shared unsuccessful\n");
+                }
+#ifdef CRICKET_PROFILE
+                 gettimeofday(&lg, NULL);
+                 double lct = ((double)((lc.tv_sec*1000000+lc.tv_usec)-(la.tv_sec*1000000+la.tv_usec)))/1000000.;
+                 double ldt = ((double)((ld.tv_sec*1000000+ld.tv_usec)-(lc.tv_sec*1000000+lc.tv_usec)))/1000000.;
+                 double let = ((double)((le.tv_sec*1000000+le.tv_usec)-(ld.tv_sec*1000000+ld.tv_usec)))/1000000.;
+                 double lft = ((double)((lf.tv_sec*1000000+lf.tv_usec)-(le.tv_sec*1000000+le.tv_usec)))/1000000.;
+                 double lgt = ((double)((lg.tv_sec*1000000+lg.tv_usec)-(lf.tv_sec*1000000+lf.tv_usec)))/1000000.;
+                 printf("warp time:\n\tPROFILE misc: %f s\n\tPROFILE checkpointable: %f s\n\tPROFILE pc: %f s\n\tPROFILE lane: %f s\n\tPROFILE shared: %f s\n",lct,ldt,let,lft,lgt);
+#endif
+            }
+        }
+    }
+
+#ifdef CRICKET_PROFILE
+    gettimeofday(&e, NULL);
+#endif
+
+    if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0,0,first_warp)) {
+        printf("cricket_cr_ckp_params unsuccessful\n");
+    }
+
+
+    if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
+        printf("cricket_cr_ckp_globals unsuccessful\n");
+    }
+    
+#ifdef CRICKET_PROFILE
+    gettimeofday(&f, NULL);
+
+    double bt = ((double)((b.tv_sec*1000000+b.tv_usec)-(a.tv_sec*1000000+a.tv_usec)))/1000000.;
+    double dt = ((double)((d.tv_sec*1000000+d.tv_usec)-(b.tv_sec*1000000+b.tv_usec)))/1000000.;
+    double et = ((double)((e.tv_sec*1000000+e.tv_usec)-(d.tv_sec*1000000+d.tv_usec)))/1000000.;
+    double ft = ((double)((f.tv_sec*1000000+f.tv_usec)-(e.tv_sec*1000000+e.tv_usec)))/1000000.;
+    double comt = ((double)((f.tv_sec*1000000+f.tv_usec)-(a.tv_sec*1000000+a.tv_usec)))/1000000.;
+    printf("complete time:\n\tPROFILE attach: %f s\n\tPROFILE init: %f s\n\tPROFILE inkernel: %f s\n\tPROFILE outkernel: %f s\n\tPROFILE complete: %f s\n",bt,dt,et,ft,comt);
+#endif
+
+    ret = 0;
+    goto detach;
+ cuda_error:
+    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+ detach:
+    free (function_info);
+    /* Detach from process (CPU and GPU) */
+    detach_command(NULL, !batch_flag);
+    /* finalize, i.e. clean up CUDA debugger API */
+    cuda_api_finalize();
+
+    /* quit GDB. TODO: Why is this necccessary? */
+    quit_force (NULL, 0);
+    return ret;
+}
+
+
+int cricket_start(int argc, char* argv[]) 
+{
+    CUDBGResult res;
+    if (argc != 3) {
+        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        return -1;
+    }
+
+    cricket_init_gdb(argv[0]);
+
+    /* load files */
+    exec_file_attach(argv[2], !batch_flag);
+    symbol_file_add_main(argv[2], !batch_flag);
+
+    struct cmd_list_element *c;
+    char *pset = "set cuda break_on_launch all";
+    c = lookup_cmd(&pset, cmdlist, "", 0, 1);
+    do_set_command(pset, !batch_flag, c);
+
+    char *prun = "run";
+    c = lookup_cmd(&prun, cmdlist, "", 0, 1);
+    cmd_func(c, prun, !batch_flag);
+
+ detach:
+    /* Detach from process (CPU and GPU) */
+    detach_command(NULL, !batch_flag);
+    /* quit GDB. TODO: Why is this necccessary? */
+    quit_force (NULL, 0);
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2) {
+        fprintf(stderr, "wrong number of arguments, use: %s (start|checkpoint|restore)\n", argv[0]);
+        return -1;
+    }
+    if (strcmp(argv[1], "start") == 0)
+        return cricket_start(argc,argv);
+    if (strcmp(argv[1], "checkpoint") == 0)
+        return cricket_checkpoint(argc, argv);
+    if (strcmp(argv[1], "restore") == 0 || strcmp(argv[1], "restart") == 0)
+        return cricket_restore(argc, argv);
+    if (strcmp(argv[1], "analyze") == 0)
+        return cricket_analyze(argc, argv);
+
+    fprintf(stderr, "Unknown operation \"%s\".\n", argv[1]);
+    return -1;
 }
