@@ -12,7 +12,7 @@ bool cricket_focus_host(bool batch_flag)
     char *threadcmd = "thread 1";
     c = lookup_cmd(&threadcmd, cmdlist, "", 0, 1);
 
-    if (c == NULL || c == (struct cmd_list_element *) -1)
+    if (c == NULL || c == (struct cmd_list_element *)-1)
         return false;
 
     if (!cmd_func_p(c))
@@ -28,7 +28,7 @@ bool cricket_focus_kernel(bool batch_flag)
     char *threadcmd = "cuda kernel 0";
     c = lookup_cmd(&threadcmd, cmdlist, "", 0, 1);
 
-    if (c == NULL || c == (struct cmd_list_element *) -1)
+    if (c == NULL || c == (struct cmd_list_element *)-1)
         return false;
 
     if (!cmd_func_p(c))
@@ -47,7 +47,6 @@ bool cricket_heap_memreg_size(void *addr, size_t *size)
     if (size == NULL)
         return false;
 
-
     if (asprintf(&callstr, "getSize(0x%llx)", addr) == -1)
         return false;
 
@@ -62,8 +61,5 @@ bool cricket_heap_memreg_size(void *addr, size_t *size)
     if (*size == 0)
         return false;
 
-
     return true;
 }
-
-

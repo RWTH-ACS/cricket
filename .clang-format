@@ -1,47 +1,99 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# clang-format configuration file. Intended for clang-format >= 4.
+#
+# For more information, see:
+#
+#   Documentation/process/clang-format.rst
+#   https://clang.llvm.org/docs/ClangFormat.html
+#   https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+#
 ---
-# BasedOnStyle:  LLVM
-AccessModifierOffset: -2
-ConstructorInitializerIndentWidth: 4
-AlignEscapedNewlinesLeft: false
-AlignTrailingComments: true
-AllowAllParametersOfDeclarationOnNextLine: true
+
+# Many of the options are commented out, because the old clang-format on CentOS
+# does not support them.
+
+AccessModifierOffset: -4
+# AlignAfterOpenBracket: Align
+# AlignConsecutiveAssignments: false
+# AlignConsecutiveDeclarations: false
+# AlignOperands: true
+# AlignTrailingComments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+# AllowShortBlocksOnASingleLine: false
+# AllowShortCaseLabelsOnASingleLine: false
+# AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakTemplateDeclarations: false
+# AlwaysBreakAfterDefinitionReturnType: None
+# AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-BreakBeforeBinaryOperators: false
-BreakBeforeTernaryOperators: true
-BreakConstructorInitializersBeforeComma: false
+AlwaysBreakTemplateDeclarations: false
+# BinPackArguments: true
 BinPackParameters: true
-ColumnLimit:     80
+# BraceWrapping:
+  # AfterClass: false
+  # AfterControlStatement: false
+  # AfterEnum: false
+  # AfterFunction: true
+  # AfterNamespace: true
+  # AfterObjCDeclaration: false
+  # AfterStruct: false
+  # AfterUnion: false
+  # BeforeCatch: false
+  # BeforeElse: false
+  # IndentBraces: false
+# BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Linux
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializersBeforeComma: false
+# BreakAfterJavaFieldAnnotations: false
+# BreakStringLiterals: false
+ColumnLimit: 80
+# CommentPragmas: '^ IWYU pragma:'
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
-DerivePointerBinding: false
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: false
+# DisableFormat: false
 ExperimentalAutoDetectBinPacking: false
 IndentCaseLabels: false
+IndentWidth: 4
+# IndentWrappedFunctionNames: false
+# JavaScriptQuotes: Leave
+# JavaScriptWrapImports: true
+# KeepEmptyLinesAtTheStartOfBlocks: false
+# MacroBlockBegin: ''
+# MacroBlockEnd: ''
 MaxEmptyLinesToKeep: 1
-NamespaceIndentation: None
-ObjCSpaceBeforeProtocolList: true
-PenaltyBreakBeforeFirstCallParameter: 19
-PenaltyBreakComment: 60
-PenaltyBreakString: 1000
-PenaltyBreakFirstLessLess: 120
-PenaltyExcessCharacter: 1000000
-PenaltyReturnTypeOnItsOwnLine: 60
-PointerBindsToType: false
-SpacesBeforeTrailingComments: 1
-Cpp11BracedListStyle: false
-Standard:        Cpp03
-IndentWidth:     2
-TabWidth:        8
-UseTab:          Never
-BreakBeforeBraces: Attach
-IndentFunctionDeclarationAfterType: false
-SpacesInParentheses: false
-SpacesInAngles:  false
-SpaceInEmptyParentheses: false
-SpacesInCStyleCastParentheses: false
-SpaceAfterControlStatementKeyword: true
-SpaceBeforeAssignmentOperators: true
-ContinuationIndentWidth: 4
-...
+NamespaceIndentation: Inner
+# ObjCBlockIndentWidth: 4
+# ObjCSpaceAfterProperty: true
+# ObjCSpaceBeforeProtocolList: true
 
+# Taken from git's rules
+PenaltyBreakBeforeFirstCallParameter: 30
+PenaltyBreakComment: 10
+PenaltyBreakFirstLessLess: 0
+PenaltyBreakString: 10
+PenaltyExcessCharacter: 100
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# PointerAlignment: Right
+# ReflowComments: false
+# SortIncludes: false
+# SpaceAfterCStyleCast: false
+# SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+# SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: false
+# SpacesInContainerLiterals: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+# SpacesInSquareBrackets: false
+Standard: Cpp03
+TabWidth: 4
+UseTab: Never
+...

@@ -2,19 +2,20 @@
 #include "defs.h"
 #include "cricket-device.h"
 
-
 bool cricket_device_get_num(CUDBGAPI cudbgAPI, uint32_t *dev_num)
 {
     CUDBGResult res;
     res = cudbgAPI->getNumDevices(dev_num);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_device_get_num (%s):%s\n", __LINE__, cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_device_get_num (%s):%s\n", __LINE__,
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
 }
 
-bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index, CricketDeviceProp *prop)
+bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index,
+                             CricketDeviceProp *prop)
 {
     CUDBGResult res = CUDBG_SUCCESS;
     const size_t STRLEN = 64;
@@ -79,16 +80,17 @@ bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index, CricketDe
 
     return true;
 
- error:
+error:
     free(prop->smType);
- error_smType:
+error_smType:
     free(prop->type);
- error_type:
+error_type:
     free(prop->name);
- error_name:
+error_name:
     free(prop);
- error_prop:
-    fprintf(stderr, "cricket_device_get_prop error: \"%s\"\n", cudbgGetErrorString(res));
+error_prop:
+    fprintf(stderr, "cricket_device_get_prop error: \"%s\"\n",
+            cudbgGetErrorString(res));
     return false;
 }
 

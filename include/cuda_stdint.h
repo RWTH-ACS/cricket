@@ -67,21 +67,22 @@
 // In VS including stdint.h forces the C++ runtime dep - provide an opt-out
 // (CU_STDINT_VS_FORCE_NO_STDINT_H) for users that care (notably static
 // cudart).
-#if defined(_MSC_VER) && ((_MSC_VER < 1600) || defined(CU_STDINT_VS_FORCE_NO_STDINT_H))
+#if defined(_MSC_VER) &&                                                       \
+    ((_MSC_VER < 1600) || defined(CU_STDINT_VS_FORCE_NO_STDINT_H))
 
 // These definitions can be used with MSVC 8 and 9,
 // which don't ship with stdint.h:
 
-typedef            char    int8_t;
-typedef unsigned   char   uint8_t;
+typedef char int8_t;
+typedef unsigned char uint8_t;
 
-typedef            short  int16_t;
-typedef unsigned   short uint16_t;
+typedef short int16_t;
+typedef unsigned short uint16_t;
 
-typedef            long   int32_t;
-typedef unsigned   long  uint32_t;
+typedef long int32_t;
+typedef unsigned long uint32_t;
 
-typedef          __int64  int64_t;
+typedef __int64 int64_t;
 typedef unsigned __int64 uint64_t;
 
 #elif defined(__DJGPP__)
@@ -90,17 +91,17 @@ typedef unsigned __int64 uint64_t;
 // C code with DJGPP, which only provides stdint.h
 // when compiling C++ code with TR1 enabled.
 
-typedef               char    int8_t;
-typedef unsigned      char   uint8_t;
+typedef char int8_t;
+typedef unsigned char uint8_t;
 
-typedef               short  int16_t;
-typedef unsigned      short uint16_t;
+typedef short int16_t;
+typedef unsigned short uint16_t;
 
-typedef               long   int32_t;
-typedef unsigned      long  uint32_t;
+typedef long int32_t;
+typedef unsigned long uint32_t;
 
-typedef          long long   int64_t;
-typedef unsigned long long  uint64_t;
+typedef long long int64_t;
+typedef unsigned long long uint64_t;
 
 #else
 
@@ -115,6 +116,5 @@ typedef unsigned long long  uint64_t;
 #endif
 
 #endif // !defined(CU_STDINT_TYPES_ALREADY_DEFINED)
-
 
 #endif // file guard

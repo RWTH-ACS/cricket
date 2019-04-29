@@ -2,83 +2,112 @@
 
 #include <stdio.h>
 
-static bool cricket_register_rst_system_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, uint32_t register_num)
+static bool cricket_register_rst_system_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                             uint32_t sm, uint32_t warp,
+                                             uint32_t lane, void *register_data,
+                                             uint32_t register_num)
 {
     CUDBGResult res;
-    uint32_t *regd = (uint32_t*)register_data;
+    uint32_t *regd = (uint32_t *)register_data;
     for (uint32_t i = 0; i < register_num; ++i) {
-        //printf("setting R%u to %lx\n", i, regd[i]);
+        // printf("setting R%u to %lx\n", i, regd[i]);
         res = cudbgAPI->writeRegister(dev, sm, warp, lane, i, regd[i]);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket_register_system_data \"%s\"\n", cudbgGetErrorString(res));
+            fprintf(stderr, "cricket_register_system_data \"%s\"\n",
+                    cudbgGetErrorString(res));
             return false;
         }
     }
     return true;
 }
 
-static bool cricket_register_rst_cc_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data)
+static bool cricket_register_rst_cc_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                         uint32_t sm, uint32_t warp,
+                                         uint32_t lane, void *register_data)
 {
     CUDBGResult res;
-    res = cudbgAPI->writeCCRegister(dev, sm, warp, lane, *(uint32_t*)register_data);
+    res = cudbgAPI->writeCCRegister(dev, sm, warp, lane,
+                                    *(uint32_t *)register_data);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_register_cc_data \"%s\"\n", cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_register_cc_data \"%s\"\n",
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
 }
 
-static bool cricket_register_rst_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, uint32_t register_num)
+static bool cricket_register_rst_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                                uint32_t sm, uint32_t warp,
+                                                uint32_t lane,
+                                                void *register_data,
+                                                uint32_t register_num)
 {
     CUDBGResult res;
-    res = cudbgAPI->writePredicates(dev, sm, warp, lane, register_num, register_data);
+    res = cudbgAPI->writePredicates(dev, sm, warp, lane, register_num,
+                                    register_data);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_register_predicate_data \"%s\"\n", cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_register_predicate_data \"%s\"\n",
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
 }
 
-static bool cricket_register_ckp_system_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, uint32_t register_num)
+static bool cricket_register_ckp_system_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                             uint32_t sm, uint32_t warp,
+                                             uint32_t lane, void *register_data,
+                                             uint32_t register_num)
 {
     CUDBGResult res;
 
-    //uint32_t *regd = (uint32_t*)register_data;
-    //for (uint32_t i = 0; i < register_num; ++i) {
+    // uint32_t *regd = (uint32_t*)register_data;
+    // for (uint32_t i = 0; i < register_num; ++i) {
     //    res = cudbgAPI->readRegister(dev, sm, warp, lane, i, regd+i);
     //    //printf("reading R%u: %lx\n", i, regd[i]);
     //    if (res != CUDBG_SUCCESS) {
-    //        fprintf(stderr, "cricket_register_system_data \"%s\"\n", cudbgGetErrorString(res));
+    //        fprintf(stderr, "cricket_register_system_data \"%s\"\n",
+    // cudbgGetErrorString(res));
     //        return false;
     //    }
     //}
-    res = cudbgAPI->readRegisterRange(dev, sm, warp, lane, 0, register_num, register_data);
-    //for (int i =0 ; i != register_num; ++i)
+    res = cudbgAPI->readRegisterRange(dev, sm, warp, lane, 0, register_num,
+                                      register_data);
+    // for (int i =0 ; i != register_num; ++i)
     //    printf("read R%d as %lx\n", i, ((uint32_t*)register_data)[i]);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_register_system_data \"%s\"\n", cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_register_system_data \"%s\"\n",
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
 }
 
-static bool cricket_register_ckp_cc_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data)
+static bool cricket_register_ckp_cc_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                         uint32_t sm, uint32_t warp,
+                                         uint32_t lane, void *register_data)
 {
     CUDBGResult res;
     res = cudbgAPI->readCCRegister(dev, sm, warp, lane, register_data);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_register_cc_data \"%s\"\n", cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_register_cc_data \"%s\"\n",
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
 }
 
-static bool cricket_register_ckp_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, uint32_t register_num)
+static bool cricket_register_ckp_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev,
+                                                uint32_t sm, uint32_t warp,
+                                                uint32_t lane,
+                                                void *register_data,
+                                                uint32_t register_num)
 {
     CUDBGResult res;
-    res = cudbgAPI->readPredicates(dev, sm, warp, lane, register_num, register_data);
+    res = cudbgAPI->readPredicates(dev, sm, warp, lane, register_num,
+                                   register_data);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_register_predicate_data \"%s\"\n", cudbgGetErrorString(res));
+        fprintf(stderr, "cricket_register_predicate_data \"%s\"\n",
+                cudbgGetErrorString(res));
         return false;
     }
     return true;
@@ -86,43 +115,51 @@ static bool cricket_register_ckp_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev,
 
 size_t cricket_register_size(CricketDeviceProp *prop)
 {
-    return (prop->numRegisters + prop->numPredicates + 1)*sizeof(uint32_t);
+    return (prop->numRegisters + prop->numPredicates + 1) * sizeof(uint32_t);
 }
 
-bool cricket_register_rst(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, CricketDeviceProp *prop)
+bool cricket_register_rst(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
+                          uint32_t warp, uint32_t lane, void *register_data,
+                          CricketDeviceProp *prop)
 {
     bool ret = false;
     void *dpos = register_data;
-    ret = cricket_register_rst_system_data(cudbgAPI, dev, sm, warp, lane, dpos, prop->numRegisters);
+    ret = cricket_register_rst_system_data(cudbgAPI, dev, sm, warp, lane, dpos,
+                                           prop->numRegisters);
     if (!ret)
         return ret;
 
-    dpos += sizeof(uint32_t)*prop->numRegisters;
+    dpos += sizeof(uint32_t) * prop->numRegisters;
     ret = cricket_register_rst_cc_data(cudbgAPI, dev, sm, warp, lane, dpos);
     if (!ret)
         return ret;
 
     dpos += sizeof(uint32_t);
-    ret = cricket_register_rst_predicate_data(cudbgAPI, dev, sm, warp, lane, dpos, prop->numPredicates);
+    ret = cricket_register_rst_predicate_data(cudbgAPI, dev, sm, warp, lane,
+                                              dpos, prop->numPredicates);
 
     return ret;
 }
 
-bool cricket_register_ckp(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm, uint32_t warp, uint32_t lane, void *register_data, CricketDeviceProp *prop)
+bool cricket_register_ckp(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
+                          uint32_t warp, uint32_t lane, void *register_data,
+                          CricketDeviceProp *prop)
 {
     bool ret = false;
     void *dpos = register_data;
-    ret = cricket_register_ckp_system_data(cudbgAPI, dev, sm, warp, lane, dpos, prop->numRegisters);
+    ret = cricket_register_ckp_system_data(cudbgAPI, dev, sm, warp, lane, dpos,
+                                           prop->numRegisters);
     if (!ret)
         return ret;
 
-    dpos += sizeof(uint32_t)*prop->numRegisters;
+    dpos += sizeof(uint32_t) * prop->numRegisters;
     ret = cricket_register_ckp_cc_data(cudbgAPI, dev, sm, warp, lane, dpos);
     if (!ret)
         return ret;
 
     dpos += sizeof(uint32_t);
-    ret = cricket_register_ckp_predicate_data(cudbgAPI, dev, sm, warp, lane, dpos, prop->numPredicates);
+    ret = cricket_register_ckp_predicate_data(cudbgAPI, dev, sm, warp, lane,
+                                              dpos, prop->numPredicates);
 
     return ret;
 }
