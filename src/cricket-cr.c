@@ -118,7 +118,7 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
     register_size = cricket_register_size(wi->dev_prop);
     if ((reg_mem = malloc(register_size)) == NULL) {
         fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
+                "cricket-cr (%u): error during memory allocation of size %lu\n",
                 __LINE__, register_size);
         goto cleanup;
     }
@@ -154,7 +154,7 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     if ((stack_mem = malloc(wi->stack_size)) == NULL) {
         fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
+                "cricket-cr (%d): error during memory allocation of size %lu\n",
                 __LINE__, register_size);
         goto cleanup;
     }
@@ -245,7 +245,7 @@ bool cricket_cr_ckp_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
         printf("instr: 0x%lx\n", cur_instr);
         if (((cur_instr >> 32) & 0xfff00000L) == CRICKET_INSTR_SSY_PREFIX) {
             rel_syn_pc = ((cur_instr >> 20) & 0x000ffffffffL);
-            printf("rel_syn_pc: %lx\n", rel_syn_pc);
+            printf("rel_syn_pc: %x\n", rel_syn_pc);
             syn_pc = (pc - offset) + rel_syn_pc + 0x8;
             printf("syn_pc: %lx, is bigger: %d\n", syn_pc, syn_pc > pc);
 
@@ -672,7 +672,7 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
         fprintf(stderr, "cricket-cr: error getting function name\n");
         goto cleanup;
     }
-    printf("relative %x, virtual %x\n", pc_data[0].relative, pc_data[0].virt);
+    printf("relative %lx, virtual %lx\n", pc_data[0].relative, pc_data[0].virt);
 
     pc_data[0].str_offset = 0;
     str_offset = strlen(function_names[0]) + 1;
@@ -1007,7 +1007,7 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                     callstack->function_names[i]);
             goto cleanup;
         }
-        printf("function \"%s\" has %sroom (%d slots)\n",
+        printf("function \"%s\" has %sroom (%lu slots)\n",
                callstack->function_names[i], (the_fi->has_room ? "" : "no "),
                the_fi->room);
         if (i == callstack->callstack_size - 1 && the_fi->room == 0) {
@@ -1355,7 +1355,7 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
     register_size = cricket_register_size(wi->dev_prop);
     if ((mem = realloc(mem, register_size)) == NULL) {
         fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
+                "cricket-cr (%lu): error during memory allocation of size %lu\n",
                 __LINE__, register_size);
         goto cleanup;
     }
@@ -1388,7 +1388,7 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     if ((mem = realloc(mem, sizeof(uint64_t))) == NULL) {
         fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
+                "cricket-cr (%u): error during memory allocation of size %lu\n",
                 __LINE__, sizeof(uint64_t));
         goto cleanup;
     }
@@ -1559,7 +1559,7 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             continue;
         }
 
-        printf("heap param %u: %llx (%u)\n", i,
+        printf("heap param %u: %llx (%lu)\n", i,
                *(void **)(param_mem + elf_info->params[i].offset), heapsize);
 
         if ((param_data = realloc(param_data, heapsize)) == NULL) {
@@ -1863,7 +1863,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
                    globals[i].symbol);
             continue;
         }
-        printf("heap param %u: %llx (%u)\n", i,
+        printf("heap param %u: %llx (%lu)\n", i,
                *(void **)(globals_mem + offset), heapsize);
 
         if ((globals_data = realloc(globals_data, heapsize)) == NULL) {

@@ -147,7 +147,7 @@ bool cricket_file_read_mem_size(const char *path, cricketDataType data_type,
         *data = malloc(*size);
     } else if (*size > alloc_size) {
         fprintf(stderr, "cricket-file: allocated size to small. require at "
-                        "least %u bytes.\n",
+                        "least %lu bytes.\n",
                 *size);
         goto cleanup;
     }

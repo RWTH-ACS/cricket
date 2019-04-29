@@ -7,7 +7,7 @@ bool cricket_device_get_num(CUDBGAPI cudbgAPI, uint32_t *dev_num)
     CUDBGResult res;
     res = cudbgAPI->getNumDevices(dev_num);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket_device_get_num (%s):%s\n", __LINE__,
+        fprintf(stderr, "cricket_device_get_num (%d):%s\n", __LINE__,
                 cudbgGetErrorString(res));
         return false;
     }

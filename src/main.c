@@ -1014,8 +1014,7 @@ int cricket_checkpoint(int argc, char *argv[])
                     fprintf(stderr,
                             "cricket-checkpoint: found kernel \"%s\" while "
                             "checkpointing kernel \"%s\". only one kernel can "
-                            "be "
-                            "checkpointed\n");
+                            "be checkpointed\n");
                     goto detach;
                 }
 

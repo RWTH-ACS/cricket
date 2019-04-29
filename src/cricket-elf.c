@@ -89,7 +89,7 @@ static void cricket_elf_get_symbols(struct objfile *objfile)
             i++;
             continue;
         }
-        printf("%d: name: %s, section:%u, size: %u, type: %u\n", i++,
+        printf("%d: name: %s, section:%u, size: %lu, type: %u\n", i++,
                msymbol->ginfo.name, msymbol->ginfo.section, msymbol->size,
                MSYMBOL_TYPE(msymbol));
         if (msymbol->ginfo.name[0] != '.') {
@@ -326,7 +326,7 @@ static bool cricket_elf_extract_shared_size(struct objfile *objfile,
 {
     if (size == NULL)
         return false;
-    printf("sh memory size: %u\n", shdr->sh_size);
+    printf("sh memory size: %lu\n", shdr->sh_size);
     *size = shdr->sh_size;
     return *size > 0;
 }
@@ -860,7 +860,7 @@ static bool cricket_elf_patch(const char *filename, size_t filepos,
 {
     FILE *fd = NULL;
     bool ret = false;
-    printf("patch %s @ %u with data of size %u\n", filename, filepos,
+    printf("patch %s @ %zu with data of size %lu\n", filename, filepos,
            patch_size);
 
     if (filename == NULL || patch_data == NULL) {
@@ -1043,7 +1043,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         jmptbl[jmptbl_i].cal_num = cal_num;
 
         if (bpt_num < ssy_num * 2 + cal_num * 2 + 3) {
-            printf("too little room available: required: %u, available: %u\n",
+            printf("too little room available: required: %lu, available: %u\n",
                    ssy_num * 2 + cal_num * 2 + 2, bpt_num);
             continue;
         }
@@ -1123,8 +1123,8 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         data[data_i++] = CRICKET_SASS_BRX(0);
 
         if (data_i * sizeof(uint64_t) > data_size) {
-            fprintf(stderr, "cricket-elf: too much data to write: have %u, "
-                            "need %u bytes\n",
+            fprintf(stderr, "cricket-elf: too much data to write: have %lu, "
+                            "need %lu bytes\n",
                     data_size, data_i * sizeof(uint64_t));
             goto cleanup;
         }
@@ -1222,7 +1222,7 @@ bool cricket_elf_analyze(const char *filename)
 
 #ifdef _CRICKET_ELF_DEBUG_
     cricket_elf_print_symtab(hostbfd);
-    printf("name: %s, index: %d, size %lx, pos:%lx\n", section->name,
+    printf("name: %s, index: %d, size %lx, pos:%x\n", section->name,
            section->index, section->size, (void *)section->filepos);
 #endif
     fatbin_pos = section->filepos + 0x50;
@@ -1304,7 +1304,7 @@ bool cricket_elf_analyze(const char *filename)
             printf(" => function \"%s\" requires %u slot\n\n", section->name,
                    2);
         } else {
-            printf(" => function \"%s\" requires %u slots\n\n", section->name,
+            printf(" => function \"%s\" requires %lu slots\n\n", section->name,
                    fixed_num + ssy_num * 2 + cal_num * 2);
         }
         free(ssy);
