@@ -24,7 +24,8 @@ LIBCUDA_LIBS = -ldl
 FILES := matmul.cu
 
 .PHONY: all depend clean dmtcpclean
-all : $(TEST_API_BIN) $(TEST_CPU_BIN) $(TEST_KERNEL_BIN) $(BINARY) $(LIBCUDA_WRAPPER)
+all : $(TEST_API_BIN) $(TEST_CPU_BIN) $(TEST_KERNEL_BIN) $(BINARY)
+# we are not building $(LIBCUDA_WRAPPER) here, because this currently breaks the tests
 
 $(TEST_CPU_O) : $(FILES)
 	$(CC) -DTEST_CPU $(CFLAGS) -dc -o $@ $<
