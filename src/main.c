@@ -374,7 +374,7 @@ int cricket_restore(int argc, char *argv[])
     // currently broken.
     cudbgAPI->readVirtualPC(0, 0, first_warp, 0, &rb_address);
     printf("rb %lx\n", rb_address);
-    // Calculate the virtual (absolute) address from current (vitual) 
+    // Calculate the virtual (absolute) address from current (vitual)
     // address and (relative) jumtable address
     jmptable_addr = rb_address + kernelindex->start_address - 0x8;
 
@@ -479,8 +479,7 @@ int cricket_restore(int argc, char *argv[])
                     printf("cricket-cr: did not find callstack. exiting "
                            "warp...\n");
                     for (uint32_t lane = 0;
-                         lane != warp_info.dev_prop->numLanes;
-                         lane++) {
+                         lane != warp_info.dev_prop->numLanes; lane++) {
                         if (lanemask & (1LU << lane)) {
                             res = cudbgAPI->writeRegister(
                                 warp_info.dev, warp_info.sm, warp_info.warp,
@@ -803,10 +802,10 @@ int cricket_restore(int argc, char *argv[])
            "globals: %f s\n\tPROFILE inkernel %f s\n\tPROFILE complete: %f s\n",
            bt, ct, dt, et, ft, gt, comt);
 #endif
-    //The comment below is for single stepping threads a bit further to check
-    //if everything was restored correctly. If something was restored wrong,
-    //it often only shows after a few instructions. Error reporting without
-    //single stepping is not exact enough to determine what went wrong.
+    // The comment below is for single stepping threads a bit further to check
+    // if everything was restored correctly. If something was restored wrong,
+    // it often only shows after a few instructions. Error reporting without
+    // single stepping is not exact enough to determine what went wrong.
     /*
         CUDBGException_t exc = 0;
         uint64_t errorPC;
