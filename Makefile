@@ -1,7 +1,6 @@
 #MIT License...
 BINARY = cricket
 
-GDB_SRC = /global/cluster/cuda-gdb
 CUDA_SRC = /usr/local/cuda
 
 CC = gcc
@@ -12,12 +11,12 @@ INC_DIRS := -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common -
 LIB_DIR := lib
 BUILD_DIR := build
 
-DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=$(GDB_SRC)/gdb/proc-service.list
+DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=utils/proc-service.list
 # Order of .a files is important!
 SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
-CFLAGS = -std=gnu99 
-LDFLAGS = $(CFLAGS) 
+CFLAGS = -std=gnu99
+LDFLAGS = $(CFLAGS)
 # generate the names like src/main.o src/main.d
 SRCS_C := $(wildcard $(SRC_DIR)/*.c)
 SRCS_BASE := $(patsubst %.c,%,$(SRCS_C))
@@ -26,9 +25,11 @@ DEPS := $(addsuffix .d,$(BUILD_BASE))
 OBJS := $(addsuffix .o,$(BUILD_BASE))
 
 
-.PHONY: all clean show tests
+.PHONY: all objs clean show tests
 
 all: $(DEPS) $(BINARY)
+
+objs: $(OBJS)
 
 build:  # create the build/ directory if it doesn't exist
 	mkdir -p $@

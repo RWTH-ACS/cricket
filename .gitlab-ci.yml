@@ -1,0 +1,62 @@
+variables:
+  GIT_STRATEGY: fetch
+  GIT_SUBMODULE_STRATEGY: recursive
+  PREFIX: /usr/
+  DOCKER_FILE: utils/Dockerfile
+  DOCKER_TAG: ${CI_COMMIT_REF_NAME}
+  DOCKER_IMAGE_DEV: cricket
+  # MAKE_OPTS: -j 16
+
+stages:
+  - prepare
+  - build
+  - test
+
+# For some reason, GitLab CI prunes the contents of the submodules so we need to restore them.
+# before_script:
+  # - git submodule foreach git checkout .
+
+# Stage: prepare
+##############################################################################
+
+# Build docker image
+prepare:centos7:docker-dev:
+  stage: prepare
+  script:
+    - docker build
+        --file ${DOCKER_FILE}
+        --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG} .
+  tags:
+    - shell
+    - linux
+
+# check if styleguide is fulfilled
+style_check:
+  stage: build
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+  tags:
+    - docker
+  script:
+    - ls
+    - utils/test_style.sh
+
+# Stage: build
+##############################################################################
+
+build:
+  stage: build
+
+  script:
+   - make
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - build/
+      - cricket
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+  tags:
+    - docker
+  # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
+  # cache:
+  #   paths:
+  #     - "*.o"

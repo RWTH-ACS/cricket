@@ -3,12 +3,12 @@
 #include <stdio.h>
 #include "cuda-tdep.h"
 
+#include <sys/time.h>
+#include "cricket-elf.h"
 #include "cricket-file.h"
-#include "cricket-stack.h"
 #include "cricket-heap.h"
 #include "cricket-register.h"
-#include "cricket-elf.h"
-#include <sys/time.h>
+#include "cricket-stack.h"
 
 bool cricket_cr_function_name(uint64_t pc, const char **name)
 {
@@ -678,7 +678,6 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
     str_offset = strlen(function_names[0]) + 1;
 
     for (i = 1; i < callstack_size; ++i) {
-
         res = cudbgAPI->readReturnAddress(wi->dev, wi->sm, wi->warp, lane,
                                           i - 1, &pc_data[i].relative);
         if (res != CUDBG_SUCCESS) {
@@ -1354,8 +1353,8 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
     }
     register_size = cricket_register_size(wi->dev_prop);
     if ((mem = realloc(mem, register_size)) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%lu): error during memory allocation of size %lu\n",
+        fprintf(stderr, "cricket-cr (%lu): error during memory allocation of "
+                        "size %lu\n",
                 __LINE__, register_size);
         goto cleanup;
     }
