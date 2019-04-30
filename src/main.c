@@ -212,11 +212,18 @@ int cricket_restore(int argc, char *argv[])
     struct timeval a, b, c, d, e, f, g;
     gettimeofday(&a, NULL);
 #endif
+
+    /* Patches binary, replacing breakpoints in all code segments
+     * with the jumptable that is able to restore any
+     * synchornization state (SSY), subcall state (PRET) and
+     * PC (JMX/BRX).
+     */
     if (!cricket_elf_patch_all(argv[2], patched_binary, &jmptbl, &jmptbl_len)) {
         fprintf(stderr, "cricket-cr: error while patching binary\n");
         return -1;
     }
 
+    // Print the jumptable
     for (size_t i = 0; i < jmptbl_len; ++i) {
         printf("\t\"%s\"\n", jmptbl[i].function_name);
         for (size_t j = 0; j < jmptbl[i].ssy_num; ++j) {
@@ -230,6 +237,9 @@ int cricket_restore(int argc, char *argv[])
         printf("\tSYNC@%lx\n\n", jmptbl[i].sync_address);
     }
 
+    /* Read callstacks for all warps from checkpoint file.
+     * The highest level function is the kernel we want to start later.
+     */
     for (first_warp = 0; first_warp != 32; first_warp++) {
         warp_info.warp = first_warp;
         if (cricket_cr_read_pc(&warp_info, CRICKET_CR_NOLANE, ckp_dir,
@@ -239,29 +249,28 @@ int cricket_restore(int argc, char *argv[])
         }
     }
     kernel_name = callstack.function_names[callstack.callstack_size - 1];
+
 #ifdef CRICKET_PROFILE
     // b-c = PROFILE runattach
     gettimeofday(&b, NULL);
 #endif
-    /*
-        if (!cricket_elf_restore_patch(argv[2], patched_binary, &callstack)) {
-            printf("cricket patch unsuccessful\n");
-            return -1;
-        }*/
-    // return 0;
+
     cricket_init_gdb(patched_binary);
 
-    /* load files */
+    // load the patched binary
     exec_file_attach(patched_binary, !batch_flag);
     symbol_file_add_main(patched_binary, !batch_flag);
 
+    // break when the kernel launches
     struct cmd_list_element *cl;
     tbreak_command((char *)kernel_name, !batch_flag);
 
+    // launch program until breakpoint is reached
     char *prun = "run";
     cl = lookup_cmd(&prun, cmdlist, "", 0, 1);
     cmd_func(cl, prun, !batch_flag);
 
+    // Use the waiting period to get the CUDA debugger API.
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
         printf("Cuda api not initialized!\n");
         return -1;
@@ -282,6 +291,7 @@ int cricket_restore(int argc, char *argv[])
     }
     printf("cricket: got CUDA debugging API\n");
 
+    // We currently only support a single GPU
     uint32_t numDev = 0;
     if (!cricket_device_get_num(cudbgAPI, &numDev)) {
         printf("error getting device num\n");
@@ -291,6 +301,8 @@ int cricket_restore(int argc, char *argv[])
         goto detach;
     }
 
+    // Get device/architecture data so we know how many SMs/warps/lanes
+    // to restore
     CricketDeviceProp dev_prop;
     if (!cricket_device_get_prop(cudbgAPI, 0, &dev_prop)) {
         printf("error getting device properties\n");
@@ -299,6 +311,8 @@ int cricket_restore(int argc, char *argv[])
     printf("cricket: identified device:\n");
     cricket_device_print_prop(&dev_prop);
 
+    // Wait until all warps have reached the breakpoint at the
+    // beginning of the kernel we want to restore
     while (!cricket_all_warps_broken(cudbgAPI, &dev_prop)) {
         printf("waiting for warps to break...\n");
         usleep(500);
@@ -333,6 +347,10 @@ int cricket_restore(int argc, char *argv[])
     uint64_t rb_address;
     bool found_callstack = false;
 
+    // We first need to navigate the jumptable in the kernel entry
+    // function.
+    // Get the jumptable data for this function (each function
+    // has its own jumptable).
     if (!cricket_elf_get_jmptable_index(jmptbl, jmptbl_len, kernel_name,
                                         &kernelindex)) {
         fprintf(stderr, "get jmptable entry failed\n");
@@ -342,24 +360,26 @@ int cricket_restore(int argc, char *argv[])
         fprintf(stderr, "kernel %s not found\n", kernel_name);
         goto detach;
     }
+    // Address where the jumptable starts.
     start_address = kernelindex->start_address + 0x8;
+    // The following is required because of control instructions, which
+    // are always skipped by the debugger.
     if (start_address % (4 * 8) == 0) {
         start_address += 0x8;
     }
     printf("start_address: %lx, virt: %lx, relative: %lx\n", start_address,
            callstack.pc[callstack.callstack_size - 1].virt,
            callstack.pc[callstack.callstack_size - 1].relative);
-    // if (callstack.callstack_size == 1) {
+    // Read the virtual PC (virtual absolute address) where the warps are
+    // currently broken.
     cudbgAPI->readVirtualPC(0, 0, first_warp, 0, &rb_address);
     printf("rb %lx\n", rb_address);
+    // Calculate the virtual (absolute) address from current (vitual) 
+    // address and (relative) jumtable address
     jmptable_addr = rb_address + kernelindex->start_address - 0x8;
-    // } else {
-    //     jmptable_addr = callstack.pc[callstack.callstack_size-1].virt -
-    // callstack.pc[callstack.callstack_size-1].relative +
-    // kernelindex->start_address;
-    // }
 
     for (int sm = 0; sm != dev_prop.numSMs; sm++) {
+        // Only valid warps participate at the kernel's execution
         res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
         if (res != CUDBG_SUCCESS) {
             printf("%d:", __LINE__);
@@ -372,6 +392,7 @@ int cricket_restore(int argc, char *argv[])
         printf("\trb address: %lx\n", rb_address);
         printf("sm %d: resuming warps %lx until %lx\n", sm, warp_mask,
                jmptable_addr);
+        // Goto jumptable with all warps
         res = cudbgAPI->resumeWarpsUntilPC(warp_info.dev, sm, warp_mask,
                                            jmptable_addr);
         if (res != CUDBG_SUCCESS) {
@@ -379,9 +400,11 @@ int cricket_restore(int argc, char *argv[])
             goto cuda_error;
         }
 
+        // Double check if this worked
         cudbgAPI->readVirtualPC(0, sm, first_warp, 0, &rb_address);
         printf("\trb address: %lx\n", rb_address);
 
+        // Wait until all SMs reached the jumptable
         if (!cricket_cr_sm_broken(cudbgAPI, warp_info.dev, sm)) {
             printf("waiting for sm to break...\n");
             while (!cricket_cr_sm_broken(cudbgAPI, warp_info.dev, sm)) {
@@ -395,6 +418,7 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&d, NULL);
 #endif
 
+    // Now restore the thread-local states
     for (int sm = 0; sm != dev_prop.numSMs; sm++) {
         printf("sm %d\n", sm);
         res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
@@ -421,7 +445,7 @@ int cricket_restore(int argc, char *argv[])
                     printf("%d:", __LINE__);
                     goto cuda_error;
                 }
-
+                // Write Predicate 1 to 1 so that we enter the jumptable
                 for (uint32_t lane = 0; lane != dev_prop.numLanes; lane++) {
                     if (lanemask & (1LU << lane)) {
                         res = cudbgAPI->writePredicates(0, sm, warp, lane, 1,
@@ -433,22 +457,30 @@ int cricket_restore(int argc, char *argv[])
                         }
                     }
                 }
+                // Enter the jumptable
                 res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                 if (res != CUDBG_SUCCESS) {
                     printf("%d:", __LINE__);
                     goto cuda_error;
                 }
+                // Double check if we are still where we think we are
                 cudbgAPI->readPC(0, sm, warp, 0, &rb_address);
                 printf("\tcur_address: %lx, rb address: %lx\n", cur_address,
                        rb_address);
                 index = kernelindex;
 
+                // If this warp had already finished execution when the
+                // checkpoint was created, it will not be present in the
+                // checkpoint file, i.e., there is no callstack for this warp.
+                // We let these warps jump to the final return statement and
+                // execute it so they will finish immediately.
                 if (!cricket_cr_read_pc(&warp_info, CRICKET_CR_NOLANE, ckp_dir,
                                         &callstack)) {
                     printf("cricket-cr: did not find callstack. exiting "
                            "warp...\n");
                     for (uint32_t lane = 0;
-                         lane != warp_info.dev_prop->numLanes; lane++) {
+                         lane != warp_info.dev_prop->numLanes;
+                         lane++) {
                         if (lanemask & (1LU << lane)) {
                             res = cudbgAPI->writeRegister(
                                 warp_info.dev, warp_info.sm, warp_info.warp,
@@ -471,9 +503,10 @@ int cricket_restore(int argc, char *argv[])
                     printf("\tsuccess (exit) (%lx = %lx) \n",
                            index->exit_address, rb_address);
                     continue;
-                    // goto detach;
                 }
 
+                // Now restore the callstack. We need to restore the state
+                // at each subcall level.
                 for (int c_level = callstack.callstack_size - 1;
                      c_level + 1 > 0; --c_level) {
                     fn = callstack.function_names[c_level];
@@ -492,6 +525,8 @@ int cricket_restore(int argc, char *argv[])
                                cur_address, rb_address);
                         printf("\t\tsuccess (ssy)\n");
                     }
+                    // If there is another subcall level, we need to jump to
+                    // the jumptable in the called function and enter it.
                     if (c_level > 0) {
                         printf("\t\trestoring subcall\n");
                         if (!cricket_cr_rst_subcall(
@@ -548,7 +583,8 @@ int cricket_restore(int argc, char *argv[])
                         }
                     }
                 }
-                // handle SYNC
+                // if a warp has had diverged lanes/threads, we need to diverge
+                // them again using the SSY and SYNC instructions
                 int predicate_value;
                 if (callstack.active_lanes != callstack.valid_lanes) {
                     for (uint32_t lane = 0;
@@ -595,12 +631,14 @@ int cricket_restore(int argc, char *argv[])
                     cudbgAPI->readPC(0, sm, warp, 1, &rb_address);
                     printf("\tsuccess (sync2) (%lx = %lx) \n", cur_address,
                            rb_address);
+                    // double check
                     uint32_t al, vl;
                     cudbgAPI->readActiveLanes(0, sm, warp, &al);
                     cudbgAPI->readValidLanes(0, sm, warp, &vl);
                     printf("valid: %x, active: %x, goal: %x\n", vl, al,
                            callstack.active_lanes);
                 }
+                // Restore PC
                 if (cur_address != callstack.pc[0].relative) {
                     printf("\tjumping to checkpointed PC %lx\n",
                            callstack.pc[0].relative);
@@ -629,6 +667,10 @@ int cricket_restore(int argc, char *argv[])
                            callstack.pc[0].relative, rb_address);
 
                 } else {
+                    // If there is no jumptable for a subcall, the threads
+                    // must have been stopped at the start of the function
+                    // (guaranteed by checkpoint procedure) so we do not
+                    // have to do anything else here.
                     printf("\tlowest call level has no jmptable. restored to "
                            "PC %lx\n",
                            callstack.pc[0].relative);
@@ -642,79 +684,9 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&e, NULL);
 #endif
 
+    // Now we restore kernel global data, i.e., global variables and
+    // parameters.
     uint64_t pc_rb;
-    // TODO: get proper jmp target
-    /*   uint64_t jmp_addr =
-       callstack.pc[callstack.callstack_size-1].virt-callstack.pc[callstack.callstack_size-1].relative
-       + entry->address - 0x8;
-
-       for (int sm = 0; sm != dev_prop.numSMs; sm++) {
-           res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
-           if (res != CUDBG_SUCCESS) {
-               printf("%d:", __LINE__);
-               goto cuda_error;
-           }
-           if (warp_mask != 0) {
-               res = cudbgAPI->resumeWarpsUntilPC(warp_info.dev, sm, warp_mask,
-       jmp_addr);
-               if (res != CUDBG_SUCCESS) {
-                   printf("%d:", __LINE__);
-                   goto cuda_error;
-               }
-           }
-
-       }
-
-       for (int sm = 0; sm != dev_prop.numSMs; sm++) {
-           res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
-           if (res != CUDBG_SUCCESS) {
-               printf("%d:", __LINE__);
-               goto cuda_error;
-           }
-           for (uint64_t warp=0; warp != dev_prop.numWarps; warp++) {
-               if (warp_mask & (1LU<<warp)) {
-
-                   res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp,
-       &lanemask);
-                   if (res != CUDBG_SUCCESS) {
-                       printf("%d:", __LINE__);
-                       goto cuda_error;
-                   }
-                   warp_info.sm = sm;
-                   warp_info.warp = warp;
-                   warp_info.kernel_name = kernel_name;
-
-                   for (uint32_t lane=0; lane != dev_prop.numLanes; lane++) {
-                       if (lanemask & (1LU<<lane)) {
-                           cricket_cr_rst_pc(cudbgAPI, &warp_info, lane,
-       &callstack);
-                       }
-                   }
-               }
-           }
-       }
-
-       res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
-       if (res != CUDBG_SUCCESS) {
-           printf("%d:", __LINE__);
-           goto cuda_error;
-       }
-       res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
-       if (res != CUDBG_SUCCESS) {
-           printf("%d:", __LINE__);
-           goto cuda_error;
-       }
-
-
-       cudbgAPI->readPC(0, 0,0,0, &pc_rb);
-       printf("cricket: pre JMX relative PC: %llx\n", pc_rb);
-
-       res = cudbgAPI->singleStepWarp(0,0,0,&sswarps);
-       if (res != CUDBG_SUCCESS) {
-           printf("%d:", __LINE__);
-           goto cuda_error;
-       }
-   */
 
     cricket_elf_info elf_info;
     cricket_elf_get_info(kernel_name, &elf_info);
@@ -762,6 +734,7 @@ int cricket_restore(int argc, char *argv[])
                 warp_info.kernel_name = kernel_name;
                 warp_info.stack_size = elf_info.stack_size;
 
+                // Shared memory has to be restored into individual SMs
                 if (!cricket_cr_rst_shared(cudbgAPI, ckp_dir, &elf_info, 0, sm,
                                            warp)) {
                     printf("cricket: shared memory restore unsuccessful (size: "
@@ -772,6 +745,7 @@ int cricket_restore(int argc, char *argv[])
                     printf("cricket: restored shared memory\n");
                 }
 
+                // Restore thread local data, i.e., registers, local memory,etc.
                 for (uint32_t lane = 0; lane != dev_prop.numLanes; lane++) {
                     if (lanemask & (1LU << lane)) {
                         // cudbgAPI->readPC(0, warp,sm,lane, &pc_rb);
@@ -829,6 +803,10 @@ int cricket_restore(int argc, char *argv[])
            "globals: %f s\n\tPROFILE inkernel %f s\n\tPROFILE complete: %f s\n",
            bt, ct, dt, et, ft, gt, comt);
 #endif
+    //The comment below is for single stepping threads a bit further to check
+    //if everything was restored correctly. If something was restored wrong,
+    //it often only shows after a few instructions. Error reporting without
+    //single stepping is not exact enough to determine what went wrong.
     /*
         CUDBGException_t exc = 0;
         uint64_t errorPC;
