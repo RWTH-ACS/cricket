@@ -1,6 +1,11 @@
 # cricket
 
-The Checkpoint Restart In Cuda KErnels Tool (cricket)  can save the application state of CUDA applications in a checkpoint file and restore it later.
+[![pipeline status](https://git.rwth-aachen.de/niklas.eiling/cricket/badges/master/pipeline.svg)](https://git.rwth-aachen.de/niklas.eiling/cricket/commits/master)
+
+The Checkpoint Restart In Cuda KErnels Tool (cricket)  can save the application
+state of CUDA applications in a checkpoint file and restore it later.
+
+Icon made by Freepik from www.flaticon.com. CC 3.0 BY
 
 # Contributing
 
@@ -15,3 +20,4 @@ match ErrorMsg /\s\+$\| \+\ze\t/
 ```
 
 This project adheres to the [Linux Kernel Coding Style](https://www.kernel.org/doc/html/v4.10/process/coding-style.html), except when it doesn't.
+Run refer to `.clang-format` and run `clang-format` over your source before you commit!
