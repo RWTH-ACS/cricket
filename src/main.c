@@ -17,14 +17,113 @@
 #include "main.h"
 #include <dlfcn.h>
 #include <sys/time.h>
+#include <argp.h>
 
 #include "cricket-elf.h"
 #include "cricket-checkpoint.h"
 #include "cricket-restore.h"
 
+// TODO make argument option
 #define CRICKET_PROFILE 1
 
 CUDBGAPI cudbgAPI = NULL;
+
+struct arguments
+{
+    enum {
+        START,
+        CHECKPOINT,
+        RESTORE,
+        ANALYZE,
+        ERROR
+    } mode;
+    char *executable;
+    char *pid;
+    char *ckp_dir;
+    int profile;
+};
+
+const char *argp_program_version = "cricket 0.1.0";
+const char *argp_program_bug_address = "https://git.rwth-aachen.de/"
+                                       "niklas.eiling/cricket";
+static char doc[] = "cricket - Checkpoint-Restart in Cuda KErnels Tool";
+static char args_doc[] = "";
+
+static struct argp_option options[] = {
+    // TODO: add checkpoint location
+    { "\bProvide exactly one these:", 0, 0, OPTION_DOC | OPTION_NO_USAGE, 0, 0 },
+    { "analyze", 'a', "executable", 0, "Analyze something TODO!", 1 },
+    { "restore",                                                           'r',
+      "executable",                                                        0,
+      "Restore a kernel from a checkpoint. Also consider using -d option", 1 },
+    { "restart", 'r', "executable", OPTION_ALIAS },
+    { "start", 's', "executable", 0, "Start a CUDA application", 1 },
+    { "run", 0, "executable", OPTION_ALIAS },
+    { "checkpoint", 'c', "pid", 0, "Checkpoint a running CUDA "
+                                   "application. Also consider "
+                                   "using -d option",
+      1 },
+    { "\bOther:", 0, 0, OPTION_DOC | OPTION_NO_USAGE, 0, 2 },
+    { "dir", 'd', "checkpoint-directory", 0, "specifies the directory for the "
+                                             "checkpoint file. If not given, "
+                                             "/tmp/cricket will be used",
+      3 },
+    { "profile", 'p',                                                         0,
+      0,         "display the time spend in different stages of the program", 3 },
+    { 0 }
+};
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
+{
+    struct arguments *arguments = state->input;
+    switch (key) {
+    case ARGP_KEY_INIT:
+        arguments->mode = ERROR;
+        arguments->executable = "";
+        arguments->pid = "-1";
+        arguments->ckp_dir = "/tmp/cricket";
+        arguments->profile = 0;
+        break;
+    case 'a':
+        arguments->mode = ANALYZE;
+        arguments->executable = arg;
+        break;
+    case 'r':
+        arguments->mode = RESTORE;
+        arguments->executable = arg;
+        break;
+    case 's':
+        arguments->mode = START;
+        arguments->executable = arg;
+        break;
+    case 'c':
+        arguments->mode = CHECKPOINT;
+        arguments->pid = arg;
+        break;
+    case 'd':
+        arguments->ckp_dir = arg;
+        break;
+    case 'p':
+        arguments->profile = 1;
+        break;
+    case ARGP_KEY_ARG:
+        // No further arguments allowed
+        return ARGP_ERR_UNKNOWN;
+        break;
+    case ARGP_KEY_END:
+        if (arguments->mode == ERROR) {
+            fprintf(stderr, "Error: must specify one of -r -s -c -a\n"
+                            "See ./cricket --help for more details\n");
+            return ARGP_ERR_UNKNOWN;
+        }
+        break;
+    default:
+        return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 
 // in defs.h these variables are refferd to as external, so let's provide these
 // as global state. (What should possibly go wrong)
@@ -97,32 +196,29 @@ detach:
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) {
-        fprintf(stderr, "wrong number of arguments, use: %s "
-                        "(start|checkpoint|restore)\n",
-                argv[0]);
+    struct arguments cricket_args;
+    if (!argp_parse(&argp, argc, argv, 0, 0, &cricket_args)) {
         return -1;
     }
-    if (strcmp(argv[1], "start") == 0) {
-        cricket_init_gdb(argv[0]);
-        return cricket_start(argv[2]);
-    }
-    if (strcmp(argv[1], "checkpoint") == 0) {
-        cricket_init_gdb(argv[0]);
-        return cricket_checkpoint(argv[2], "/tmp");
-    }
-    if (strcmp(argv[1], "restore") == 0 || strcmp(argv[1], "restart") == 0) {
-        return cricket_restore(argv[2], "/tmp");
-    }
-    if (strcmp(argv[1], "analyze") == 0) {
-        printf("Analyzing \"%s\"\n", argv[2]);
-        if (!cricket_elf_analyze(argv[2])) {
+
+    switch (cricket_args.mode) {
+    case ANALYZE:
+        printf("Analyzing \"%s\"\n", cricket_args.executable);
+        if (!cricket_elf_analyze(cricket_args.executable)) {
             fprintf(stderr, "cricket analyze unsuccessful\n");
             return -1;
         }
         return 0;
+    case START:
+        cricket_init_gdb(argv[0]);
+        return cricket_start(cricket_args.executable);
+    case CHECKPOINT:
+        cricket_init_gdb(argv[0]);
+        return cricket_checkpoint(cricket_args.pid, cricket_args.ckp_dir);
+    case RESTORE:
+        return cricket_restore(cricket_args.executable, cricket_args.ckp_dir);
+    default:
+        fprintf(stderr, "unknown mode\n");
+        return -1;
     }
-
-    fprintf(stderr, "Unknown operation \"%s\".\n", argv[1]);
-    return -1;
 }
