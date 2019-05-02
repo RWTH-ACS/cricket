@@ -21,25 +21,20 @@
 #include "cricket-elf.h"
 #include "cricket-cr.h"
 
-int cricket_restore(int argc, char *argv[])
+// TODO pass patched binary
+int cricket_restore(const char *executable, const char *ckp_dir)
 {
     CUDBGResult res;
     CUDBGAPI cudbgAPI;
     cricketWarpInfo warp_info = { 0 };
     cricket_callstack callstack;
     char *patched_binary = "/home/nei/tmp/cricket-ckp/patched_binary";
-    const char *ckp_dir = "/home/nei/tmp/cricket-ckp";
-    // const char *ckp_dir = "/global/work/share/ckp";
     const char *kernel_name;
     uint32_t active_lanes;
     uint32_t first_warp;
     cricket_jmptable_index *jmptbl;
     uint64_t warp_mask;
     size_t jmptbl_len;
-    if (argc != 3) {
-        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
-        return -1;
-    }
 
 #ifdef CRICKET_PROFILE
     // a-b = PROFILE patch
@@ -47,12 +42,14 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&a, NULL);
 #endif
 
+    // TODO: Separate function
     /* Patches binary, replacing breakpoints in all code segments
      * with the jumptable that is able to restore any
      * synchornization state (SSY), subcall state (PRET) and
      * PC (JMX/BRX).
      */
-    if (!cricket_elf_patch_all(argv[2], patched_binary, &jmptbl, &jmptbl_len)) {
+    if (!cricket_elf_patch_all(executable, patched_binary, &jmptbl,
+                               &jmptbl_len)) {
         fprintf(stderr, "cricket-cr: error while patching binary\n");
         return -1;
     }

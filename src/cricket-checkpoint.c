@@ -22,11 +22,8 @@
 #include "cricket-utils.h"
 #include "cricket-types.h"
 
-int cricket_checkpoint(int argc, char *argv[])
+int cricket_checkpoint(const char *pid, const char *ckp_dir)
 {
-    // TODO: Make this a parameter
-    char *ckp_dir = "/home/nei/tmp/cricket-ckp";
-    // char *ckp_dir = "/global/work/share/ckp";
     const char *kernel_name = NULL;
     const char *warp_kn;
     cricket_callstack callstack;
@@ -46,16 +43,10 @@ int cricket_checkpoint(int argc, char *argv[])
     gettimeofday(&a, NULL);
 #endif
 
-    if (argc != 3) {
-        printf("wrong number of arguments, use: %s <pid>\n", argv[0]);
-        return -1;
-    }
-
-    cricket_init_gdb(argv[0]);
-
     /* attach to process (both CPU and GPU) */
     printf("attaching...\n");
-    attach_command(argv[2], !batch_flag);
+    // TODO check if parameter is a valid pid
+    attach_command(pid, !batch_flag);
 
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
         printf("Cuda api not initialized!\n");
