@@ -25,9 +25,9 @@ DEPS := $(addsuffix .d,$(BUILD_BASE))
 OBJS := $(addsuffix .o,$(BUILD_BASE))
 
 
-.PHONY: all objs clean show tests
+.PHONY: all objs clean show tests format
 
-all: $(DEPS) $(BINARY)
+all: $(DEPS) $(BINARY) tests
 
 objs: $(OBJS)
 
@@ -53,7 +53,12 @@ clean:
 	$(MAKE) -C tests clean
 
 tests:
+	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
+
+format:
+	@echo -e "\033[35m----> Formatting source code\033[0m"
+	utils/format_sources.sh
 
 show: # For debugging purposes
 	@echo -e '\033[36mBINARY      \033[0m' $(BINARY)
