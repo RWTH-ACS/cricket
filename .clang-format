@@ -65,7 +65,7 @@ IndentWidth: 4
 # KeepEmptyLinesAtTheStartOfBlocks: false
 # MacroBlockBegin: ''
 # MacroBlockEnd: ''
-MaxEmptyLinesToKeep: 1
+MaxEmptyLinesToKeep: 2
 NamespaceIndentation: Inner
 # ObjCBlockIndentWidth: 4
 # ObjCSpaceAfterProperty: true
