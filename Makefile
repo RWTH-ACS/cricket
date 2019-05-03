@@ -25,7 +25,7 @@ DEPS := $(addsuffix .d,$(BUILD_BASE))
 OBJS := $(addsuffix .o,$(BUILD_BASE))
 
 
-.PHONY: all objs clean show tests format
+.PHONY: all objs clean show tests format chimp
 
 all: $(DEPS) $(BINARY) tests
 
@@ -46,11 +46,17 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | build
 	@echo -e "\033[33m----> Compiling $<\033[0m"
 	$(CC) $(CFLAGS) $(INC_DIRS) -c $< -o $@
 
+$(LIB_DIR)/libchimp.so:
+	$(MAKE) -C src/chimp $@
+
 clean:
 	@echo -e "\033[31m----> Cleaning up\033[0m"
 	rm -rf $(BUILD_DIR) $(BINARY)
 	@echo -e "\033[31m----> Cleaning up test kernels\033[0m"
 	$(MAKE) -C tests clean
+
+chimp:
+	$(MAKE) -C src/chimp
 
 tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"

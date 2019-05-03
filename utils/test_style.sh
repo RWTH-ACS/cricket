@@ -22,7 +22,15 @@ for f in src/*.c ; do
   check_format $f
 done
 
+for f in src/chimp/*.c ; do
+  check_format $f
+done
+
 for f in include/*.h ; do
+  check_format $f
+done
+
+for f in include/chimp/*.h ; do
   check_format $f
 done
 

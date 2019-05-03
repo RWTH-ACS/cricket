@@ -8,6 +8,8 @@ build/
 .directory
 *.swp
 *.o
+*.dmtcp
+*.so
 cricket
 
 # YouCompleteMe

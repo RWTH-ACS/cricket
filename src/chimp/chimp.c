@@ -1,8 +1,8 @@
 /* CHIMP - Cricket Helper Injected into Memory Procedures
  *
- * Based on FatalFlaw: https://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism 
+ * Based on FatalFlaw:
+ * https://stackoverflow.com/questions/6083337/overriding-malloc-using-the-ld-preload-mechanism
  **/
-
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -10,33 +10,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "chimp.h"
+
 char tmpbuff[1024];
 unsigned long tmppos = 0;
 unsigned long tmpallocs = 0;
 char log_sw = 0;
 
-void *memset(void*,int,size_t);
+void *memset(void *,int,size_t);
 void *memmove(void *to, const void *from, size_t size);
 
 /*=========================================================
  * interception points
  */
 
-static void * (*myfn_calloc)(size_t nmemb, size_t size);
-static void * (*myfn_malloc)(size_t size);
-static void   (*myfn_free)(void *ptr);
-static void * (*myfn_realloc)(void *ptr, size_t size);
-static void * (*myfn_memalign)(size_t blocksize, size_t bytes);
+
+static chimp_libc_ops_t ops;
+static void *(*myfn_calloc)(size_t nmemb, size_t size);
+static void *(*myfn_malloc)(size_t size);
+static void  (*myfn_free)(void *ptr);
+static void *(*myfn_realloc)(void *ptr, size_t size);
+static void *(*myfn_memalign)(size_t blocksize, size_t bytes);
 
 static void init()
 {
-    myfn_malloc     = dlsym(RTLD_NEXT, "malloc");
-    myfn_free       = dlsym(RTLD_NEXT, "free");
-    myfn_calloc     = dlsym(RTLD_NEXT, "calloc");
-    myfn_realloc    = dlsym(RTLD_NEXT, "realloc");
-    myfn_memalign   = dlsym(RTLD_NEXT, "memalign");
+    ops.malloc     = dlsym(RTLD_NEXT, "malloc");
+    ops.free       = dlsym(RTLD_NEXT, "free");
+    ops.calloc     = dlsym(RTLD_NEXT, "calloc");
+    ops.realloc    = dlsym(RTLD_NEXT, "realloc");
+    ops.memalign   = dlsym(RTLD_NEXT, "memalign");
 
-    if (!myfn_malloc || !myfn_free || !myfn_calloc || !myfn_realloc || !myfn_memalign) {
+    if (!ops.malloc || !ops.free || !ops.calloc || !ops.realloc ||
+        !ops.memalign) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
     }
@@ -50,12 +55,14 @@ void malloc_togglelog(void)
 void *malloc(size_t size)
 {
     static int initializing = 0;
-    if (myfn_malloc == NULL) {
+    if (ops.malloc == NULL) {
         if (!initializing) {
             initializing = 1;
             init();
             initializing = 0;
-            fprintf(stdout, "malloc: allocated %lu bytes of temp memory in %lu chunks during initialization\n", tmppos, tmpallocs);
+            fprintf(stdout, "malloc: allocated %lu bytes of temp memory in %lu "
+                            "chunks during initialization\n",
+                    tmppos, tmpallocs);
         } else {
             if (tmppos + size < sizeof(tmpbuff)) {
                 void *retptr = tmpbuff + tmppos;
@@ -63,12 +70,13 @@ void *malloc(size_t size)
                 ++tmpallocs;
                 return retptr;
             } else {
-                fprintf(stdout, "malloc: too much memory requested during initialisation - increase tmpbuff size\n");
+                fprintf(stdout, "malloc: too much memory requested during "
+                                "initialisation - increase tmpbuff size\n");
                 exit(1);
             }
         }
     }
-    void *ptr = myfn_malloc(size);
+    void *ptr = ops.malloc(size);
     if (log_sw) {
         printf("-> malloc(%lu) = %p\n", size, ptr);
     }
@@ -78,20 +86,20 @@ void *malloc(size_t size)
 void free(void *ptr)
 {
     // something wrong if we call free before one of the allocators!
-//  if (myfn_malloc == NULL)
-//      init();
+    //  if (myfn_malloc == NULL)
+    //      init();
 
-    if (ptr >= (void*) tmpbuff && ptr <= (void*)(tmpbuff + tmppos))
+    if (ptr >= (void *) tmpbuff && ptr <= (void *)(tmpbuff + tmppos))
         fprintf(stdout, "freeing temp memory\n");
     else
-        myfn_free(ptr);
+        ops.free(ptr);
 
-    //printf("-> free(%lu)\n", ptr);
+    // printf("-> free(%lu)\n", ptr);
 }
 
 void *realloc(void *ptr, size_t size)
 {
-    if (myfn_malloc == NULL) {
+    if (ops.malloc == NULL) {
         void *nptr = malloc(size);
         if (nptr && ptr) {
             memmove(nptr, ptr, size);
@@ -100,25 +108,25 @@ void *realloc(void *ptr, size_t size)
         return nptr;
     }
 
-    void *nptr = myfn_realloc(ptr, size);
+    void *nptr = ops.realloc(ptr, size);
     return nptr;
 }
 
 void *calloc(size_t nmemb, size_t size)
 {
-    if (myfn_malloc == NULL) {
-        void *ptr = malloc(nmemb*size);
+    if (ops.malloc == NULL) {
+        void *ptr = malloc(nmemb * size);
         if (ptr)
-            memset(ptr, 0, nmemb*size);
+            memset(ptr, 0, nmemb * size);
         return ptr;
     }
 
-    void *ptr = myfn_calloc(nmemb, size);
+    void *ptr = ops.calloc(nmemb, size);
     return ptr;
 }
 
 void *memalign(size_t blocksize, size_t bytes)
 {
-    void *ptr = myfn_memalign(blocksize, bytes);
+    void *ptr = ops.memalign(blocksize, bytes);
     return ptr;
 }
