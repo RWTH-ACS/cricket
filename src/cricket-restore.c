@@ -21,20 +21,36 @@
 #include "cricket-elf.h"
 #include "cricket-cr.h"
 
+void print_jmptable(const cricket_jmptable_index *jmptbl,
+                    const size_t jmptbl_len)
+{
+    for (size_t i = 0; i < jmptbl_len; ++i) {
+        printf("\t\"%s\"\n", jmptbl[i].function_name);
+        for (size_t j = 0; j < jmptbl[i].ssy_num; ++j) {
+            printf("\t\tSSY@%lx->%lx\n", jmptbl[i].ssy[j].address,
+                   jmptbl[i].ssy[j].destination);
+        }
+        for (size_t j = 0; j < jmptbl[i].cal_num; ++j) {
+            printf("\t\tPRET@%lx->%lx\n", jmptbl[i].cal[j].address,
+                   jmptbl[i].cal[j].destination);
+        }
+        printf("\tSYNC@%lx\n\n", jmptbl[i].sync_address);
+    }
+}
+
 // TODO pass patched binary
 int cricket_restore(const char *executable, const char *ckp_dir)
 {
-    CUDBGResult res;
     CUDBGAPI cudbgAPI;
-    cricketWarpInfo warp_info = { 0 };
-    cricket_callstack callstack;
+    CUDBGResult res;
     char *patched_binary = "/home/nei/tmp/cricket-ckp/patched_binary";
     const char *kernel_name;
-    uint32_t active_lanes;
-    uint32_t first_warp;
+    cricketWarpInfo warp_info = { 0 };
+    cricket_callstack callstack;
     cricket_jmptable_index *jmptbl;
-    uint64_t warp_mask;
     size_t jmptbl_len;
+    uint32_t active_lanes, first_warp;
+    uint64_t warp_mask;
 
 #ifdef CRICKET_PROFILE
     // a-b = PROFILE patch
@@ -54,19 +70,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
         return -1;
     }
 
-    // Print the jumptable
-    for (size_t i = 0; i < jmptbl_len; ++i) {
-        printf("\t\"%s\"\n", jmptbl[i].function_name);
-        for (size_t j = 0; j < jmptbl[i].ssy_num; ++j) {
-            printf("\t\tSSY@%lx->%lx\n", jmptbl[i].ssy[j].address,
-                   jmptbl[i].ssy[j].destination);
-        }
-        for (size_t j = 0; j < jmptbl[i].cal_num; ++j) {
-            printf("\t\tPRET@%lx->%lx\n", jmptbl[i].cal[j].address,
-                   jmptbl[i].cal[j].destination);
-        }
-        printf("\tSYNC@%lx\n\n", jmptbl[i].sync_address);
-    }
+    print_jmptable(jmptbl, jmptbl_len);
 
     /* Read callstacks for all warps from checkpoint file.
      * The highest level function is the kernel we want to start later.
