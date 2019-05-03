@@ -27,7 +27,7 @@ OBJS := $(addsuffix .o,$(BUILD_BASE))
 
 .PHONY: all objs clean show tests format chimp
 
-all: $(DEPS) $(BINARY) tests
+all: $(DEPS) $(BINARY) chimp tests
 
 objs: $(OBJS)
 
