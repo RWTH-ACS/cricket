@@ -49,29 +49,31 @@ const char *argp_program_bug_address = "https://git.rwth-aachen.de/"
 static char doc[] = "cricket - Checkpoint-Restart in Cuda KErnels Tool";
 static char args_doc[] = "";
 
-static struct argp_option options[] = {
-    // TODO: add checkpoint location
-    { "\bProvide exactly one these:", 0, 0, OPTION_DOC | OPTION_NO_USAGE, 0, 0 },
-    { "analyze", 'a', "executable", 0, "Analyze something TODO!", 1 },
-    { "restore",                                                           'r',
-      "executable",                                                        0,
-      "Restore a kernel from a checkpoint. Also consider using -d option", 1 },
-    { "restart", 'r', "executable", OPTION_ALIAS },
-    { "start", 's', "executable", 0, "Start a CUDA application", 1 },
-    { "run", 0, "executable", OPTION_ALIAS },
-    { "checkpoint", 'c', "pid", 0, "Checkpoint a running CUDA "
-                                   "application. Also consider "
-                                   "using -d option",
-      1 },
-    { "\bOther:", 0, 0, OPTION_DOC | OPTION_NO_USAGE, 0, 2 },
-    { "dir", 'd', "checkpoint-directory", 0, "specifies the directory for the "
-                                             "checkpoint file. If not given, "
-                                             "/tmp/cricket will be used",
-      3 },
-    { "profile", 'p',                                                         0,
-      0,         "display the time spend in different stages of the program", 3 },
-    { 0 }
-};
+static struct argp_option options
+    [] = { { "\bProvide exactly one these:", 0, 0,
+             OPTION_DOC | OPTION_NO_USAGE,   0, 0 },
+           { "analyze", 'a', "executable", 0, "Analyze something TODO!", 1 },
+           { "restore", 'r', "executable", 0, "Restore a kernel from a "
+                                              "checkpoint. Also consider using "
+                                              "-d option",
+             1 },
+           { "restart", 'r', "executable", OPTION_ALIAS },
+           { "start", 's', "executable", 0, "Start a CUDA application", 1 },
+           { "run", 0, "executable", OPTION_ALIAS },
+           { "checkpoint", 'c', "pid", 0, "Checkpoint a running CUDA "
+                                          "application. Also consider "
+                                          "using -d option",
+             1 },
+           { "\bOther:", 0, 0, OPTION_DOC | OPTION_NO_USAGE, 0, 2 },
+           { "dir", 'd', "checkpoint-directory", 0,
+             "specifies the directory for the "
+             "checkpoint file. If not given, "
+             "/tmp/cricket will be used",
+             3 },
+           { "profile",                                                   'p',
+             0,                                                           0,
+             "display the time spend in different stages of the program", 3 },
+           { 0 } };
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
@@ -112,9 +114,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case ARGP_KEY_END:
         if (arguments->mode == ERROR) {
-            fprintf(stderr, "Error: must specify one of -r -s -c -a\n"
-                            "See ./cricket --help for more details\n");
-            return ARGP_ERR_UNKNOWN;
+            argp_usage(state);
         }
         break;
     default:
@@ -197,7 +197,9 @@ detach:
 int main(int argc, char *argv[])
 {
     struct arguments cricket_args;
-    if (!argp_parse(&argp, argc, argv, 0, 0, &cricket_args)) {
+    argp_parse(&argp, argc, argv, 0, 0, &cricket_args);
+    if (cricket_args.mode == ERROR) {
+        fprintf(stderr, "Argument parsing error\n");
         return -1;
     }
 
