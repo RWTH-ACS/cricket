@@ -58,7 +58,10 @@ tests:
 
 format:
 	@echo -e "\033[35m----> Formatting source code\033[0m"
-	utils/format_sources.sh
+	echo "Formatting C files"
+	clang-format -i ${SRCS_C}
+	echo "Formatting Header files"
+	clang-format -i include/*.h
 
 show: # For debugging purposes
 	@echo -e '\033[36mBINARY      \033[0m' $(BINARY)
