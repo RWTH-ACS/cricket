@@ -158,6 +158,8 @@ size_t getSize(void *address)
         return ptrs;
 }
 
+extern "C" {void malloc_togglelog(void);}
+
 int main()
 {
 #ifdef RANDOM_INIT
@@ -169,15 +171,6 @@ int main()
     struct timeval begin, end;
     const int A_size = N*N*sizeof(uint16_t);
     const int x_size = N*sizeof(uint16_t);
-
-    int cnt = 5;
-    cuInit(0);
-    cuDeviceGetCount(&cnt);
-    printf("found %d devices\n", cnt);
-    CUdevice cuDevice;
-    cuDeviceGet(&cuDevice, 0);
-    CUcontext cuContext;
-    cuCtxCreate(&cuContext, 0, cuDevice);
 
     gettimeofday(&begin, NULL);
     srand(time(NULL));
@@ -211,8 +204,9 @@ int main()
 #endif //TEST_CPU
 
     printf("About to initialize CUDA context...\n");
-
+    malloc_togglelog();
     cudaMalloc( (void**)&dev_A, A_size );
+    malloc_togglelog();
 
     printf("dev_A = %p\n", dev_A);
     printf("CUDA context initialized\n");

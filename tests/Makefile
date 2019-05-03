@@ -8,7 +8,7 @@ CC = nvcc
 ARCH = sm_61
 CFLAGS = -arch=$(ARCH)
 LD = nvcc
-LDFLAGS = -lcuda -arch=$(ARCH)
+LDFLAGS = -lcuda -L../cpu -lmalloc -arch=$(ARCH)
 TEST_CPU_BIN = test_cpu
 TEST_CPU_O = test_cpu.o
 TEST_API_BIN = test_api
