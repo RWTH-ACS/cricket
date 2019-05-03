@@ -25,7 +25,7 @@ prepare:centos7:docker-dev:
   script:
     - docker build
         --file ${DOCKER_FILE}
-        --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG} .
+        --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG/\//-/} .
   tags:
     - shell
     - linux
