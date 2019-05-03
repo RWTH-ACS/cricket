@@ -10,12 +10,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "libchimp.h"
 #include "chimp.h"
+#include "chimp_list.h"
 
 char tmpbuff[1024];
 unsigned long tmppos = 0;
 unsigned long tmpallocs = 0;
 char log_sw = 0;
+// We dont want to log memory operations by chimp so deactivate logging
+// while inside chimp functions
+char rec_sw = 1;
 
 void *memset(void *,int,size_t);
 void *memmove(void *to, const void *from, size_t size);
@@ -26,11 +31,7 @@ void *memmove(void *to, const void *from, size_t size);
 
 
 static chimp_libc_ops_t ops;
-static void *(*myfn_calloc)(size_t nmemb, size_t size);
-static void *(*myfn_malloc)(size_t size);
-static void  (*myfn_free)(void *ptr);
-static void *(*myfn_realloc)(void *ptr, size_t size);
-static void *(*myfn_memalign)(size_t blocksize, size_t bytes);
+static chimp_list_t list;
 
 static void init()
 {
@@ -45,9 +46,32 @@ static void init()
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
     }
+
+    if (!chimp_list_init(&list, &ops)) {
+        fprintf(stderr, "error while initializing chimp_list\n");
+        exit(1);
+    }
 }
 
-void malloc_togglelog(void)
+void chimp_print_list()
+{
+    int i;
+    char *func_str[] = {"malloc", "free"};
+    chimp_list_elem_t elem;
+
+    chimp_list_compress(&list);
+    for (i = 0; i < list.size; ++i) {
+        elem = list.arr[i];
+        if (elem.func == FUNC_MALLOC) {
+            printf("\t%s(%lu) = %p\n", func_str[elem.func], elem.mem_size,
+                   elem.ptr);
+        } else if (elem.func == FUNC_FREE) {
+            printf("\t%s(%p)\n", func_str[elem.func], elem.ptr);
+        }
+    }
+}
+
+void chimp_malloc_togglelog()
 {
     log_sw = !log_sw;
 }
@@ -77,8 +101,13 @@ void *malloc(size_t size)
         }
     }
     void *ptr = ops.malloc(size);
-    if (log_sw) {
-        printf("-> malloc(%lu) = %p\n", size, ptr);
+    if (log_sw && rec_sw && ptr && size) {
+        rec_sw = 0;
+        if (!chimp_list_add(&list, FUNC_MALLOC, ptr, size)) {
+            fprintf(stderr, "failed to add malloc(%lu) = %p to list\n", size,
+                    ptr);
+        }
+        rec_sw = 1;
     }
     return ptr;
 }
@@ -94,7 +123,13 @@ void free(void *ptr)
     else
         ops.free(ptr);
 
-    // printf("-> free(%lu)\n", ptr);
+    if (log_sw && rec_sw && ptr) {
+        rec_sw = 0;
+        if (!chimp_list_add(&list, FUNC_FREE, ptr, 0)) {
+            fprintf(stderr, "failed to add free(%lu) to list\n", ptr);
+        }
+        rec_sw = 1;
+    }
 }
 
 void *realloc(void *ptr, size_t size)
@@ -109,6 +144,19 @@ void *realloc(void *ptr, size_t size)
     }
 
     void *nptr = ops.realloc(ptr, size);
+
+    if (log_sw && rec_sw && nptr && ptr && size) {
+        rec_sw = 0;
+        if (!chimp_list_add(&list, FUNC_FREE, ptr, 0)) {
+            fprintf(stderr, "realloc: failed to add free(%p) to list\n",
+                    ptr);
+        }
+        if (!chimp_list_add(&list, FUNC_MALLOC, nptr, size)) {
+            fprintf(stderr, "realloc: failed to add malloc(%lu) = %p to list\n",
+                    size, nptr);
+        }
+        rec_sw = 1;
+    }
     return nptr;
 }
 
@@ -122,11 +170,27 @@ void *calloc(size_t nmemb, size_t size)
     }
 
     void *ptr = ops.calloc(nmemb, size);
+    if (log_sw && rec_sw && ptr && size && nmemb) {
+        rec_sw = 0;
+        if (!chimp_list_add(&list, FUNC_MALLOC, ptr, nmemb * size)) {
+            fprintf(stderr, "calloc: failed to add malloc(%lu) = %p to list\n",
+                    nmemb * size, ptr);
+        }
+        rec_sw = 1;
+    }
     return ptr;
 }
 
 void *memalign(size_t blocksize, size_t bytes)
 {
     void *ptr = ops.memalign(blocksize, bytes);
+    if (log_sw && rec_sw && ptr && bytes) {
+        rec_sw = 0;
+        if (!chimp_list_add(&list, FUNC_MALLOC, ptr, bytes)) {
+            fprintf(stderr, "memalign: failed to add malloc(%lu) = %p to list\n",
+                    bytes, ptr);
+        }
+        rec_sw = 1;
+    }
     return ptr;
 }

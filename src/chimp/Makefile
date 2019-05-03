@@ -10,7 +10,7 @@ INC_DIRS := -I$(P_ROOT)/include/chimp
 LIB_DIR := $(P_ROOT)/lib
 BUILD_DIR := $(P_ROOT)/build/chimp
 
-DLIBS = -ldl
+DLIBS = -ldl -lpthread
 # Order of .a files is important!
 SLIBS = 
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))

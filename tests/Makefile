@@ -6,9 +6,9 @@ HOST_CFLAGS = -Wall -std=gnu99
 
 CC = nvcc
 ARCH = sm_61
-CFLAGS = -arch=$(ARCH)
+CFLAGS = -arch=$(ARCH) -I../include
 LD = nvcc
-LDFLAGS = -lcuda -L../cpu -lmalloc -arch=$(ARCH)
+LDFLAGS = -lcuda -L../lib -lchimp -arch=$(ARCH)
 TEST_CPU_BIN = test_cpu
 TEST_CPU_O = test_cpu.o
 TEST_API_BIN = test_api
@@ -48,7 +48,7 @@ $(TEST_API_BIN) : $(TEST_API_O)
 $(TEST_KERNEL_BIN) : $(TEST_KERNEL_O)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(BINARY) : $(FILES)
+$(BINARY) : $(FILES:.cu=.o)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)

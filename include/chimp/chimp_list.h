@@ -2,6 +2,7 @@
 #define _CHIMP_LIST_H_
 
 #include <stdbool.h>
+#include <pthread.h>
 #include "chimp.h"
 
 #define CHIMP_LIST_INIT_SIZE 128
@@ -24,6 +25,7 @@ typedef struct chimp_list
     size_t size;
     size_t alloc_size;
     chimp_libc_ops_t *ops;
+    pthread_mutex_t lock;
 } chimp_list_t;
 
 bool chimp_list_init(chimp_list_t *list, chimp_libc_ops_t *ops);

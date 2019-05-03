@@ -6,6 +6,7 @@
 
 #include "cuda.h"
 #include "cricket-cuda.h"
+#include "chimp/libchimp.h"
 
 #define N 32
 #define ITERATIONS 1024*128*8
@@ -158,7 +159,6 @@ size_t getSize(void *address)
         return ptrs;
 }
 
-extern "C" {void malloc_togglelog(void);}
 
 int main()
 {
@@ -204,9 +204,9 @@ int main()
 #endif //TEST_CPU
 
     printf("About to initialize CUDA context...\n");
-    malloc_togglelog();
+    chimp_malloc_togglelog();
     cudaMalloc( (void**)&dev_A, A_size );
-    malloc_togglelog();
+    chimp_malloc_togglelog();
 
     printf("dev_A = %p\n", dev_A);
     printf("CUDA context initialized\n");
@@ -274,6 +274,8 @@ int main()
     gettimeofday(&end, NULL);
 
     printf("elapsed time: %0u.%06u\n", (end.tv_sec - begin.tv_sec), (end.tv_usec - begin.tv_usec));
+
+    chimp_print_list();
 
 
     return EXIT_SUCCESS;
