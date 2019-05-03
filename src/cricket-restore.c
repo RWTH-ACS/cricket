@@ -50,7 +50,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
      */
     if (!cricket_elf_patch_all(executable, patched_binary, &jmptbl,
                                &jmptbl_len)) {
-        fprintf(stderr, "cricket-cr: error while patching binary\n");
+        print_error("cricket-cr: error while patching binary\n");
         return -1;
     }
 
@@ -103,21 +103,16 @@ int cricket_restore(const char *executable, const char *ckp_dir)
 
     // Use the waiting period to get the CUDA debugger API.
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
-        printf("Cuda api not initialized!\n");
+        print_error("Cuda api not initialized!\n");
         return -1;
-        // } else if (cuda_api_get_attach_state() != CUDA_ATTACH_STATE_COMPLETE)
-        // {
-        //  printf("Cuda api not attached!\n");
-        //  return -1;
     } else {
         printf("Cuda api initialized and attached!\n");
     }
 
     /* get CUDA debugger API */
-    res = cudbgGetAPI(CUDBG_API_VERSION_MAJOR, CUDBG_API_VERSION_MINOR,
-                      CUDBG_API_VERSION_REVISION, &cudbgAPI);
-    if (res != CUDBG_SUCCESS) {
-        printf("%d:", __LINE__);
+    if (cudbgGetAPI(CUDBG_API_VERSION_MAJOR, CUDBG_API_VERSION_MINOR,
+                    CUDBG_API_VERSION_REVISION, &cudbgAPI) != CUDBG_SUCCESS) {
+        print_error("gudbGetAPI failed\n");
         goto cuda_error;
     }
     printf("cricket: got CUDA debugging API\n");
@@ -125,10 +120,11 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     // We currently only support a single GPU
     uint32_t numDev = 0;
     if (!cricket_device_get_num(cudbgAPI, &numDev)) {
-        printf("error getting device num\n");
+        print_error("Error getting device num\n");
         goto detach;
     } else if (numDev != 1) {
-        printf("expected exactly one CUDA device. Found %u\n", numDev);
+        print_error("Error: expected exactly one CUDA device. Found %u\n",
+                    numDev);
         goto detach;
     }
 
@@ -136,7 +132,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     // to restore
     CricketDeviceProp dev_prop;
     if (!cricket_device_get_prop(cudbgAPI, 0, &dev_prop)) {
-        printf("error getting device properties\n");
+        print_error("Error getting device properties\n");
         goto detach;
     }
     printf("cricket: identified device:\n");
@@ -184,11 +180,11 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     // has its own jumptable).
     if (!cricket_elf_get_jmptable_index(jmptbl, jmptbl_len, kernel_name,
                                         &kernelindex)) {
-        fprintf(stderr, "get jmptable entry failed\n");
+        print_error("get jmptable entry failed\n");
         goto detach;
     }
     if (kernelindex == NULL) {
-        fprintf(stderr, "kernel %s not found\n", kernel_name);
+        print_error("kernel %s not found\n", kernel_name);
         goto detach;
     }
     // Address where the jumptable starts.
@@ -213,7 +209,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
         // Only valid warps participate at the kernel's execution
         res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("readValidWarps failed with %s\n",
+                        cudbgGetErrorString(res));
             goto cuda_error;
         }
         if (warp_mask == 0) {
@@ -227,7 +224,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
         res = cudbgAPI->resumeWarpsUntilPC(warp_info.dev, sm, warp_mask,
                                            jmptable_addr);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("resumeWarpsUntilPC failed with %s\n",
+                        cudbgGetErrorString(res));
             goto cuda_error;
         }
 
@@ -254,7 +252,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
         printf("sm %d\n", sm);
         res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("readValidWarps failed with %s\n",
+                        cudbgGetErrorString(res));
             goto cuda_error;
         }
         if (warp_mask == 0) {
@@ -273,7 +272,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                 res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp,
                                                &lanemask);
                 if (res != CUDBG_SUCCESS) {
-                    printf("%d:", __LINE__);
+                    print_error("readValidLanes failed with %s\n",
+                                cudbgGetErrorString(res));
                     goto cuda_error;
                 }
                 // Write Predicate 1 to 1 so that we enter the jumptable
@@ -282,8 +282,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                         res = cudbgAPI->writePredicates(0, sm, warp, lane, 1,
                                                         &predicate);
                         if (res != CUDBG_SUCCESS) {
-                            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                                    cudbgGetErrorString(res));
+                            print_error("writePredicates failed with %s\n",
+                                        cudbgGetErrorString(res));
                             goto detach;
                         }
                     }
@@ -291,7 +291,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                 // Enter the jumptable
                 res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                 if (res != CUDBG_SUCCESS) {
-                    printf("%d:", __LINE__);
+                    print_error("singleStepWarp failed with %s\n",
+                                cudbgGetErrorString(res));
                     goto cuda_error;
                 }
                 // Double check if we are still where we think we are
@@ -307,8 +308,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                 // execute it so they will finish immediately.
                 if (!cricket_cr_read_pc(&warp_info, CRICKET_CR_NOLANE, ckp_dir,
                                         &callstack)) {
-                    printf("cricket-cr: did not find callstack. exiting "
-                           "warp...\n");
+                    print_error("cricket-cr: did not find callstack. exiting "
+                                "warp...\n");
                     for (uint32_t lane = 0;
                          lane != warp_info.dev_prop->numLanes; lane++) {
                         if (lanemask & (1LU << lane)) {
@@ -318,15 +319,16 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                                 ((uint32_t)(index->exit_address - cur_address -
                                             0x8)));
                             if (res != CUDBG_SUCCESS) {
-                                fprintf(stderr, "cricket-cr (%d): %s\n",
-                                        __LINE__, cudbgGetErrorString(res));
+                                print_error("writeRegister failed with %s\n",
+                                            cudbgGetErrorString(res));
                                 goto detach;
                             }
                         }
                     }
                     res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                     if (res != CUDBG_SUCCESS) {
-                        printf("%d:", __LINE__);
+                        print_error("singleStepWarp failed with %s\n",
+                                    cudbgGetErrorString(res));
                         goto cuda_error;
                     }
                     cudbgAPI->readPC(0, sm, warp, 0, &rb_address);
@@ -347,7 +349,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                         if (!cricket_cr_rst_ssy(cudbgAPI, &warp_info,
                                                 &callstack, c_level, index->ssy,
                                                 index->ssy_num, &cur_address)) {
-                            fprintf(stderr, "error restoring SSY\n");
+                            print_error("error restoring SSY\n");
                             goto detach;
                         }
                         cudbgAPI->readPC(0, sm, warp, 0, &rb_address);
@@ -362,7 +364,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                         if (!cricket_cr_rst_subcall(
                                  cudbgAPI, &warp_info, &callstack, c_level,
                                  index->cal, index->cal_num, &cur_address)) {
-                            fprintf(stderr, "error restoring CAL\n");
+                            print_error("error restoring CAL\n");
                             goto detach;
                         }
 
@@ -370,7 +372,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                                  jmptbl, jmptbl_len,
                                  callstack.function_names[c_level - 1],
                                  &index)) {
-                            fprintf(stderr, "get jmptable entry failed\n");
+                            print_error("get jmptable entry failed\n");
                             goto detach;
                         }
                         if (index == NULL) {
@@ -391,8 +393,9 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                                     lane, CRICKET_JMX_ADDR_REG,
                                     ((uint32_t)(jmptable_addr)));
                                 if (res != CUDBG_SUCCESS) {
-                                    fprintf(stderr, "cricket-cr (%d): %s\n",
-                                            __LINE__, cudbgGetErrorString(res));
+                                    print_error("writeRegister failed with "
+                                                "%s\n",
+                                                cudbgGetErrorString(res));
                                     goto detach;
                                 }
                             }
@@ -400,7 +403,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
 
                         res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                         if (res != CUDBG_SUCCESS) {
-                            printf("%d:", __LINE__);
+                            print_error("singleStepWarp failed with %s\n",
+                                        cudbgGetErrorString(res));
                             goto cuda_error;
                         }
                         cudbgAPI->readPC(0, sm, warp, 0, &rb_address);
@@ -426,8 +430,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                                 ((uint32_t)(index->sync_address - cur_address -
                                             0x8)));
                             if (res != CUDBG_SUCCESS) {
-                                fprintf(stderr, "cricket-cr (%d): %s\n",
-                                        __LINE__, cudbgGetErrorString(res));
+                                print_error("writeRegister failed with %s\n",
+                                            cudbgGetErrorString(res));
                                 goto detach;
                             }
                             if (callstack.active_lanes & (1LU << lane)) {
@@ -438,20 +442,24 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                             res = cudbgAPI->writePredicates(
                                 0, sm, warp, lane, 1, &predicate_value);
                             if (res != CUDBG_SUCCESS) {
-                                fprintf(stderr, "cricket-cr (%d): %s\n",
-                                        __LINE__, cudbgGetErrorString(res));
+                                print_error("writePredicates failed with %s\n",
+                                            cudbgGetErrorString(res));
                                 goto detach;
                             }
                         }
                     }
+
+                    // TODO  why duplicate this? use for loop?
                     res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                     if (res != CUDBG_SUCCESS) {
-                        printf("%d:", __LINE__);
+                        print_error("singleStepWarp failed with %s\n",
+                                    cudbgGetErrorString(res));
                         goto cuda_error;
                     }
                     res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                     if (res != CUDBG_SUCCESS) {
-                        printf("%d:", __LINE__);
+                        print_error("singleStepWarp failed with %s\n",
+                                    cudbgGetErrorString(res));
                         goto cuda_error;
                     }
                     cur_address = index->sync_address + 0x8;
@@ -481,15 +489,16 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                                 ((uint32_t)(callstack.pc[0].relative -
                                             cur_address - 0x8)));
                             if (res != CUDBG_SUCCESS) {
-                                fprintf(stderr, "cricket-cr (%d): %s\n",
-                                        __LINE__, cudbgGetErrorString(res));
+                                print_error("writeRegister failed with %s\n",
+                                            cudbgGetErrorString(res));
                                 goto detach;
                             }
                         }
                     }
                     res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
                     if (res != CUDBG_SUCCESS) {
-                        printf("%d:", __LINE__);
+                        print_error("singleStepWarp failed with %s\n",
+                                    cudbgGetErrorString(res));
                         goto cuda_error;
                     }
                     cudbgAPI->readPC(0, sm, warp, 0, &rb_address);
@@ -546,7 +555,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     for (int sm = 0; sm != dev_prop.numSMs; sm++) {
         res = cudbgAPI->readValidWarps(warp_info.dev, sm, &warp_mask);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("readValidWarps failed with %s\n",
+                        cudbgGetErrorString(res));
             goto cuda_error;
         }
         for (uint64_t warp = 0; warp != dev_prop.numWarps; warp++) {
@@ -556,7 +566,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                 res = cudbgAPI->readValidLanes(warp_info.dev, sm, warp,
                                                &lanemask);
                 if (res != CUDBG_SUCCESS) {
-                    printf("%d:", __LINE__);
+                    print_error("readValidLanes failed with %s\n",
+                                cudbgGetErrorString(res));
                     goto cuda_error;
                 }
                 warp_info.sm = sm;
