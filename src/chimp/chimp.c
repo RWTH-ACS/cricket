@@ -16,10 +16,6 @@
 #include "chimp.h"
 #include "chimp_list.h"
 
-// We need the definition of PAGE_OFFSET to determine start of kernel address
-// space
-#define PAGE_OFFSET ( (void*)(1L<<47) )
-
 char tmpbuff[1024];
 unsigned long tmppos = 0;
 unsigned long tmpallocs = 0;
@@ -121,18 +117,13 @@ void chimp_free_all()
 {
     int i;
     chimp_list_elem_t elem;
-    printf("%p\n", PAGE_OFFSET);
     kill_threads();
     pthread_mutex_lock(&list.lock);
     chimp_list_compress(&list);
     for (i=0; i < list.size; ++i) {
         elem = list.arr[i];
         if (elem.func == FUNC_MALLOC) {
-            if (elem.ptr >= PAGE_OFFSET) {
-                printf("%p seems to point to the kernel space\n", elem.ptr);
-            } else {
-                ops.free(elem.ptr);
-            }
+            ops.free(elem.ptr);
         }
     }
     pthread_mutex_unlock(&list.lock);
