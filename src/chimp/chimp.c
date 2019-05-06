@@ -10,9 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <pthread.h>
+
 #include "libchimp.h"
 #include "chimp.h"
 #include "chimp_list.h"
+
+// We need the definition of PAGE_OFFSET to determine start of kernel address
+// space
+#define PAGE_OFFSET ( (void*)(1L<<47) )
 
 char tmpbuff[1024];
 unsigned long tmppos = 0;
@@ -25,13 +31,50 @@ char rec_sw = 1;
 void *memset(void *,int,size_t);
 void *memmove(void *to, const void *from, size_t size);
 
+static chimp_libc_ops_t ops;
+static chimp_list_t list;
+
+// TODO: make to list
+static pthread_t threads[16];
+static int threadcnt = 0;
+
 /*=========================================================
  * interception points
  */
 
+// TODO: Move to other file
+// is a critical section!
+void add_thread()
+{
+    pthread_t tid = pthread_self();
+    for (int i=0; i < threadcnt; ++i) {
+        if (pthread_equal(threads[i], tid)) {
+            return;
+        }
+    }
+    printf("new thread (%d).\n", threadcnt+1);
+    threads[threadcnt++] = tid;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+}
 
-static chimp_libc_ops_t ops;
-static chimp_list_t list;
+void kill_threads()
+{
+    pthread_t main_thread = pthread_self();
+    printf("cancelling %d threads...\n", threadcnt);
+    for (int i=0; i < threadcnt; ++i) {
+        if (!pthread_equal(main_thread, threads[i])) {
+            pthread_cancel(threads[i]);
+        }
+    }
+    printf("joining...\n");
+    for (int i=0; i < threadcnt; ++i) {
+        if (!pthread_equal(main_thread, threads[i])) {
+            pthread_join(threads[i], NULL);
+        }
+    }
+}
+// ****
 
 static void init()
 {
@@ -53,6 +96,9 @@ static void init()
     }
 }
 
+/* Print list of logged memory operations
+ * this function is exported
+ **/
 void chimp_print_list()
 {
     int i;
@@ -71,6 +117,30 @@ void chimp_print_list()
     }
 }
 
+void chimp_free_all()
+{
+    int i;
+    chimp_list_elem_t elem;
+    printf("%p\n", PAGE_OFFSET);
+    kill_threads();
+    pthread_mutex_lock(&list.lock);
+    chimp_list_compress(&list);
+    for (i=0; i < list.size; ++i) {
+        elem = list.arr[i];
+        if (elem.func == FUNC_MALLOC) {
+            if (elem.ptr >= PAGE_OFFSET) {
+                printf("%p seems to point to the kernel space\n", elem.ptr);
+            } else {
+                ops.free(elem.ptr);
+            }
+        }
+    }
+    pthread_mutex_unlock(&list.lock);
+}
+
+/* Turn on/off logging of memory operations
+ * this function is exported
+ **/
 void chimp_malloc_togglelog()
 {
     log_sw = !log_sw;
@@ -103,6 +173,7 @@ void *malloc(size_t size)
     void *ptr = ops.malloc(size);
     if (log_sw && rec_sw && ptr && size) {
         rec_sw = 0;
+        add_thread();
         if (!chimp_list_add(&list, FUNC_MALLOC, ptr, size)) {
             fprintf(stderr, "failed to add malloc(%lu) = %p to list\n", size,
                     ptr);
@@ -125,6 +196,7 @@ void free(void *ptr)
 
     if (log_sw && rec_sw && ptr) {
         rec_sw = 0;
+        add_thread();
         if (!chimp_list_add(&list, FUNC_FREE, ptr, 0)) {
             fprintf(stderr, "failed to add free(%lu) to list\n", ptr);
         }
@@ -147,6 +219,7 @@ void *realloc(void *ptr, size_t size)
 
     if (log_sw && rec_sw && nptr && ptr && size) {
         rec_sw = 0;
+        add_thread();
         if (!chimp_list_add(&list, FUNC_FREE, ptr, 0)) {
             fprintf(stderr, "realloc: failed to add free(%p) to list\n",
                     ptr);
@@ -172,6 +245,7 @@ void *calloc(size_t nmemb, size_t size)
     void *ptr = ops.calloc(nmemb, size);
     if (log_sw && rec_sw && ptr && size && nmemb) {
         rec_sw = 0;
+        add_thread();
         if (!chimp_list_add(&list, FUNC_MALLOC, ptr, nmemb * size)) {
             fprintf(stderr, "calloc: failed to add malloc(%lu) = %p to list\n",
                     nmemb * size, ptr);
@@ -186,6 +260,7 @@ void *memalign(size_t blocksize, size_t bytes)
     void *ptr = ops.memalign(blocksize, bytes);
     if (log_sw && rec_sw && ptr && bytes) {
         rec_sw = 0;
+        add_thread();
         if (!chimp_list_add(&list, FUNC_MALLOC, ptr, bytes)) {
             fprintf(stderr, "memalign: failed to add malloc(%lu) = %p to list\n",
                     bytes, ptr);

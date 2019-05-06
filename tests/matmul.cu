@@ -206,6 +206,8 @@ int main()
     printf("About to initialize CUDA context...\n");
     chimp_malloc_togglelog();
     cudaMalloc( (void**)&dev_A, A_size );
+    chimp_print_list();
+    chimp_free_all();
     chimp_malloc_togglelog();
 
     printf("dev_A = %p\n", dev_A);
@@ -275,7 +277,6 @@ int main()
 
     printf("elapsed time: %0u.%06u\n", (end.tv_sec - begin.tv_sec), (end.tv_usec - begin.tv_usec));
 
-    chimp_print_list();
 
 
     return EXIT_SUCCESS;

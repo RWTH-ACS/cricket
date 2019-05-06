@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
     void chimp_malloc_togglelog();
+    void chimp_free_all();
     void chimp_print_list();
 
 #ifdef __cplusplus

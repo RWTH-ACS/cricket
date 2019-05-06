@@ -156,6 +156,7 @@ bool chimp_list_compress(chimp_list_t *list)
     size_t get,put;
     size_t rm_cnt = 0;
 
+
     if (list->size == 0)
         return true;
 
@@ -163,9 +164,9 @@ bool chimp_list_compress(chimp_list_t *list)
         return false;
     }
     
-    if (!compress_merge(list)) {
-        return false;
-    }
+    //if (!compress_merge(list)) {
+    //    return false;
+    //}
 
     // Now we can remove all previously found malloc/free pairs from the array
     put = 0;
