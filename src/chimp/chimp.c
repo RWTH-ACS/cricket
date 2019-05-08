@@ -70,6 +70,21 @@ void kill_threads()
         }
     }
 }
+
+void kill_threads2()
+{
+    int i;
+    chimp_list_elem_t elem;
+
+    for (i = 0; i < list.size; ++i) {
+        elem = list.arr[i];
+        if (elem.func == FUNC_PTHREAD_CREATE) {
+            pthread_cancel(list.arr[i].tid);
+            ops.pthread_join(list.arr[i].tid, NULL);
+        }
+    }
+    
+}
 // ****
 
 static void init()
@@ -79,9 +94,11 @@ static void init()
     ops.calloc     = dlsym(RTLD_NEXT, "calloc");
     ops.realloc    = dlsym(RTLD_NEXT, "realloc");
     ops.memalign   = dlsym(RTLD_NEXT, "memalign");
+    ops.pthread_create = dlsym(RTLD_NEXT, "pthread_create");
+    ops.pthread_join = dlsym(RTLD_NEXT, "pthread_join");
 
     if (!ops.malloc || !ops.free || !ops.calloc || !ops.realloc ||
-        !ops.memalign) {
+        !ops.memalign || !ops.pthread_create || !ops.pthread_join) {
         fprintf(stderr, "Error in `dlsym`: %s\n", dlerror());
         exit(1);
     }
@@ -98,17 +115,21 @@ static void init()
 void chimp_print_list()
 {
     int i;
-    char *func_str[] = {"malloc", "free"};
+    char *func_str[] = {"malloc", "free", "pthread_create", "pthread_join"};
     chimp_list_elem_t elem;
 
     chimp_list_compress(&list);
     for (i = 0; i < list.size; ++i) {
         elem = list.arr[i];
         if (elem.func == FUNC_MALLOC) {
-            printf("\t%s(%lu) = %p\n", func_str[elem.func], elem.mem_size,
-                   elem.ptr);
+           // printf("\t%s(%lu) = %p\n", func_str[elem.func], elem.mem_size,
+           //        elem.ptr);
         } else if (elem.func == FUNC_FREE) {
-            printf("\t%s(%p)\n", func_str[elem.func], elem.ptr);
+           // printf("\t%s(%p)\n", func_str[elem.func], elem.ptr);
+        } else if (elem.func == FUNC_PTHREAD_CREATE) {
+            printf("\t%s(%d)\n", func_str[elem.func], elem.tid);
+        } else if (elem.func == FUNC_PTHREAD_JOIN) {
+            printf("\t%s(%d)\n", func_str[elem.func], elem.tid);
         }
     }
 }
@@ -117,7 +138,7 @@ void chimp_free_all()
 {
     int i;
     chimp_list_elem_t elem;
-    kill_threads();
+    kill_threads2();
     pthread_mutex_lock(&list.lock);
     chimp_list_compress(&list);
     for (i=0; i < list.size; ++i) {
@@ -135,6 +156,38 @@ void chimp_free_all()
 void chimp_malloc_togglelog()
 {
     log_sw = !log_sw;
+}
+
+int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                   void *(*start_routine) (void *), void *arg)
+{
+    int ret = -1;
+    printf("pthread_create\n");
+    ret = ops.pthread_create(thread, attr, start_routine, arg);
+
+    if (log_sw) {
+        if (!thread) {
+            printf("[chimp]: error thread is NULL!\n");
+        } else if (!chimp_list_add_pthread(&list, FUNC_PTHREAD_CREATE, NULL,
+                                   *thread)) {
+            fprintf(stderr, "failed to add pthread_create to list\n");
+        }
+    }
+}
+
+int pthread_join(pthread_t thread, void **retval)
+{
+    int ret = -1;
+    ret = ops.pthread_join(thread, retval);
+
+    if (log_sw) {
+        if (!thread) {
+            printf("[chimp]: error thread is NULL!\n");
+        } else if (!chimp_list_add_pthread(&list, FUNC_PTHREAD_JOIN, NULL,
+                                   thread)) {
+            fprintf(stderr, "failed to add pthread_create to list\n");
+        }
+    }
 }
 
 void *malloc(size_t size)

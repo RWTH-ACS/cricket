@@ -44,6 +44,16 @@ bool chimp_list_add_elem(chimp_list_t *list, chimp_list_elem_t elem)
     return true;
 }
 
+bool chimp_list_add_pthread(chimp_list_t *list, enum chimp_list_func func,
+                            void *ptr, pthread_t tid)
+{
+    chimp_list_elem_t elem = {
+        .func = func,
+        .ptr = ptr,
+        .tid = tid,
+    };
+    return chimp_list_add_elem(list, elem);
+}
 bool chimp_list_add(chimp_list_t *list, enum chimp_list_func func, void *ptr,
                     size_t mem_size)
 {
@@ -171,7 +181,9 @@ bool chimp_list_compress(chimp_list_t *list)
     // Now we can remove all previously found malloc/free pairs from the array
     put = 0;
     for (get = 0; get < list->size; ++get) {
-        if (list->arr[get].ptr != NULL) {
+        if (list->arr[get].ptr != NULL || 
+            ( list->arr[get].func != FUNC_MALLOC &&
+              list->arr[get].func != FUNC_FREE) ) {
             list->arr[put++] = list->arr[get];
         }
     }

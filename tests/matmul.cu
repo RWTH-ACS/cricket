@@ -207,6 +207,7 @@ int main()
     chimp_malloc_togglelog();
     cudaMalloc( (void**)&dev_A, A_size );
     chimp_print_list();
+    sleep(3);
     chimp_free_all();
     chimp_malloc_togglelog();
 
@@ -218,6 +219,7 @@ int main()
     //cudaDeviceReset();
     sleep(10);
     printf("Rerun first CUDA API call...\n");
+
 
 
     cudaMalloc( (void**)&dev_A, A_size );
