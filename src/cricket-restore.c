@@ -38,12 +38,11 @@ void print_jmptable(const cricket_jmptable_index *jmptbl,
     }
 }
 
-// TODO pass patched binary
 int cricket_restore(const char *executable, const char *ckp_dir)
 {
     CUDBGAPI cudbgAPI;
     CUDBGResult res;
-    char *patched_binary = "/home/nei/tmp/cricket-ckp/patched_binary";
+    char *patched_binary;
     const char *kernel_name;
     cricketWarpInfo warp_info = { 0 };
     cricket_callstack callstack;
@@ -51,6 +50,8 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     size_t jmptbl_len;
     uint32_t active_lanes, first_warp;
     uint64_t warp_mask;
+
+    asprintf(&patched_binary, "%s/patched_binary", ckp_dir);
 
 #ifdef CRICKET_PROFILE
     // a-b = PROFILE patch
@@ -67,6 +68,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     if (!cricket_elf_patch_all(executable, patched_binary, &jmptbl,
                                &jmptbl_len)) {
         print_error("cricket-cr: error while patching binary\n");
+        free(patched_binary);
         return -1;
     }
 
@@ -108,6 +110,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
     // Use the waiting period to get the CUDA debugger API.
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
         print_error("Cuda api not initialized!\n");
+        free(patched_binary);
         return -1;
     } else {
         printf("Cuda api initialized and attached!\n");
@@ -688,8 +691,10 @@ detach:
     cuda_api_finalize();
     /* quit GDB. TODO: Why is this necccessary? */
     quit_force(NULL, 0);
+    free(patched_binary);
     return 0;
 cuda_error:
     printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+    free(patched_binary);
     return -1;
 }
