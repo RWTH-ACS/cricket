@@ -81,25 +81,6 @@ int dlclose(void *handle)
 
 }
 
-//DEF_FN(cudaError_t, cudaLaunchDeviceV2_ptsz, void*, parameterBuffer, cudaStream_t, stream)
-//DEF_FN(cudaError_t, cudaLaunchDevice_ptsz, void*, func, void*, parameterBuffer, dim3, gridDimension, dim3, blockDimension, unsigned int, sharedMemSize, cudaStream_t, stream)
-//DEF_FN(cudaError_t, cudaLaunchKernel, const void*, func, dim3 gridDim, dim3, blockDim, void** args, size_t, sharedMem, cudaStrean_t stream);
-//DEF_FN(void**, __cudaRegisterFatBinary, void*, fatCubin)
-//DEF_FN(CUresult, cuInit, unsigned int, Flags)
-//DEF_FN(CUresult, cuDeviceGet, CUdevice*, device, int, ordinal)
-//DEF_FN(CUresult, cuDeviceGetName, char*, name, int, len, CUdevice, dev)
-//DEF_FN(CUresult, cuDeviceTotalMem_v2, size_t*, bytes, CUdevice, dev)
-//DEF_FN(CUresult, cuDeviceGetCount, int*, count)
-//DEF_FN(CUresult, cuDriverGetVersion, int*, driverVersion)
-//DEF_FN(CUresult, cuMemAlloc, CUdeviceptr*, dptr, size_t, bytesize)
-//DEF_FN(CUresult, cuMemcpyHtoD, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
-//DEF_FN(CUresult, cuMemcpyDtoH, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount)
-//DEF_FN(CUresult, cuMemFree, CUdeviceptr, dptr)
-//DEF_FN(CUresult, cuLaunchKernel, CUfunction, f, unsigned int, gridDimX, unsigned int, gridDimY, unsigned int, gridDimZ, unsigned int, blockDimX, unsigned int, blockDimY, unsigned int, blockDimZ, unsigned int, sharedMemBytes, CUstream, hStream, void**, kernelParams, void** extra)
-//DEF_FN(CUresult, cuEventSynchronize, CUevent, hEvent)
-//DEF_FN(CUresult, cuStreamSynchronize, CUstream, hStream)
-//DEF_FN(CUresult, cuDevicePrimaryCtxRetain, CUcontext*, pctx, CUdevice, dev)
-
 DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
 DEF_FN(CUresult, cuProfilerStart)
 DEF_FN(CUresult, cuProfilerStop)

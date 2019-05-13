@@ -6,10 +6,10 @@
 #define DEF_FN_PTR(RET, P_TYPES...) RET (*fun)(P_TYPES)
 #define CAL_FN_PTR(P_NAMES...) ret = (*fun)(P_NAMES)
 #define DEF_FN_BODY(RET, NAME, P_NAMES...) \
-    RET ret; char* error; \
+    RET ret; char* error_str; \
     *(void **)(&fun) = dlsym(libwrap_get_sohandle(), #NAME); \
-    if ((error = dlerror()) != NULL) { \
-        fprintf(stderr, "[libwrap] %s\n", error); \
+    if ((error_str = dlerror()) != NULL) { \
+        fprintf(stderr, "[libwrap] %s\n", error_str); \
         return ret; \
     } \
     printf("%s called\n", #NAME); \
