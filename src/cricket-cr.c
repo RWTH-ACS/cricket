@@ -93,7 +93,6 @@ static bool cricket_cr_gen_suffix(char **suffix, cricketWarpInfo *wi,
     return true;
 }
 
-#define CRICKET_PROFILE 1
 bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                          const char *ckp_dir)
 {
@@ -1302,7 +1301,6 @@ sizeof(struct cricket_pc_data))) {
 #undef _CRICKET_DEBUG_CR_*/
 
 /* stores stack, registers and PC */
-#define CRICKET_PROFILE 1
 bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                          const char *ckp_dir)
 {
