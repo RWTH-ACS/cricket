@@ -23,4 +23,6 @@ bool cricket_print_lane_states(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop);
 
 bool cricket_all_warps_broken(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop);
 
+bool cricket_init_gdb(char *name);
+
 #endif // _CRICKET_UTILS_H

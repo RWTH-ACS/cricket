@@ -1,6 +1,11 @@
 #include "cricket-utils.h"
+#include "defs.h"
 #include <stdio.h>
+#include <string.h>
 #include <cudadebugger.h>
+#include "interps.h"
+#include "top.h"
+#include "main.h"
 
 void print_binary32(uint32_t num)
 {
@@ -102,4 +107,48 @@ bool cricket_all_warps_broken(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop)
 cuda_error:
     fprintf(stderr, "Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
     return false;
+}
+
+// in defs.h these variables are refferd to as external, so let's provide these
+// as global state. (What should possibly go wrong)
+struct ui_file *gdb_stdout;
+struct ui_file *gdb_stderr;
+struct ui_file *gdb_stdlog;
+struct ui_file *gdb_stdin;
+struct ui_file *gdb_stdtarg;
+struct ui_file *gdb_stdtargerr;
+struct ui_file *gdb_stdtargin;
+
+bool cricket_init_gdb(char *name)
+{
+    // TODO check if tools succeed
+    /* initialize gdb streams, necessary for gdb_init */
+    gdb_stdout = ui_file_new();
+    gdb_stderr = stdio_fileopen(stderr);
+    gdb_stdlog = gdb_stderr;
+    gdb_stdtarg = gdb_stderr;
+    gdb_stdin = stdio_fileopen(stdin);
+    gdb_stdtargerr = gdb_stderr;
+    gdb_stdtargin = gdb_stdin;
+    instream = fopen("/dev/null", "r");
+
+    /* initialize gdb paths */
+    gdb_sysroot = strdup("");
+    debug_file_directory = strdup(DEBUGDIR);
+    gdb_datadir = strdup(GDB_DATADIR);
+
+    /* tell gdb that we do not want to run an interactive shell */
+    batch_flag = 1;
+
+    /* initialize BFD, the binary file descriptor library */
+    bfd_init();
+
+    /* initialize GDB */
+    printf("gdb_init...\n");
+    gdb_init(name);
+
+    char *interpreter_p = strdup(INTERP_CONSOLE);
+    struct interp *interp = interp_lookup(interpreter_p);
+    interp_set(interp, 1);
+    return true;
 }
