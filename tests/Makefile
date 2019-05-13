@@ -2,7 +2,7 @@
 
 HOST_CC = gcc
 HOST_LD = gcc
-HOST_CFLAGS = -Wall -std=gnu99
+HOST_CFLAGS = -std=gnu99 -I/usr/local/cuda/include
 
 CC = nvcc
 ARCH = sm_61
@@ -17,7 +17,7 @@ TEST_KERNEL_BIN = test_kernel
 TEST_KERNEL_O = test_kernel.o
 BINARY = test-cricket
 
-LIBCUDA_WRAPPER = libcuda.so.1
+LIBCUDA_WRAPPER = libcudawrap.so
 LIBCUDA_OBJ = libcuda.o
 LIBCUDA_LIBS = -ldl
 
@@ -52,10 +52,10 @@ $(BINARY) : $(FILES)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
-	$(HOST_CC) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
+	$(HOST_CC) $(HOST_CFLAGS) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
 
 $(LIBCUDA_WRAPPER) : $(LIBCUDA_OBJ)
-	$(HOST_LD) -shared -o $@ $^
+	$(HOST_LD) $(HOST_CFLAGS) -shared -o $@ $^
 
 
 #.depend : $(FILES:.o=.cu)

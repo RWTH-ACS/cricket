@@ -171,13 +171,6 @@ int main()
     const int x_size = N*sizeof(uint16_t);
 
     int cnt = 5;
-    cuInit(0);
-    cuDeviceGetCount(&cnt);
-    printf("found %d devices\n", cnt);
-    CUdevice cuDevice;
-    cuDeviceGet(&cuDevice, 0);
-    CUcontext cuContext;
-    cuCtxCreate(&cuContext, 0, cuDevice);
 
     gettimeofday(&begin, NULL);
     srand(time(NULL));
@@ -219,6 +212,7 @@ int main()
 
 #ifdef TEST_API
     printf("API Test: Create a checkpoint now!\n");
+    printf("kernel: %p\n", kernel);
     //cudaDeviceReset();
     sleep(10);
     printf("Rerun first CUDA API call...\n");
