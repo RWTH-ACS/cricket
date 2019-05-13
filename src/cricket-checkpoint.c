@@ -22,10 +22,10 @@
 #include "cricket-utils.h"
 #include "cricket-types.h"
 
-int cricket_checkpoint(const char *pid, const char *ckp_dir)
+int cricket_checkpoint(char *pid, const char *ckp_dir)
 {
-    const char *kernel_name = NULL;
-    const char *warp_kn;
+    char *kernel_name = NULL;
+    char *warp_kn;
     cricket_callstack callstack;
     cricket_function_info *function_info = NULL;
     int ret = -1;
@@ -44,7 +44,7 @@ int cricket_checkpoint(const char *pid, const char *ckp_dir)
 #endif
 
     /* attach to process (both CPU and GPU) */
-    printf("attaching...\n");
+    printf("attaching to PID %s\n", pid);
     // TODO check if parameter is a valid pid
     attach_command(pid, !batch_flag);
 
