@@ -174,7 +174,8 @@ int main(int argc, char *argv[])
         return cricket_start(cricket_args.executable);
     case CHECKPOINT:
         cricket_init_gdb(argv[0]);
-        return cricket_checkpoint(cricket_args.pid, cricket_args.ckp_dir);
+        return cricket_checkpoint(cricket_args.pid, cricket_args.ckp_dir,
+                                  cricket_args.profile);
     case RESTORE:
         return cricket_restore(cricket_args.executable, cricket_args.ckp_dir);
     default:

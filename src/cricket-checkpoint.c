@@ -1,12 +1,12 @@
 #include "cricket-checkpoint.h"
 
-#include "defs.h"
-#include "cudadebugger.h"
 #include "cuda-api.h"
+#include "cudadebugger.h"
+#include "defs.h"
 
 #include "inferior.h"
-#include "top.h"
 #include "main.h"
+#include "top.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -14,15 +14,78 @@
 
 #include "cricket-cr.h"
 #include "cricket-device.h"
-#include "cricket-stack.h"
-#include "cricket-register.h"
+#include "cricket-elf.h"
 #include "cricket-file.h"
 #include "cricket-heap.h"
-#include "cricket-elf.h"
-#include "cricket-utils.h"
+#include "cricket-register.h"
+#include "cricket-stack.h"
 #include "cricket-types.h"
+#include "cricket-utils.h"
 
-int cricket_checkpoint(char *pid, const char *ckp_dir)
+struct profile_times_warp
+{
+    struct timeval misc_begin, checkpointable_begin, pc_begin, shared_begin,
+        lanes_begin, warp_end;
+    uint warp_id, sm_id;
+};
+
+struct profile_times
+{
+    struct timeval attach_begin, init_begin, inkernel_begin, outkernel_begin,
+        checkpoint_end;
+    struct profile_times_warp *warp;
+    uint entry_count, nr_sm, nr_warps;
+};
+
+void print_profile_times(const struct profile_times *pt)
+{
+    double attach_time = time_diff_sec(&pt->init_begin, &pt->attach_begin);
+    double init_time = time_diff_sec(&pt->inkernel_begin, &pt->init_begin);
+    double inkernel_time =
+        time_diff_sec(&pt->outkernel_begin, &pt->inkernel_begin);
+    double outkernel_time =
+        time_diff_sec(&pt->checkpoint_end, &pt->outkernel_begin);
+    double complete_time =
+        time_diff_sec(&pt->checkpoint_end, &pt->attach_begin);
+
+    printf("\n============= Profiling Results =============\n");
+    printf("Total duration:\n");
+    printf("\tattach:    %f s\n"
+           "\tinit:      %f s\n"
+           "\tinkernel:  %f s\n"
+           "\toutkernel: %f s\n"
+           "\tcomplete:  %f s\n\n",
+           attach_time, init_time, inkernel_time, outkernel_time,
+           complete_time);
+
+    for (uint i = 0; i < pt->entry_count; ++i) {
+        uint misc_time = time_diff_usec(&pt->warp[i].checkpointable_begin,
+                                        &pt->warp[i].misc_begin);
+        uint checkpointable_time = time_diff_usec(
+            &pt->warp[i].pc_begin, &pt->warp[i].checkpointable_begin);
+        uint pc_time =
+            time_diff_usec(&pt->warp[i].lanes_begin, &pt->warp[i].pc_begin);
+        uint lane_time =
+            time_diff_usec(&pt->warp[i].shared_begin, &pt->warp[i].lanes_begin);
+        uint shared_time =
+            time_diff_usec(&pt->warp[i].warp_end, &pt->warp[i].shared_begin);
+        uint warp_total =
+            time_diff_usec(&pt->warp[i].warp_end, &pt->warp[i].misc_begin);
+
+        printf("SM %d Warp %d duration:\n", pt->warp[i].sm_id,
+               pt->warp[i].warp_id);
+        printf("\tmisc:           %u us\n"
+               "\tcheckpointable: %u us\n"
+               "\tpc:             %u us\n"
+               "\tlane:           %u us\n"
+               "\tshared:         %u us\n"
+               "\twarp:           %u us\n\n",
+               misc_time, checkpointable_time, pc_time, lane_time, shared_time,
+               warp_total);
+    }
+}
+
+int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
 {
     char *kernel_name = NULL;
     char *warp_kn;
@@ -37,11 +100,12 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
     uint64_t relative_ssy;
     CUDBGResult res;
     CUDBGAPI cudbgAPI;
-#ifdef CRICKET_PROFILE
-    struct timeval a, b, c, d, e, f;
-    struct timeval la, lb, lc, ld, le, lf, lg;
-    gettimeofday(&a, NULL);
-#endif
+
+    struct profile_times timestamps;
+    if (profile) {
+        timestamps.entry_count = 0;
+        gettimeofday(&timestamps.attach_begin, NULL);
+    }
 
     /* attach to process (both CPU and GPU) */
     printf("attaching to PID %s\n", pid);
@@ -57,9 +121,10 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
     } else {
         printf("Cuda api initialized and attached!\n");
     }
-#ifdef CRICKET_PROFILE
-    gettimeofday(&b, NULL);
-#endif
+
+    if (profile) {
+        gettimeofday(&timestamps.init_begin, NULL);
+    }
 
     /* get CUDA debugger API */
     res = cudbgGetAPI(CUDBG_API_VERSION_MAJOR, CUDBG_API_VERSION_MINOR,
@@ -128,9 +193,20 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
     warp_info.sm = 0;
     warp_info.warp = 0;
 
-#ifdef CRICKET_PROFILE
-    gettimeofday(&d, NULL);
-#endif
+    // checkpointing kernel
+    if (profile) {
+        gettimeofday(&timestamps.inkernel_begin, NULL);
+    }
+
+
+    if (profile) {
+        timestamps.nr_warps = dev_prop.numWarps;
+        timestamps.nr_sm = dev_prop.numSMs;
+        printf("======== nr warps %d ===\n", dev_prop.numWarps);
+        printf("======== nr sm  %d ===\n", dev_prop.numSMs);
+        timestamps.warp = malloc(timestamps.nr_sm * timestamps.nr_warps *
+                                 sizeof(struct profile_times_warp));
+    }
 
     for (int sm = 0; sm != dev_prop.numSMs; sm++) {
         res = cudbgAPI->readValidWarps(0, sm, warp_mask + sm);
@@ -140,12 +216,16 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
         }
         printf("SM %u: %lx - ", sm, warp_mask[sm]);
         print_binary64(warp_mask[sm]);
-
         for (uint8_t warp = 0; warp != dev_prop.numWarps; warp++) {
             if (warp_mask[sm] & (1LU << warp)) {
-#ifdef CRICKET_PROFILE
-                gettimeofday(&la, NULL);
-#endif
+                if (profile) {
+                    timestamps.warp[timestamps.entry_count].warp_id = warp,
+                    timestamps.warp[timestamps.entry_count].sm_id = sm,
+                    gettimeofday(
+                        &(timestamps.warp[timestamps.entry_count].misc_begin),
+                        NULL);
+                }
+
                 if (!cricket_cr_kernel_name(cudbgAPI, 0, sm, warp, &warp_kn)) {
                     fprintf(stderr, "cricket-checkpoint: could not get kernel "
                                     "name for D%uS%uW%u\n",
@@ -154,10 +234,10 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
                 }
                 if (strcmp(warp_kn, kernel_name) != 0) {
                     // TODO: here are some arguments missing
-                    fprintf(stderr,
-                            "cricket-checkpoint: found kernel \"%s\" while "
-                            "checkpointing kernel \"%s\". only one kernel can "
-                            "be checkpointed\n");
+                    fprintf(stderr, "cricket-checkpoint: found kernel \"%s\" "
+                                    "while checkpointing kernel \"%s\". only "
+                                    "one "
+                                    "kernel can be checkpointed\n");
                     goto detach;
                 }
 
@@ -179,9 +259,15 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
                        callstack.valid_lanes);
                 print_binary32(callstack.valid_lanes);
 
-#ifdef CRICKET_PROFILE
-                gettimeofday(&lc, NULL);
-#endif
+                if (profile) {
+                    gettimeofday(&(timestamps.warp[timestamps.entry_count]
+                                       .checkpointable_begin),
+                                 NULL);
+                    printf("=== Debug timestamp %d ",
+                           timestamps.warp[timestamps.entry_count]
+                               .checkpointable_begin);
+                }
+
                 if (!cricket_cr_make_checkpointable(cudbgAPI, &warp_info,
                                                     function_info, fi_num,
                                                     &callstack)) {
@@ -189,64 +275,56 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
                                     "checkpointable.\n");
                     goto detach;
                 }
-#ifdef CRICKET_PROFILE
-                gettimeofday(&ld, NULL);
-#endif
 
+                if (profile) {
+                    gettimeofday(
+                        &(timestamps.warp[timestamps.entry_count].pc_begin),
+                        NULL);
+                }
                 if (!cricket_cr_ckp_pc(cudbgAPI, &warp_info, CRICKET_CR_NOLANE,
                                        ckp_dir, &callstack)) {
                     fprintf(stderr, "cricket-checkpoint: ckp_pc failed\n");
                     goto detach;
                 }
                 cricket_cr_free_callstack(&callstack);
-#ifdef CRICKET_PROFILE
-                gettimeofday(&le, NULL);
-#endif
+
+                if (profile) {
+                    gettimeofday(
+                        &(timestamps.warp[timestamps.entry_count].lanes_begin),
+                        NULL);
+                }
                 for (uint8_t lane = 0; lane != dev_prop.numLanes; lane++) {
                     if (callstack.valid_lanes & (1LU << lane)) {
                         cricket_cr_ckp_lane(cudbgAPI, &warp_info, lane,
                                             ckp_dir);
                     }
                 }
-#ifdef CRICKET_PROFILE
-                gettimeofday(&lf, NULL);
-#endif
+
+                if (profile) {
+                    gettimeofday(
+                        &(timestamps.warp[timestamps.entry_count].shared_begin),
+                        NULL);
+                }
 
                 if (!cricket_cr_ckp_shared(cudbgAPI, ckp_dir, &elf_info, 0, sm,
                                            warp)) {
                     printf("cricket_cr_ckp_shared unsuccessful\n");
                 }
-#ifdef CRICKET_PROFILE
-                gettimeofday(&lg, NULL);
-                double lct = ((double)((lc.tv_sec * 1000000 + lc.tv_usec) -
-                                       (la.tv_sec * 1000000 + la.tv_usec))) /
-                             1000000.;
-                double ldt = ((double)((ld.tv_sec * 1000000 + ld.tv_usec) -
-                                       (lc.tv_sec * 1000000 + lc.tv_usec))) /
-                             1000000.;
-                double let = ((double)((le.tv_sec * 1000000 + le.tv_usec) -
-                                       (ld.tv_sec * 1000000 + ld.tv_usec))) /
-                             1000000.;
-                double lft = ((double)((lf.tv_sec * 1000000 + lf.tv_usec) -
-                                       (le.tv_sec * 1000000 + le.tv_usec))) /
-                             1000000.;
-                double lgt = ((double)((lg.tv_sec * 1000000 + lg.tv_usec) -
-                                       (lf.tv_sec * 1000000 + lf.tv_usec))) /
-                             1000000.;
-                printf("warp time:\n\tPROFILE misc: %f s\n\tPROFILE "
-                       "checkpointable: %f "
-                       "s\n\tPROFILE pc: %f s\n\tPROFILE lane: %f s\n\tPROFILE "
-                       "shared: "
-                       "%f s\n",
-                       lct, ldt, let, lft, lgt);
-#endif
+
+                if (profile) {
+                    gettimeofday(
+                        &(timestamps.warp[timestamps.entry_count].warp_end),
+                        NULL);
+                    timestamps.entry_count += 1;
+                }
             }
         }
     }
 
-#ifdef CRICKET_PROFILE
-    gettimeofday(&e, NULL);
-#endif
+    // Checkpoint non-kernel data
+    if (profile) {
+        gettimeofday(&timestamps.outkernel_begin, NULL);
+    }
 
     if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
@@ -257,29 +335,10 @@ int cricket_checkpoint(char *pid, const char *ckp_dir)
         printf("cricket_cr_ckp_globals unsuccessful\n");
     }
 
-#ifdef CRICKET_PROFILE
-    gettimeofday(&f, NULL);
-
-    double bt = ((double)((b.tv_sec * 1000000 + b.tv_usec) -
-                          (a.tv_sec * 1000000 + a.tv_usec))) /
-                1000000.;
-    double dt = ((double)((d.tv_sec * 1000000 + d.tv_usec) -
-                          (b.tv_sec * 1000000 + b.tv_usec))) /
-                1000000.;
-    double et = ((double)((e.tv_sec * 1000000 + e.tv_usec) -
-                          (d.tv_sec * 1000000 + d.tv_usec))) /
-                1000000.;
-    double ft = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
-                          (e.tv_sec * 1000000 + e.tv_usec))) /
-                1000000.;
-    double comt = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
-                            (a.tv_sec * 1000000 + a.tv_usec))) /
-                  1000000.;
-    printf("complete time:\n\tPROFILE attach: %f s\n\tPROFILE init: %f "
-           "s\n\tPROFILE inkernel: %f s\n\tPROFILE outkernel: %f s\n\tPROFILE "
-           "complete: %f s\n",
-           bt, dt, et, ft, comt);
-#endif
+    if (profile) {
+        gettimeofday(&timestamps.checkpoint_end, NULL);
+        print_profile_times(&timestamps);
+    }
 
     ret = 0;
     goto detach;
@@ -287,6 +346,9 @@ cuda_error:
     printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
 detach:
     free(function_info);
+    if (profile) {
+        free(timestamps.warp);
+    }
     /* Detach from process (CPU and GPU) */
     detach_command(NULL, !batch_flag);
     /* finalize, i.e. clean up CUDA debugger API */

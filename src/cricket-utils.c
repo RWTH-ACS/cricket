@@ -7,6 +7,18 @@
 #include "top.h"
 #include "main.h"
 
+double time_diff_sec(const struct timeval *tv1, const struct timeval *tv2)
+{
+    return fabs((tv2->tv_sec - tv1->tv_sec) +
+                ((tv2->tv_usec - tv1->tv_usec) / 1000000.0));
+}
+
+uint time_diff_usec(const struct timeval *tv1, const struct timeval *tv2)
+{
+    return abs((tv2->tv_sec - tv1->tv_sec) * 1000000 + tv2->tv_usec -
+               tv1->tv_usec);
+}
+
 void print_binary32(uint32_t num)
 {
     uint8_t i;
