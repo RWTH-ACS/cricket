@@ -5,13 +5,16 @@
 
 #define DEF_FN_PTR(RET, P_TYPES...) RET (*fun)(P_TYPES)
 #define CAL_FN_PTR(P_NAMES...) ret = (*fun)(P_NAMES)
-#define DEF_FN_BODY(RET, NAME, P_NAMES...) \
+#define DEF_DLSYM(RET, NAME) \
     RET ret; char* error_str; \
     *(void **)(&fun) = dlsym(libwrap_get_sohandle(), #NAME); \
     if ((error_str = dlerror()) != NULL) { \
         fprintf(stderr, "[libwrap] %s\n", error_str); \
         return ret; \
     } \
+
+#define DEF_FN_BODY(RET, NAME, P_NAMES...) \
+    DEF_DLSYM(RET, NAME) \
     printf("%s called\n", #NAME); \
     CAL_FN_PTR(P_NAMES); \
     printf("%s finished\n", #NAME); \

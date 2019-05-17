@@ -21,6 +21,11 @@ LIBCUDA_WRAPPER = libcudawrap.so
 LIBCUDA_OBJ = libcuda.o
 LIBCUDA_LIBS = -ldl
 
+LIBCUDART_WRAPPER = libcurtwrap.so
+LIBCUDART_OBJ = libcurt.o
+LIBCUDART_LIBS = -ldl
+
+
 FILES := matmul.cu
 
 .PHONY: all depend clean dmtcpclean
@@ -57,6 +62,11 @@ $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
 $(LIBCUDA_WRAPPER) : $(LIBCUDA_OBJ)
 	$(HOST_LD) $(HOST_CFLAGS) -shared -o $@ $^
 
+$(LIBCURT_OBJ) : $(LIBCURT_OBJ:.o=.c)
+	$(HOST_CC) $(HOST_CFLAGS) -c -fpic -o $@ $< $(LIBCURT_LIBS)
+
+$(LIBCURT_WRAPPER) : $(LIBCURT_OBJ)
+	$(HOST_LD) $(HOST_CFLAGS) -shared -o $@ $^
 
 #.depend : $(FILES:.o=.cu)
 #	$(CC) -MM $(CFLAGS) $(FILES:.o=.cu) > $@

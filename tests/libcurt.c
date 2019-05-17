@@ -12,7 +12,6 @@
 #include <string.h>
 
 #include "libwrap.h"
-#include "culibwrap.h"
 
 static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 static void *so_handle = NULL;
