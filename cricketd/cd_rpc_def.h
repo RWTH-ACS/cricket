@@ -1,7 +1,7 @@
-#ifndef _CULIBWRAP_H_
-#define _CULIBWRAP_H_
+#ifndef _CD_RPC_DEF_H_
+#define _CD_RPC_DEF_H_
 
-typedef enum cu_api_fun {
+typedef enum cd_rpc_fun {
 cuapi_cuInit,
 cuapi_cuDeviceGet,
 cuapi_cuDeviceGetCount,
@@ -304,6 +304,6 @@ cuapi_cuStreamGetCaptureInfo,
 cuapi_cuStreamGetCaptureInfo_ptsz,
 cuapi_cuGraphExecKernelNodeSetParams,
 cuapi_cuThreadExchangeStreamCaptureMode,
-} cuapi_func_t;
+} cd_rpc_func_t;
 
-#endif //_CULIBWRAP_H_
+#endif //_CD_RPC_DEF_H_

@@ -53,7 +53,7 @@ void *dlopen(const char *filename, int flag)
 
 
     if (filename && strcmp(filename, "libcuda.so.1") == 0) {
-        dl_handle = dlopen_orig("libcudawrap.so", flag);
+        dl_handle = dlopen_orig("./libcudawrap.so", flag);
         return dl_handle;
     } else {
         return dlopen_orig(filename, flag);
@@ -370,12 +370,19 @@ DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, un
 CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
 {
     const void* p1_data = *ppExportTable;
+    char idstr[34];
+    sprintf(idstr, "%lx:%lx",
+            ((uint64_t*)pExportTableId->bytes)[0], 
+            ((uint64_t*)pExportTableId->bytes)[1]);
+    printf("precall %p->%p\n", ppExportTable, *ppExportTable);
     DEF_FN_PTR(CUresult, const void**, const CUuuid*);
     DEF_DLSYM(CUresult, cuGetExportTable)
     CAL_FN_PTR(&p1_data, pExportTableId);
     *ppExportTable = malloc(8*sizeof(void*));
     memcpy(*((void**)ppExportTable), p1_data, 8*sizeof(void*));
-    printf("cuGetExportTable(%p, %p) = %d\n", ppExportTable, pExportTableId, ret);
+    printf("cuGetExportTable(%p, %s) = %d\n", p1_data, idstr, ret);
+    for (int i=-1; i < 18; ++i)
+        printf("\t%p\n", ((void**)p1_data)[i]);
     return ret;
 }
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize)
