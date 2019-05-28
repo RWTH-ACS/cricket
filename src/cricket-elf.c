@@ -12,6 +12,7 @@
 #include <sys/sendfile.h>
 
 #include "cricket-elf.h"
+#include "cricket-utils.h"
 
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
 #define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
@@ -655,25 +656,31 @@ static bool cricket_elf_count_cal(void *function_base, size_t function_size,
     return true;
 }
 
-bool cricket_elf_get_fun_info(cricket_function_info *function_info,
-                              size_t fi_num, const char *fun_name,
-                              cricket_function_info **the_fi)
+// TODO: should be named "find function by name" or simmilar and return value
+// should be 'the fi'
+cricket_function_info *
+cricket_elf_get_fun_info(const cricket_function_info_array *fi_array,
+                         const char *fun_name)
 {
-    if (fun_name == NULL || function_info == NULL || the_fi == NULL)
-        return false;
+    if (fun_name == NULL) {
+        print_error("fun_name is specified\n");
+        return NULL;
+    }
+    if (fi_array->entries == NULL) {
+        print_error("fi_array has no entries\n");
+        return NULL;
+    }
 
-    for (size_t i = 0; i < fi_num; ++i) {
-        if (strcmp(function_info[i].name, fun_name) == 0) {
-            *the_fi = function_info + i;
-            return true;
+    for (size_t i = 0; i < fi_array->size; ++i) {
+        if (strcmp(fi_array->entries[i].name, fun_name) == 0) {
+            return &fi_array->entries[i];
         }
     }
-    *the_fi = NULL;
-    return true;
+    return NULL;
 }
 
-bool cricket_elf_build_fun_info(cricket_function_info **function_info,
-                                size_t *fi_num)
+bool
+cricket_elf_build_fun_info(cricket_function_info_array *function_info_array)
 {
     struct objfile *objfile;
     asection *section = NULL;
@@ -687,6 +694,13 @@ bool cricket_elf_build_fun_info(cricket_function_info **function_info,
     cricket_function_info *fun_i = NULL;
     size_t i = 0;
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
+
+    if (function_info_array->entries != NULL ||
+        function_info_array->size != 0) {
+        print_error("function_info_array not empty (size %zu)\n",
+                    function_info_array->size);
+        return false;
+    }
 
     ALL_OBJFILES(objfile)
     {
@@ -780,14 +794,13 @@ bool cricket_elf_build_fun_info(cricket_function_info **function_info,
             contents = NULL;
         }
     }
-    if (function_info != NULL)
-        *function_info = fun_i;
-    if (fi_num != NULL)
-        *fi_num = fun_num;
+    function_info_array->entries = fun_i;
+    function_info_array->size = fun_num;
     ret = true;
 cleanup:
-    if (!ret)
+    if (!ret) {
         free(fun_i);
+    }
     free(contents);
     return ret;
 }

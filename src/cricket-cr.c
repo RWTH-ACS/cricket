@@ -9,6 +9,7 @@
 #include "cricket-heap.h"
 #include "cricket-register.h"
 #include "cricket-stack.h"
+#include "cricket-utils.h"
 
 bool cricket_cr_function_name(uint64_t pc, const char **name)
 {
@@ -982,39 +983,41 @@ packed_size)) {
 }
 */
 
-bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
-                                    cricket_function_info *fi, size_t fi_num,
+bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
+                                    const cricketWarpInfo *wi,
+                                    const cricket_function_info_array *fia,
                                     cricket_callstack *callstack)
 {
     CUDBGResult res;
     uint64_t rel_ssy, rel_pbk;
-    cricket_function_info *the_fi = NULL;
+    cricket_function_info *fi = NULL;
     bool ret = false;
     size_t i;
     bool joined = false;
     bool stepup = false;
     size_t callstack_bku = callstack->callstack_size;
     for (i = callstack->callstack_size - 1; i + 1 > 0; --i) {
-        if (!cricket_elf_get_fun_info(fi, fi_num, callstack->function_names[i],
-                                      &the_fi)) {
-            fprintf(stderr, "cricket-cr: failed to get fun_info\n");
+        fi = cricket_elf_get_fun_info(fia, callstack->function_names[i]);
+        if (fi == NULL) {
+            print_error("failed to get fun_info for %s\n",
+                        callstack->function_names[i]);
             goto cleanup;
         }
-        if (the_fi == NULL) {
-            fprintf(stderr, "cricket-cr: no info for function %s available\n",
-                    callstack->function_names[i]);
+        if (fi == NULL) {
+            print_error("no info for function %s available\n",
+                        callstack->function_names[i]);
             goto cleanup;
         }
         printf("function \"%s\" has %sroom (%lu slots)\n",
-               callstack->function_names[i], (the_fi->has_room ? "" : "no "),
-               the_fi->room);
-        if (i == callstack->callstack_size - 1 && the_fi->room == 0) {
-            fprintf(stderr, "cricket-cr: There is no room in the top level "
-                            "function (i.e. the kernel). This kernel can thus "
-                            "never be restored!\n");
+               callstack->function_names[i], (fi->has_room ? "" : "no "),
+               fi->room);
+        if (i == callstack->callstack_size - 1 && fi->room == 0) {
+            print_error("There is no room in the top level "
+                        "function (i.e. the kernel). This kernel can thus "
+                        "never be restored!\n");
             goto cleanup;
         }
-        if (!the_fi->has_room) {
+        if (!fi->has_room) {
             printf("function %s does not have enough room. Subcalls and "
                    "synchronization points in this function cannot be "
                    "restored\n",

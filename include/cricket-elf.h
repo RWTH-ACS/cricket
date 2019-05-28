@@ -34,15 +34,18 @@ bool cricket_elf_pc_info(const char *function_name, uint64_t relative_pc,
                          uint64_t *relative_ssy, uint64_t *relative_pbk);
 
 bool cricket_elf_analyze(const char *filename);
+
 bool cricket_elf_patch_all(const char *filename, const char *new_filename,
                            cricket_jmptable_index **jumptable,
                            size_t *jumptable_len);
 
-bool cricket_elf_build_fun_info(cricket_function_info **function_info,
-                                size_t *fi_num);
-bool cricket_elf_get_fun_info(cricket_function_info *function_info,
-                              size_t fi_num, const char *fun_name,
-                              cricket_function_info **the_fi);
+bool
+cricket_elf_build_fun_info(cricket_function_info_array *function_info_array);
+
+cricket_function_info *
+cricket_elf_get_fun_info(const cricket_function_info_array *fi_array,
+                         const char *fun_name);
+
 void cricket_elf_free_jumptable(cricket_jmptable_index **jmptbl,
                                 size_t jmptbl_len);
 

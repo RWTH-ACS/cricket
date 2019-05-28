@@ -96,6 +96,12 @@ typedef struct _cricket_function_info
     size_t room;
 } cricket_function_info;
 
+typedef struct _cricket_function_info_array
+{
+    cricket_function_info *entries;
+    size_t size;
+} cricket_function_info_array;
+
 typedef struct _cricket_jmptable_entry
 {
     uint64_t address;

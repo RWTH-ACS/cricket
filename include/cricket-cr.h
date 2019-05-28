@@ -19,8 +19,9 @@ bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                           uint32_t lane_param, cricket_callstack *callstack);
 
-bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
-                                    cricket_function_info *fi, size_t fi_num,
+bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
+                                    const cricketWarpInfo *wi,
+                                    const cricket_function_info_array *fi,
                                     cricket_callstack *callstack);
 
 bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
