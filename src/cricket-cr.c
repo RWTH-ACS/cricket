@@ -14,15 +14,12 @@
 bool cricket_cr_function_name(uint64_t pc, const char **name)
 {
     CUDBGResult res;
+    // TODO name function_name is redundant
     const char *function_name;
 
     function_name = cuda_find_function_name_from_pc(pc, false);
     *name = function_name;
     return function_name != NULL;
-
-cuda_error:
-    fprintf(stderr, "Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
-    return false;
 }
 
 bool cricket_cr_sm_broken(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm)
@@ -45,42 +42,39 @@ bool cricket_cr_sm_broken(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm)
     }
     return true;
 cuda_error:
-    fprintf(stderr, "Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+    print_error("\"%s\"\n", cudbgGetErrorString(res));
     return false;
 }
-bool cricket_cr_kernel_name(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
-                            uint32_t wp, const char **name)
+
+// TODO: pass warp info
+const char *cricket_cr_kernel_name(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
+                                   uint32_t wp)
 {
     CUDBGResult res;
     uint64_t grid_id;
     CUDBGGridInfo info;
-    const char *kernel_name;
 
     res = cudbgAPI->readGridId(dev, sm, wp, &grid_id);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "%d:", __LINE__);
-        goto cuda_error;
+        print_error("failed to read Grid Id, Cuda error %s\n",
+                    cudbgGetErrorString(res));
+        return NULL;
     }
 
     res = cudbgAPI->getGridInfo(dev, grid_id, &info);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "%d:", __LINE__);
-        goto cuda_error;
+        print_error("failed to get grid info, Cuda error %s\n",
+                    cudbgGetErrorString(res));
+        return NULL;
     }
 
-    kernel_name = cuda_find_function_name_from_pc(info.functionEntry, false);
-    *name = kernel_name;
-    return kernel_name != NULL;
-
-cuda_error:
-    fprintf(stderr, "Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
-    return false;
+    return cuda_find_function_name_from_pc(info.functionEntry, false);
 }
 
-static bool cricket_cr_gen_suffix(char **suffix, cricketWarpInfo *wi,
-                                  uint32_t lane)
+static bool cricket_cr_gen_suffix(char **suffix, const cricketWarpInfo *wi,
+                                  const uint32_t lane)
 {
-    size_t ret;
+    int ret;
     if (lane == CRICKET_CR_NOLANE) {
         ret = asprintf(suffix, "-D%uS%uW%u", wi->dev, wi->sm, wi->warp);
     } else {
@@ -588,7 +582,7 @@ cleanup:
     return ret;
 }
 
-bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
+bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
                           uint32_t lane_param, cricket_callstack *callstack)
 {
     uint32_t base_addr;
@@ -732,7 +726,7 @@ cleanup:
     return ret;
 }
 
-bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
+bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
                        uint32_t lane_param, const char *ckp_dir,
                        cricket_callstack *callstack)
 {
@@ -1304,8 +1298,8 @@ sizeof(struct cricket_pc_data))) {
 #undef _CRICKET_DEBUG_CR_*/
 
 /* stores stack, registers and PC */
-bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
-                         const char *ckp_dir)
+bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
+                         uint32_t lane, const char *ckp_dir)
 {
     CUDBGResult res;
     size_t register_size;
@@ -1559,7 +1553,7 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             continue;
         }
 
-        printf("heap param %u: %llx (%lu)\n", i,
+        printf("heap param %u: %p (%lu)\n", i,
                *(void **)(param_mem + elf_info->params[i].offset), heapsize);
 
         if ((param_data = realloc(param_data, heapsize)) == NULL) {
@@ -1597,7 +1591,7 @@ cleanup:
 }
 
 bool cricket_cr_ckp_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
-                           cricket_elf_info *elf_info, uint32_t dev,
+                           const cricket_elf_info *elf_info, uint32_t dev,
                            uint32_t sm, uint32_t warp)
 {
     CUDBGResult res;

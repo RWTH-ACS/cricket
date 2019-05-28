@@ -13,10 +13,10 @@ bool cricket_cr_read_pc(cricketWarpInfo *wi, uint32_t lane, const char *ckp_dir,
                         cricket_callstack *callstack);
 bool cricket_cr_rst_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                        uint32_t lane_num, cricket_callstack *callstack);
-bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
+bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
                        uint32_t lane_param, const char *ckp_dir,
                        cricket_callstack *callstack);
-bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
+bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
                           uint32_t lane_param, cricket_callstack *callstack);
 
 bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
@@ -24,31 +24,45 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
                                     const cricket_function_info_array *fi,
                                     cricket_callstack *callstack);
 
-bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
-                         const char *ckp_dir);
+bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
+                         uint32_t lane, const char *ckp_dir);
+
 bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                          const char *ckp_dir);
+
 bool cricket_cr_function_name(uint64_t pc, const char **name);
-bool cricket_cr_kernel_name(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
-                            uint32_t wp, const char **name);
+
+// returns the name of the kernel on the warp processor specified by
+// dev - cuda device
+// sm - streaming multiprocessor id
+// wp - warp processor id
+const char *cricket_cr_kernel_name(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
+                                   uint32_t wp);
+
 bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
                            cricket_elf_info *elf_info, uint32_t dev,
                            uint32_t sm, uint32_t warp);
+
 bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
                            cricket_elf_info *elf_info, uint32_t dev,
                            uint32_t sm, uint32_t warp);
+
 bool cricket_cr_ckp_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
-                           cricket_elf_info *elf_info, uint32_t dev,
+                           const cricket_elf_info *elf_info, uint32_t dev,
                            uint32_t sm, uint32_t warp);
+
 bool cricket_cr_rst_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
                            cricket_elf_info *elf_info, uint32_t dev,
                            uint32_t sm, uint32_t warp);
+
 bool cricket_cr_ckp_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                         const char *ckp_dir);
+
 bool cricket_cr_join_threads(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm,
                              uint32_t wp);
 
 bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir);
+
 bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir);
 
 bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
