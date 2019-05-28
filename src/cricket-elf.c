@@ -38,6 +38,7 @@
     18 // maximal size of the stack when calling this kernel
 #define EIATTR_FRAME_SIZE 17 // size of stack in this function (without subcall)
 
+// TODO: use print_error in this file
 typedef struct
 {
     uint8_t format;
@@ -96,7 +97,7 @@ static void cricket_elf_get_symbols(struct objfile *objfile)
                msymbol->ginfo.name, msymbol->ginfo.section, msymbol->size,
                MSYMBOL_TYPE(msymbol));
         if (msymbol->ginfo.name[0] != '.') {
-            printf("%p\n", SYMBOL_VALUE_ADDRESS(msymbol));
+            printf("%p\n", (void *)SYMBOL_VALUE_ADDRESS(msymbol));
         }
     }
 }
@@ -1236,8 +1237,8 @@ bool cricket_elf_analyze(const char *filename)
 
 #ifdef _CRICKET_ELF_DEBUG_
     cricket_elf_print_symtab(hostbfd);
-    printf("name: %s, index: %d, size %lx, pos:%x\n", section->name,
-           section->index, section->size, (void *)section->filepos);
+    printf("name: %s, index: %d, size %lx, pos:%lx\n", section->name,
+           section->index, section->size, section->filepos);
 #endif
     fatbin_pos = section->filepos + 0x50;
     fatbin_size = section->size - 0x50;

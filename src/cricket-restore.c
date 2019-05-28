@@ -426,7 +426,7 @@ int cricket_restore(const char *executable, const char *ckp_dir)
                 }
                 // if a warp has had diverged lanes/threads, we need to diverge
                 // them again using the SSY and SYNC instructions
-                int predicate_value;
+                uint32_t predicate_value;
                 if (callstack.active_lanes != callstack.valid_lanes) {
                     for (uint32_t lane = 0;
                          lane != warp_info.dev_prop->numLanes; lane++) {
