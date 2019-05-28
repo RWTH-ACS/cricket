@@ -5,13 +5,26 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/socket.h>
+#include <unistd.h> //unlink()
+#include <signal.h> //sigaction
+
+#include <cuda.h>
 
 #include "cd_rpc_prot.h"
+#include "cd_svc_hidden.h"
 
-#include <sys/socket.h>
+#include "cd_common.h"
+
+
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
+void int_handler(int signal) {
+    unlink(CD_SOCKET_PATH);
+    printf("have a nice day!\n");
+    exit(0);
+}
 
 bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 {
@@ -20,23 +33,159 @@ bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
+bool_t rpc_cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
 {
-    printf("called cudevicegetcount\n");
-    result->err = 0;
-    result->int_result_u.data = 5;
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceGetCount(&result->int_result_u.data);
+    return 1;
+}
+
+bool_t rpc_cuinit_1_svc(int argp, int *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    *result = cuInit(argp);
+    return 1;
+}
+
+bool_t rpc_cudrivergetversion_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDriverGetVersion(&result->int_result_u.data);
+    return 1;
+}
+
+bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
+    return 1;
+}
+
+bool_t rpc_cudevicegetname_1_svc(int dev, str_result *result, struct svc_req *rqstp)
+{
+    result->str_result_u.str = malloc(128);
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceGetName(result->str_result_u.str, 128, dev);
+    return 1;
+}
+
+bool_t rpc_cudevicetotalmem_1_svc(int dev, u64_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceTotalMem(&result->u64_result_u.u64, dev);
+    return 1;
+}
+
+bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceGetAttribute(&result->int_result_u.data, attribute, dev);
+    return 1;
+}
+
+bool_t rpc_cudevicegetuuid_1_svc(int dev, uuid_result *result, struct svc_req *rqstp)
+{
+    CUuuid uuid;
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDeviceGetUuid(&uuid, dev);
+    if (result->err == 0) {
+        memcpy(result->uuid_result_u.bytes, uuid.bytes, 16);
+    }
+    return 1;
+}
+
+bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuCtxGetCurrent((struct CUctx_st**)&result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
+    return 1;
+}
+
+bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
+                                          struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
+    return 1;
+}
+
+bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *result,
+                                     struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
+                                      (CUmodule)module, name);
+    return 1;
+}
+
+
+bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, int_result *result,
+                                  struct svc_req *rqstp)
+{
+    void *exportTable = NULL;
+    size_t tablesize = 0;
+    CUuuid uuid;
+    printf("%s\n", __FUNCTION__);
+    if (rpc_uuid.rpc_uuid_val == NULL) 
+        return 0;
+
+    memcpy(uuid.bytes, rpc_uuid.rpc_uuid_val, 16);
+    if ((result->err = cuGetExportTable((const void**)&exportTable, 
+                                        (const CUuuid*)&uuid) != 0)) {
+        return 1;
+    }
+    if (((uint32_t*)exportTable)[1] > 0) {
+        tablesize = 8;
+        for (int i=1; i<8; ++i) {
+            if (((void**)exportTable)[i] == NULL) {
+                tablesize = i;
+                break;
+            }
+        }
+    } else {
+        tablesize = *((uint64_t*)exportTable)/8;
+    }
+    printf("\ttablesize = %lu\n", tablesize);
+
+    cd_svc_hidden_add_table(exportTable, tablesize);
+
+    return 1;
+}
+
+
+bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
+                                     struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    
+    result->err = ((int(*)(void**,int))(cd_svc_hidden_get(0,1)))
+                                        ((void**)&result->ptr_result_u.ptr, dev);
     return 1;
 }
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
 {
+    if (b == (xdrproc_t) xdr_str_result) {
+        free( ((str_result*)c)->str_result_u.str);
+    }
 }
 
 int main (int argc, char **argv)
 {
 	register SVCXPRT *transp;
 
-	transp = svcunix_create(RPC_ANYSOCK, 0, 0, "/home/work/testsock");
+    struct sigaction act;
+    act.sa_handler = int_handler;
+    sigaction(SIGINT, &act, NULL);
+
+	transp = svcunix_create(RPC_ANYSOCK, 0, 0, CD_SOCKET_PATH);
 	if (transp == NULL) {
 		fprintf (stderr, "%s", "cannot create unix service.");
 		exit(1);
@@ -47,5 +196,6 @@ int main (int argc, char **argv)
 	}
 	svc_run ();
 	fprintf (stderr, "%s", "svc_run returned");
+    unlink(CD_SOCKET_PATH);
 	return 0;
 }

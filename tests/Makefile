@@ -18,12 +18,9 @@ TEST_KERNEL_O = test_kernel.o
 BINARY = test-cricket
 
 LIBCUDA_WRAPPER = libcudawrap.so
-LIBCUDA_OBJ = libcuda.o
+LIBCUDA_OBJ = libcuda.o cd_client_hidden.o
 LIBCUDA_LIBS = -ldl
 
-LIBCUDART_WRAPPER = libcurtwrap.so
-LIBCUDART_OBJ = libcurt.o
-LIBCUDART_LIBS = -ldl
 
 
 FILES := matmul.cu
@@ -56,16 +53,10 @@ $(TEST_KERNEL_BIN) : $(TEST_KERNEL_O)
 $(BINARY) : $(FILES)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-$(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
+%.o : %.c
 	$(HOST_CC) $(HOST_CFLAGS) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
 
 $(LIBCUDA_WRAPPER) : $(LIBCUDA_OBJ)
-	$(HOST_LD) $(HOST_CFLAGS) -shared -o $@ $^
-
-$(LIBCURT_OBJ) : $(LIBCURT_OBJ:.o=.c)
-	$(HOST_CC) $(HOST_CFLAGS) -c -fpic -o $@ $< $(LIBCURT_LIBS)
-
-$(LIBCURT_WRAPPER) : $(LIBCURT_OBJ)
 	$(HOST_LD) $(HOST_CFLAGS) -shared -o $@ $^
 
 #.depend : $(FILES:.o=.cu)

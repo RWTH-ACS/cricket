@@ -1,7 +1,10 @@
 CLIENT = client
 SERVER = cricketd
+LIBCUDA_WRAPPER = libcudawrap.so
 
 CUDA_SRC = /usr/local/cuda
+LIBTIRPC_PREFIX = /home/eiling/projects/libtirpc/install
+
 
 CC = gcc
 LD = gcc
@@ -16,14 +19,24 @@ RPC_DEF = cd_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 SRC_CLIENT = $(RPC_CLIENT) $(RPC_XDR) client.c
-SRC_SERVER = $(RPC_SERVER) $(RPC_XDR) cricketd.c
+SRC_SERVER = $(RPC_SERVER) $(RPC_XDR) cricketd.c cd_svc_hidden.c
+SRC_LIBCUDA = $(RPC_CLIENT) $(RPC_XDR) cd_libcuda_api.c cd_client_hidden.c
+
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)
+OBJ_LIBCUDA = $(SRC_LIBCUDA:%.c=%.o)
+
 # Compiler flags 
 
-INC_FLAGS += -I/usr/include/tirpc
-CC_FLAGS += -std=gnu99
-LD_FLAGS += -ltirpc 
+INC_FLAGS += -I$(LIBTIRPC_PREFIX)/usr/include/tirpc
+INC_FLAGS += -I$(CUDA_SRC)/include
+
+LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib
+CC_FLAGS += -std=gnu99 $(INC_FLAGS)
+LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda
+
+LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
+
 RPCGEN_FLAGS = -C -M -N
 
 # Targets 
@@ -33,6 +46,9 @@ all : $(CLIENT) $(SERVER)
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(LD_FLAGS)
+
+$(LIBCUDA_WRAPPER) : $(OBJ_LIBCUDA)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LD_LIBCUDA)
 
 $(SERVER) : $(OBJ_SERVER)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(LD_FLAGS)
@@ -50,9 +66,9 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
-	$(CC) $(CC_FLAGS) $(INC_FLAGS) -c -o $@ $< $(LD_FLAGS)
+	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS)
 	
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(CLIENT) $(SERVER)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(OBJ_LIBCUDA) $(CLIENT) $(SERVER) $(LIBCUDA_WRAPPER)
 
 

@@ -11,12 +11,41 @@
 #include <driver_types.h>
 #include <string.h>
 
-#include "libwrap.h"
-#include "culibwrap.h"
+#include "cd_libwrap.h"
+#include "cd_client_hidden.h"
+#include "cd_rpc_prot.h"
+#include "cd_common.h"
 
 static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 static void *so_handle = NULL;
 
+static CLIENT *clnt = NULL;
+static void init_rpc(void)
+{
+	enum clnt_stat retval_1;
+	int result_1;
+    int_result result_2;
+	char *printmessage_1_arg1 = "hello";
+    struct sockaddr_un sock = {.sun_family = AF_UNIX,
+                               .sun_path = CD_SOCKET_PATH};
+    int isock = RPC_ANYSOCK;
+    clnt = clntunix_create(&sock, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+	if (clnt == NULL) {
+        printf("error\n");
+		exit (1);
+	}
+
+	retval_1 = printmessage_1(printmessage_1_arg1, &result_1, clnt);
+    printf("return:%d\n", result_1);
+	if (retval_1 != RPC_SUCCESS) {
+		clnt_perror (clnt, "call failed");
+	}
+}
+
+static void deinit_rpc(void)
+{
+	clnt_destroy (clnt);
+}
 
 static inline void* libwrap_get_sohandle()
 {
@@ -53,7 +82,10 @@ void *dlopen(const char *filename, int flag)
 
 
     if (filename && strcmp(filename, "libcuda.so.1") == 0) {
-        dl_handle = dlopen_orig("./libcudawrap.so", flag);
+        dl_handle = dlopen_orig("/home/eiling/projects/cricket/cricketd/libcudawrap.so", flag);
+        if (clnt == NULL) {
+            init_rpc();
+        }
         return dl_handle;
     } else {
         return dlopen_orig(filename, flag);
@@ -96,15 +128,24 @@ DEF_FN(CUresult, cuDeviceTotalMem, size_t*, bytes, CUdevice, dev)
 CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
 {
     DEF_FN_PTR(CUresult, CUcontext*, unsigned int, CUdevice);
-    DEF_DLSYM(CUresult, cuCtxCreate) \
-    CAL_FN_PTR(pctx, flags, dev); \
-    printf("cuCtxCreate(%p, %u, %d) = %d\n", pctx, flags, dev, ret);
+    DEF_DLSYM(CUresult, cuCtxCreate)
+    CAL_FN_PTR(pctx, flags, dev);
+    printf("%s(%p, %u, %d) = %d\n", __FUNCTION__, pctx, flags, dev, ret);
     return ret;
 }
 DEF_FN(CUresult, cuCtxSynchronize)
 DEF_FN(CUresult, cuModuleGetGlobal, CUdeviceptr*, dptr, size_t*, bytes, CUmodule, hmod, const char*, name)
 DEF_FN(CUresult, cuMemGetInfo, size_t*, free, size_t*, total)
-DEF_FN(CUresult, cuMemAlloc, CUdeviceptr*, dptr, size_t, bytesize)
+//DEF_FN(CUresult, cuMemAlloc, CUdeviceptr*, dptr, size_t, bytesize)
+CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
+{
+    DEF_FN_PTR(CUresult, CUdeviceptr*, size_t);
+    DEF_DLSYM(CUresult, cuMemAlloc_v2)
+    printf("pre %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
+    CAL_FN_PTR(dptr, bytesize);
+    printf("post %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
+    return ret;
+}
 DEF_FN(CUresult, cuMemAllocPitch, CUdeviceptr*, dptr, size_t*, pPitch, size_t, WidthInBytes, size_t, Height, unsigned int, ElementSizeBytes)
 DEF_FN(CUresult, cuMemFree, CUdeviceptr, dptr)
 DEF_FN(CUresult, cuMemGetAddressRange, CUdeviceptr*, pbase, size_t*, psize, CUdeviceptr, dptr)
@@ -160,35 +201,154 @@ DEF_FN(CUresult, cuEGLStreamConsumerConnectWithFlags, CUeglStreamConnection*, co
 //DEF_FN(CUresult, cuInit, unsigned int, Flags)
 CUresult cuInit(unsigned int Flags)
 {
-    DEF_FN_PTR(CUresult, unsigned int);
-    DEF_DLSYM(CUresult, cuInit) \
-    CAL_FN_PTR(Flags); \
-    printf("cuInit(%d) = %d\n", Flags, ret);
-    return ret;
+	enum clnt_stat retval;
+    int result;
+    retval = rpc_cuinit_1(Flags, &result, clnt);
+    printf("[rpc] %s = %d\n", __FUNCTION__, result);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result;
 }
 
-DEF_FN(CUresult, cuDeviceGet, CUdevice*, device, int, ordinal)
-DEF_FN(CUresult, cuDeviceGetCount, int*, count)
+//DEF_FN(CUresult, cuDeviceGet, CUdevice*, device, int, ordinal)
+CUresult cuDeviceGet(CUdevice* device, int ordinal)
+{
+	enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cudeviceget_1(ordinal, &result, clnt);
+    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
+                                        result.int_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *device = result.int_result_u.data;
+    return result.err;
+}
+
+//DEF_FN(CUresult, cuDeviceGetCount, int*, count)
+CUresult cuDeviceGetCount(int* count)
+{
+	enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cudevicegetcount_1(&result, clnt);
+    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
+                                        result.int_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *count = result.int_result_u.data;
+    return result.err;
+}
+
 DEF_FN(CUresult, cuDeviceGetName, char*, name, int, len, CUdevice, dev)
-DEF_FN(CUresult, cuDeviceGetUuid, CUuuid*, uuid, CUdevice, dev)
+//DEF_FN(CUresult, cuDeviceGetUuid, CUuuid*, uuid, CUdevice, dev)
+
+/* CUuuid = struct { char bytes[16] };
+ * CUdevice = int
+ */
+CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
+{
+	enum clnt_stat retval;
+    uuid_result result;
+    retval = rpc_cudevicegetuuid_1(dev, &result, clnt);
+    printf("[rpc] %s = %d, result (uuid)\n", __FUNCTION__, result.err);
+
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    memcpy(uuid->bytes, result.uuid_result_u.bytes, 16);
+    return result.err;
+}
+
 DEF_FN(CUresult, cuDeviceGetLuid, char*, luid, unsigned int*, deviceNodeMask, CUdevice, dev)
 DEF_FN(CUresult, cuDeviceGetAttribute, int*, pi, CUdevice_attribute, attrib, CUdevice, dev)
 DEF_FN(CUresult, cuDeviceGetProperties, CUdevprop*, prop, CUdevice, dev)
 DEF_FN(CUresult, cuDeviceGetByPCIBusId, CUdevice*, dev, const char*, pciBusId)
 DEF_FN(CUresult, cuDeviceGetP2PAttribute, int*, value, CUdevice_P2PAttribute, attrib, CUdevice, srcDevice, CUdevice, dstDevice)
-DEF_FN(CUresult, cuDriverGetVersion, int*, driverVersion)
+//DEF_FN(CUresult, cuDriverGetVersion, int*, driverVersion)
+CUresult cuDriverGetVersion(int* driverVersion)
+{
+	enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cudrivergetversion_1(&result, clnt);
+    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err, result.int_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *driverVersion = result.int_result_u.data;
+    return result.err;
+}
+
 DEF_FN(CUresult, cuDeviceGetPCIBusId, char*, pciBusId, int, len, CUdevice, dev)
-DEF_FN(CUresult, cuDevicePrimaryCtxRetain, CUcontext*, pctx, CUdevice, dev)
+//DEF_FN(CUresult, cuDevicePrimaryCtxRetain, CUcontext*, pctx, CUdevice, dev)
+CUresult cuDevicePrimaryCtxRetain(CUcontext *pctx, CUdevice dev)
+{
+    void* real_ctx = *pctx;
+    DEF_FN_PTR(CUresult, CUcontext*, CUdevice);
+    DEF_DLSYM(CUresult, cuDevicePrimaryCtxRetain)
+    CAL_FN_PTR((struct CUctx_st**)&real_ctx, dev);
+    if (!(*pctx = cd_client_get_fake_ctx(real_ctx))) {
+        fprintf(stderr, "%s: error while translateing ctx\n",
+                        __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    printf("%s(%p->%p, %d) = %d\n", __FUNCTION__, pctx, *pctx, dev, ret);
+    return ret;
+}
 DEF_FN(CUresult, cuDevicePrimaryCtxRelease, CUdevice, dev)
 DEF_FN(CUresult, cuDevicePrimaryCtxSetFlags, CUdevice, dev, unsigned int, flags)
 DEF_FN(CUresult, cuDevicePrimaryCtxGetState, CUdevice, dev, unsigned int*, flags, int*, active)
 DEF_FN(CUresult, cuDevicePrimaryCtxReset, CUdevice, dev)
 DEF_FN(CUresult, cuCtxGetFlags, unsigned int*, flags)
-DEF_FN(CUresult, cuCtxSetCurrent, CUcontext, ctx)
-DEF_FN(CUresult, cuCtxGetCurrent, CUcontext*, pctx)
+//DEF_FN(CUresult, cuCtxSetCurrent, CUcontext, ctx)
+CUresult cuCtxSetCurrent(CUcontext ctx)
+{
+    void *real_ctx = NULL;
+    DEF_FN_PTR(CUresult, CUcontext);
+    DEF_DLSYM(CUresult, cuCtxSetCurrent)
+    if (!(real_ctx = cd_client_get_real_ctx(ctx))) {
+        fprintf(stderr, "%s: error while translating ctx\n",
+                        __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    CAL_FN_PTR(real_ctx);
+    printf("%s(%p->(CUctx_st)) = %d\n", __FUNCTION__, ctx, ret);
+    printf("\treal_ctx: %p\n", real_ctx);
+    return ret;
+}
+//DEF_FN(CUresult, cuCtxGetCurrent, CUcontext*, pctx)
+CUresult cuCtxGetCurrent(CUcontext *pctx)
+{
+    void *real_ctx = NULL;
+    DEF_FN_PTR(CUresult, CUcontext*);
+    DEF_DLSYM(CUresult, cuCtxGetCurrent)
+    CAL_FN_PTR((struct CUctx_st**)&real_ctx);
+    if (real_ctx != NULL &&
+        !(*pctx = cd_client_get_fake_ctx(real_ctx))) {
+        fprintf(stderr, "%s: error while translating ctx\n",
+                        __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    printf("%s(%p->%p) = %d\n", __FUNCTION__, pctx, *pctx, ret);
+    return ret;
+}
 DEF_FN(CUresult, cuCtxDetach, CUcontext, ctx)
-DEF_FN(CUresult, cuCtxGetApiVersion, CUcontext, ctx, unsigned int*, version)
-DEF_FN(CUresult, cuCtxGetDevice, CUdevice*, device)
+DEF_FN(CUresult, cuCtxGetApi2Version, CUcontext, ctx, unsigned int*, version)
+//DEF_FN(CUresult, cuCtxGetDevice, CUdevice*, device)
+CUresult cuCtxGetDevice(CUdevice *device)
+{
+    DEF_FN_PTR(CUresult, CUdevice*);
+    DEF_DLSYM(CUresult, cuCtxGetDevice) \
+    CAL_FN_PTR(device); \
+    printf("%s(%p->%d) = %d\n", __FUNCTION__, device, *device, ret);
+    return ret;
+}
 DEF_FN(CUresult, cuCtxGetLimit, size_t*, pvalue, CUlimit, limit)
 DEF_FN(CUresult, cuCtxSetLimit, CUlimit, limit, size_t, value)
 DEF_FN(CUresult, cuCtxGetCacheConfig, CUfunc_cache*, pconfig)
@@ -202,7 +362,24 @@ DEF_FN(CUresult, cuModuleLoadData, CUmodule*, module, const void*, image)
 DEF_FN(CUresult, cuModuleLoadDataEx, CUmodule*, module, const void*, image, unsigned int, numOptions, CUjit_option*, options, void**, optionValues)
 DEF_FN(CUresult, cuModuleLoadFatBinary, CUmodule*, module, const void*, fatCubin)
 DEF_FN(CUresult, cuModuleUnload, CUmodule, hmod)
-DEF_FN(CUresult, cuModuleGetFunction, CUfunction*, hfunc, CUmodule, hmod, const char*, name)
+//DEF_FN(CUresult, cuModuleGetFunction, CUfunction*, hfunc, CUmodule, hmod, const char*, name)
+CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
+{
+    void *real_module = NULL;
+    DEF_FN_PTR(CUresult, CUfunction*, CUmodule, const char*);
+    DEF_DLSYM(CUresult, cuModuleGetFunction)
+    printf("pre %s(%p->%p, %p, %s) = %d\n", __FUNCTION__, hfun, *hfun, hmod, name, ret);
+
+    if (!(real_module = cd_client_get_real_module(hmod))) {
+        fprintf(stderr, "%s: error while translating module\n",
+                        __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    CAL_FN_PTR(hfun, real_module, name);
+    printf("post %s(%p->%p, %p, %s) = %d\n", __FUNCTION__, hfun, *hfun, hmod, name, ret);
+    printf("\treal_module: %p\n", real_module);
+    return ret;
+}
 DEF_FN(CUresult, cuModuleGetTexRef, CUtexref*, pTexRef, CUmodule, hmod, const char*, name)
 DEF_FN(CUresult, cuModuleGetSurfRef, CUsurfref*, pSurfRef, CUmodule, hmod, const char*, name)
 #undef cuLinkCreate
@@ -369,21 +546,65 @@ DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, un
 // This function returns an array of 8 function pointers to hidden functions inside libcuda.so
 CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
 {
+	enum clnt_stat retval;
+    rpc_uuid uuid;
+    int_result result;
     const void* p1_data = *ppExportTable;
-    char idstr[34];
-    sprintf(idstr, "%lx:%lx",
-            ((uint64_t*)pExportTableId->bytes)[0], 
-            ((uint64_t*)pExportTableId->bytes)[1]);
-    printf("precall %p->%p\n", ppExportTable, *ppExportTable);
-    DEF_FN_PTR(CUresult, const void**, const CUuuid*);
-    DEF_DLSYM(CUresult, cuGetExportTable)
-    CAL_FN_PTR(&p1_data, pExportTableId);
-    *ppExportTable = malloc(8*sizeof(void*));
-    memcpy(*((void**)ppExportTable), p1_data, 8*sizeof(void*));
-    printf("cuGetExportTable(%p, %s) = %d\n", p1_data, idstr, ret);
-    for (int i=-1; i < 18; ++i)
-        printf("\t%p\n", ((void**)p1_data)[i]);
-    return ret;
+    char idstr[64];
+    uint64_t tablesize = 0;
+    if (pExportTableId == NULL) {
+        return CUDA_ERROR_UNKNOWN;
+    }
+    for (int i=0; i < 16;++i) {
+        sprintf(idstr+i*3, "%02x ", pExportTableId->bytes[i] & 0xFF);
+    }
+    uuid.rpc_uuid_val = malloc(16);
+    uuid.rpc_uuid_len = 16;
+    memcpy(uuid.rpc_uuid_val, pExportTableId->bytes, 16);
+    //printf("precall %p->%p\n", ppExportTable, *ppExportTable);
+    retval = rpc_cugetexporttable_1(uuid, &result, clnt);
+    //printf("postcall %p->%p\n", p1_data, *((void**)p1_data));
+    tablesize = result.int_result_u.data;
+    printf("[rpc] %s(%p, %s) = %d, result = %d\n", __FUNCTION__, p1_data, idstr, result.err,
+                                                   tablesize);
+
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *ppExportTable = cd_client_hidden_get();
+
+    cd_client_hidden_incr();
+/*
+    memcpy(*((void**)ppExportTable), p1_data, tablesize*sizeof(void*));
+
+    if (((uint32_t*)p1_data)[1] > 0) {
+        for (int i=0; i < tablesize; ++i) {
+            ((void**)*ppExportTable)[i] =
+                cd_client_hidden_replace(((void**)*ppExportTable)[i], i);
+        }
+    } else {
+        for (int i=1; i < tablesize; ++i) {
+            ((void**)*ppExportTable)[i] =
+                cd_client_hidden_replace(((void**)*ppExportTable)[i], i-1);
+        }
+    }
+*/
+    /*if (test2_1fptr == NULL) {
+        test2_1fptr = ((void**)*ppExportTable)[2];
+        ((void**)*ppExportTable)[2] = test2_1;
+    } else if (test2_2fptr == NULL) {
+        test2_2fptr = ((void**)*ppExportTable)[2];
+        ((void**)*ppExportTable)[2] = test2_2;
+    } else {
+        printf("\tthis is too much\n");
+        ((void**)*ppExportTable)[2] = NULL;
+    }*/
+    //((void**)*ppExportTable)[1] = test1;
+    //((void**)*ppExportTable)[3] = test1;
+    for (int i=0; i < tablesize; ++i)
+        printf("\t%p\n", ((void**)*ppExportTable)[i]);
+    return result.err;
 }
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize)
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize, unsigned int, flags)
