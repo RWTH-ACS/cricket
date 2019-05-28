@@ -736,13 +736,13 @@ cricket_elf_build_fun_info(cricket_function_info_array *function_info_array)
             }
 
             if ((contents = malloc(section->size)) == NULL) {
-                fprintf(stderr, "cricket-elf: malloc failed\n");
+                print_error("malloc failed\n");
                 goto cleanup;
             }
 
             if (!bfd_get_section_contents(objfile->obfd, section, contents, 0,
                                           section->size)) {
-                fprintf(stderr, "cricket-elf: getting section failed\n");
+                print_error("getting section failed\n");
                 goto cleanup;
             }
 
@@ -756,8 +756,7 @@ cricket_elf_build_fun_info(cricket_function_info_array *function_info_array)
 
             if (!cricket_elf_find_bpt(contents, section->size, &relative_bpt,
                                       &bpt_num)) {
-                fprintf(stderr, "cricket-elf: finding bpt instructions "
-                                "failed\n");
+                print_error("finding bpt instructions failed\n");
                 goto cleanup;
             }
 
@@ -773,12 +772,12 @@ cricket_elf_build_fun_info(cricket_function_info_array *function_info_array)
 
             if (!cricket_elf_count_ssy(contents, section->size, &ssy_num, NULL,
                                        0)) {
-                fprintf(stderr, "cricket-elf: counting SSYs failed\n");
+                print_error("counting SSYs failed\n");
                 goto cleanup;
             }
             if (!cricket_elf_count_cal(contents, section->size, &cal_num, NULL,
                                        0)) {
-                fprintf(stderr, "cricket-elf: counting JCALs failed\n");
+                print_error("counting JCALs failed\n");
                 goto cleanup;
             }
 

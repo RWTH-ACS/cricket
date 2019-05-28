@@ -29,12 +29,12 @@ bool cricket_cr_sm_broken(CUDBGAPI cudbgAPI, uint32_t dev, uint32_t sm)
     CUDBGResult res;
     res = cudbgAPI->readValidWarps(dev, sm, &warp_mask);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "%d:", __LINE__);
+        print_error("read valid warps failed, %s\n", cudbgGetErrorString(res));
         goto cuda_error;
     }
     res = cudbgAPI->readBrokenWarps(dev, sm, &warp_mask_broken);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "%d:", __LINE__);
+        print_error("read broken warps failed, %s\n", cudbgGetErrorString(res));
         goto cuda_error;
     }
     if (warp_mask != warp_mask_broken) {
@@ -82,7 +82,7 @@ static bool cricket_cr_gen_suffix(char **suffix, const cricketWarpInfo *wi,
             asprintf(suffix, "-D%uS%uW%uL%u", wi->dev, wi->sm, wi->warp, lane);
     }
     if (ret < 0) {
-        fprintf(stderr, "cricket-cr: memory allocation failed\n");
+        print_error("memory allocation failed\n");
         return false;
     }
     return true;
@@ -111,15 +111,14 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 #endif
     register_size = cricket_register_size(wi->dev_prop);
     if ((reg_mem = malloc(register_size)) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%u): error during memory allocation of size %lu\n",
-                __LINE__, register_size);
+        print_error("error during memory allocation of size %lu\n",
+                    register_size);
         goto cleanup;
     }
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_REGISTERS, suffix, reg_mem,
                                register_size)) {
-        fprintf(stderr, "cricket-cr: error while setting registers\n");
+        print_error("error while setting registers\n");
         goto cleanup;
     }
 
@@ -139,7 +138,7 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     if (!cricket_register_rst(cudbgAPI, wi->dev, wi->sm, wi->warp, lane,
                               reg_mem, wi->dev_prop)) {
-        fprintf(stderr, "cricket-cr: error setting register data\n");
+        print_error("error setting register data\n");
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -147,15 +146,14 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 #endif
 
     if ((stack_mem = malloc(wi->stack_size)) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %lu\n",
-                __LINE__, register_size);
+        print_error("error during memory allocation of size %lu\n",
+                    register_size);
         goto cleanup;
     }
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_STACK, suffix, stack_mem,
                                wi->stack_size)) {
-        fprintf(stderr, "cricket-cr: error while setting stack memory\n");
+        print_error("error while setting stack memory\n");
         goto cleanup;
     }
 
@@ -172,7 +170,7 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     if (!cricket_stack_set_mem(cudbgAPI, wi->dev, wi->sm, wi->warp, lane,
                                stack_mem, stack_loc, wi->stack_size)) {
-        fprintf(stderr, "cricket-cr: error while retrieving stack memory\n");
+        print_error("error while retrieving stack memory\n");
         goto cleanup;
     }
 
@@ -221,19 +219,20 @@ bool cricket_cr_ckp_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     res = cudbgAPI->readPC(wi->dev, wi->sm, wi->warp, lane, &pc);
     if (res != CUDBG_SUCCESS) {
-        printf("%d: %s", __LINE__, cudbgGetErrorString(res));
+        print_error("read PC failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
     res = cudbgAPI->readVirtualPC(wi->dev, wi->sm, wi->warp, lane, &virt_pc);
     if (res != CUDBG_SUCCESS) {
-        printf("%d: %s", __LINE__, cudbgGetErrorString(res));
+        print_error("read virtual pc failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
     for (offset = 0L; offset <= pc; offset += 0x8) {
         res = cudbgAPI->readCodeMemory(wi->dev, virt_pc - offset, &cur_instr,
                                        sizeof(uint64_t));
         if (res != CUDBG_SUCCESS) {
-            printf("%d: %s", __LINE__, cudbgGetErrorString(res));
+            print_error("read code memory failed, %s\n",
+                        cudbgGetErrorString(res));
             return false;
         }
         printf("instr: 0x%lx\n", cur_instr);
@@ -241,7 +240,7 @@ bool cricket_cr_ckp_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
             rel_syn_pc = ((cur_instr >> 20) & 0x000ffffffffL);
             printf("rel_syn_pc: %x\n", rel_syn_pc);
             syn_pc = (pc - offset) + rel_syn_pc + 0x8;
-            printf("syn_pc: %lx, is bigger: %d\n", syn_pc, syn_pc > pc);
+            printf("syn_pc: %x, is bigger: %d\n", syn_pc, syn_pc > pc);
 
             break;
         }
@@ -250,11 +249,11 @@ bool cricket_cr_ckp_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
     while (syn_pc > pc) {
         res = cudbgAPI->singleStepWarp(wi->dev, wi->sm, wi->warp, &sswarps);
         if (res != CUDBG_SUCCESS) {
-            printf("%d: %s", __LINE__, cudbgGetErrorString(res));
+            print_error("single step failed, %s\n", cudbgGetErrorString(res));
         }
         res = cudbgAPI->readPC(wi->dev, wi->sm, wi->warp, lane, &pc);
         if (res != CUDBG_SUCCESS) {
-            printf("%d: %s", __LINE__, cudbgGetErrorString(res));
+            print_error("read PC failed, %s\n", cudbgGetErrorString(res));
         }
     }
     printf("new pc: %lx\n", pc);
@@ -299,13 +298,13 @@ bool cricket_cr_read_pc(cricketWarpInfo *wi, uint32_t lane, const char *ckp_dir,
 
     if (!cricket_file_read_mem_size(ckp_dir, CRICKET_DT_PC, suffix, &packed, 0,
                                     &packed_size)) {
-        fprintf(stderr, "cricket-cr: error while reading pc memory\n");
+        print_error("error while reading pc memory\n");
         goto cleanup;
     }
 
     if (packed_size < offset) {
-        fprintf(stderr, "cricket-cr: pc checkpoint file is corrupt: no "
-                        "callstack_size\n");
+        print_error("pc checkpoint file is corrupt: no "
+                    "callstack_size\n");
         goto cleanup;
     }
 
@@ -320,28 +319,28 @@ bool cricket_cr_read_pc(cricketWarpInfo *wi, uint32_t lane, const char *ckp_dir,
 
     offset += callstack_size * sizeof(cricket_pc_data);
     if (packed_size < offset) {
-        fprintf(stderr, "cricket-cr: pc checkpoint file is corrupt: too few "
-                        "pc_data entries\n");
+        print_error("pc checkpoint file is corrupt: too few "
+                    "pc_data entries\n");
         goto cleanup;
     }
 
     pc_data = (cricket_pc_data *)(packed + 3 * sizeof(uint32_t));
 
     if (packed_size < offset + pc_data[callstack_size - 1].str_offset + 1) {
-        fprintf(stderr, "cricket-cr: pc checkpoint file is corrupt: string "
-                        "data to short\n");
+        print_error("pc checkpoint file is corrupt: string "
+                    "data to short\n");
         goto cleanup;
     }
 
     if ((function_names = malloc(callstack_size * sizeof(char *))) == NULL) {
-        fprintf(stderr, "cricket-cr (%d): malloc failed\n", __LINE__);
+        print_error("malloc failed\n");
         goto cleanup;
     }
 
     for (i = 0; i < callstack_size; ++i) {
         if (packed_size < offset + pc_data[i].str_offset) {
-            fprintf(stderr, "cricket-cr: pc checkpoint file is corrupt: string "
-                            "data to short\n");
+            print_error("pc checkpoint file is corrupt: string "
+                        "data to short\n");
             goto cleanup;
         }
 
@@ -391,7 +390,7 @@ bool cricket_cr_rst_subcall(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 
     res = cudbgAPI->readValidLanes(wi->dev, wi->sm, wi->warp, &lanemask);
     if (res != CUDBG_SUCCESS) {
-        printf("%d:", __LINE__);
+        print_error("read valid lanes failed, %s\n", cudbgGetErrorString(res));
         goto error;
     }
 
@@ -401,8 +400,8 @@ bool cricket_cr_rst_subcall(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                 wi->dev, wi->sm, wi->warp, lane, CRICKET_JMX_ADDR_REG,
                 ((uint32_t)(jmptbl_address - *cur_address - 0x8)));
             if (res != CUDBG_SUCCESS) {
-                fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                        cudbgGetErrorString(res));
+                print_error("write register failed with %s\n",
+                            cudbgGetErrorString(res));
                 goto error;
             }
         }
@@ -410,13 +409,13 @@ bool cricket_cr_rst_subcall(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 
     res = cudbgAPI->singleStepWarp(wi->dev, wi->sm, wi->warp, &sswarps);
     if (res != CUDBG_SUCCESS) {
-        printf("%d:", __LINE__);
+        print_error("single step failed, %s\n", cudbgGetErrorString(res));
         goto error;
     }
 
     res = cudbgAPI->singleStepWarp(wi->dev, wi->sm, wi->warp, &sswarps);
     if (res != CUDBG_SUCCESS) {
-        printf("%d:", __LINE__);
+        print_error("single step warp failed, %s\n", cudbgGetErrorString(res));
         goto error;
     }
     *cur_address = jmptbl_address + 0x8;
@@ -425,6 +424,7 @@ bool cricket_cr_rst_subcall(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 error:
     return ret;
 }
+
 // One specifc warp
 bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                         cricket_callstack *callstack, int c_level,
@@ -442,7 +442,7 @@ bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
     if (!cricket_elf_pc_info(callstack->function_names[c_level],
                              callstack->pc[c_level].relative, &relative_ssy,
                              NULL)) {
-        fprintf(stderr, "cricket-restore: getting ssy point failed\n");
+        print_error("getting ssy point failed\n");
         goto error;
     }
     cmp_address = callstack->pc[c_level].relative;
@@ -459,7 +459,8 @@ bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 
         res = cudbgAPI->readValidLanes(wi->dev, wi->sm, wi->warp, &lanemask);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("could not read valid lanes, %s\n",
+                        cudbgGetErrorString(res));
             goto error;
         }
 
@@ -469,8 +470,8 @@ bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                     wi->dev, wi->sm, wi->warp, lane, CRICKET_JMX_ADDR_REG,
                     ((uint32_t)(jmptbl_address - *cur_address - 0x8)));
                 if (res != CUDBG_SUCCESS) {
-                    fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                            cudbgGetErrorString(res));
+                    print_error("write register failed with %s\n",
+                                cudbgGetErrorString(res));
                     goto error;
                 }
             }
@@ -478,13 +479,15 @@ bool cricket_cr_rst_ssy(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
 
         res = cudbgAPI->singleStepWarp(wi->dev, wi->sm, wi->warp, &sswarps);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("could not perform single step warp, %s\n",
+                        cudbgGetErrorString(res));
             goto error;
         }
 
         res = cudbgAPI->singleStepWarp(wi->dev, wi->sm, wi->warp, &sswarps);
         if (res != CUDBG_SUCCESS) {
-            printf("%d:", __LINE__);
+            print_error("could not perform single step warp, %s\n",
+                        cudbgGetErrorString(res));
             goto error;
         }
         *cur_address = jmptbl_address + 0x8;
@@ -520,8 +523,8 @@ bool cricket_cr_rst_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
         address = callstack->pc[0].relative - 0x20;
     } else if (callstack->callstack_size == 2) {
         if (callstack->active_lanes != callstack->valid_lanes) {
-            fprintf(stderr, "cricket-cr: divergent threads in call levels > 1 "
-                            "are not allowed!\n");
+            print_error("divergent threads in call levels > 1 "
+                        "are not allowed!\n");
             return false;
         }
         address = callstack->pc[0].absolute;
@@ -533,13 +536,13 @@ bool cricket_cr_rst_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
         callstack->pc[0].absolute-callstack->pc[0].relative+0x1150;
         }*/
     } else {
-        fprintf(stderr, "cricket-cr: callstacks greater than 2 cannot be "
-                        "restored\n");
+        print_error("callstacks greater than 2 cannot be "
+                    "restored\n");
         return false;
     }
 
     if (address > (1ULL << 32)) {
-        fprintf(stderr, "cricket-cr: pc value is too large to be restored!\n");
+        print_error("pc value is too large to be restored!\n");
         goto cleanup;
     }
 
@@ -552,8 +555,7 @@ bool cricket_cr_rst_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
     res = cudbgAPI->writePredicates(wi->dev, wi->sm, wi->warp, lane, 1,
                                     &predicate);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("write Predicates failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
 
@@ -604,15 +606,13 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     res = cudbgAPI->readValidLanes(wi->dev, wi->sm, wi->warp, &valid_lanes);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read valid lanes failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
 
     res = cudbgAPI->readActiveLanes(wi->dev, wi->sm, wi->warp, &active_lanes);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read active lanes failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
 
@@ -631,39 +631,36 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
     res = cudbgAPI->readCallDepth(wi->dev, wi->sm, wi->warp, lane,
                                   &callstack_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read call depth failed, %s\n", cudbgGetErrorString(res));
         return false;
     }
     callstack_size++;
 
     if ((function_names = malloc(callstack_size * sizeof(char *))) == NULL) {
-        fprintf(stderr, "cricket-cr (%d): malloc failed\n", __LINE__);
+        print_error("malloc failed\n");
         return false;
     }
     if ((pc_data = malloc(callstack_size * sizeof(cricket_pc_data))) == NULL) {
-        fprintf(stderr, "cricket-cr (%d): malloc failed\n", __LINE__);
+        print_error("malloc failed\n");
         goto cleanup;
     }
 
     res =
         cudbgAPI->readPC(wi->dev, wi->sm, wi->warp, lane, &pc_data[0].relative);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read PC failed, %s\n", cudbgGetErrorString(res));
         goto cleanup;
     }
 
     res = cudbgAPI->readVirtualPC(wi->dev, wi->sm, wi->warp, lane,
                                   &pc_data[0].virt);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read virtual pc failed, %s\n", cudbgGetErrorString(res));
         goto cleanup;
     }
 
     if (!cricket_cr_function_name(pc_data[0].virt, &function_names[0])) {
-        fprintf(stderr, "cricket-cr: error getting function name\n");
+        print_error("error getting function name\n");
         goto cleanup;
     }
     printf("relative %lx, virtual %lx\n", pc_data[0].relative, pc_data[0].virt);
@@ -675,21 +672,21 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
         res = cudbgAPI->readReturnAddress(wi->dev, wi->sm, wi->warp, lane,
                                           i - 1, &pc_data[i].relative);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read return address failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
 
         res = cudbgAPI->readVirtualReturnAddress(wi->dev, wi->sm, wi->warp,
                                                  lane, i - 1, &pc_data[i].virt);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read virtual return address failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
 
         if (!cricket_cr_function_name(pc_data[i].virt, &function_names[i])) {
-            fprintf(stderr, "cricket-cr: error getting function name\n");
+            print_error("error getting function name\n");
             goto cleanup;
         }
         pc_data[i].str_offset = str_offset;
@@ -699,8 +696,8 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
                                        pc_data[i].virt - sizeof(uint64_t),
                                        &call_instr, sizeof(uint64_t));
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read code memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
 
@@ -787,7 +784,7 @@ bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_PC, suffix, packed,
                                 packed_size)) {
-        fprintf(stderr, "cricket-cr: error writing pc\n");
+        print_error("error writing pc\n");
         goto cleanup;
     }
 
@@ -1024,8 +1021,8 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
                                                    (0x1 << wi->warp),
                                                    callstack->pc[i].virt + 0x8);
                 if (res != CUDBG_SUCCESS) {
-                    printf("cuda-cr (%d): resumeWarpsUntilPC: ", __LINE__);
-                    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+                    print_error("resume warps until pc failed, %s\n",
+                                cudbgGetErrorString(res));
                     goto cleanup;
                 }
 
@@ -1041,7 +1038,7 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
             if (!cricket_elf_pc_info(callstack->function_names[i],
                                      callstack->pc[i].relative, &rel_ssy,
                                      &rel_pbk)) {
-                fprintf(stderr, "cricket: pc info failed\n");
+                print_error("pc info failed\n");
                 goto cleanup;
             }
             printf("ssy: %lx > relative: %lx ?\n", rel_ssy,
@@ -1056,8 +1053,8 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
                     callstack->pc[i].virt - callstack->pc[i].relative +
                         rel_ssy);
                 if (res != CUDBG_SUCCESS) {
-                    printf("cuda-cr (%d): resumeWarpsUntilPC: ", __LINE__);
-                    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+                    print_error("resume warps until pc failed, %s\n",
+                                cudbgGetErrorString(res));
                     goto cleanup;
                 }
                 if (!cricket_cr_sm_broken(cudbgAPI, wi->dev, wi->sm)) {
@@ -1079,8 +1076,8 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
                     callstack->pc[i].virt - callstack->pc[i].relative +
                         rel_pbk);
                 if (res != CUDBG_SUCCESS) {
-                    printf("cuda-cr (%d): resumeWarpsUntilPC: ", __LINE__);
-                    printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
+                    print_error("resume warps until pc failed, %s\n",
+                                cudbgGetErrorString(res));
                     goto cleanup;
                 }
                 if (!cricket_cr_sm_broken(cudbgAPI, wi->dev, wi->sm)) {
@@ -1098,20 +1095,20 @@ bool cricket_cr_make_checkpointable(CUDBGAPI cudbgAPI,
 
                 if (!cricket_cr_callstack(cudbgAPI, wi, CRICKET_CR_NOLANE,
                                           callstack)) {
-                    fprintf(stderr, "cricket-cr: failed to get callstack\n");
+                    print_error("failed to get callstack\n");
                     goto cleanup;
                 }
                 printf("new callstack size %d\n", callstack->callstack_size);
                 if (callstack->callstack_size != callstack_bku - i) {
-                    fprintf(stderr, "cricket-cr: new callstack has wrong "
-                                    "size\n");
+                    print_error("new callstack has wrong "
+                                "size\n");
                     goto cleanup;
                 }
                 if (joined &&
                     callstack->valid_lanes != callstack->active_lanes) {
-                    fprintf(stderr, "cricket-cr: joning failed, threads still "
-                                    "divergent @ rel PC %lx\n",
-                            callstack->pc[0].relative);
+                    print_error("joning failed, threads still "
+                                "divergent @ rel PC %lx\n",
+                                callstack->pc[0].relative);
                     goto cleanup;
                 }
             }
@@ -1315,9 +1312,7 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
     }
 
     if ((mem = malloc(wi->stack_size)) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
-                __LINE__, wi->stack_size);
+        print_error("malloc of stack size %u failed\n", wi->stack_size);
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -1326,7 +1321,7 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     if (!cricket_stack_get_mem(cudbgAPI, wi->dev, wi->sm, wi->warp, lane, mem,
                                wi->stack_size)) {
-        fprintf(stderr, "cricket-cr: error while retrieving stack memory\n");
+        print_error("error while retrieving stack memory\n");
         goto cleanup;
     }
 
@@ -1343,14 +1338,13 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_STACK, suffix, mem,
                                 wi->stack_size)) {
-        fprintf(stderr, "cricket-cr: error writing stack memory\n");
+        print_error("error writing stack memory\n");
         goto cleanup;
     }
     register_size = cricket_register_size(wi->dev_prop);
     if ((mem = realloc(mem, register_size)) == NULL) {
-        fprintf(stderr, "cricket-cr (%lu): error during memory allocation of "
-                        "size %lu\n",
-                __LINE__, register_size);
+        print_error("error during memory allocation of size %lu\n",
+                    register_size);
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -1359,7 +1353,7 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     if (!cricket_register_ckp(cudbgAPI, wi->dev, wi->sm, wi->warp, lane, mem,
                               wi->dev_prop)) {
-        fprintf(stderr, "cricket-cr: error retrieving register data\n");
+        print_error("error retrieving register data\n");
         goto cleanup;
     }
 
@@ -1376,14 +1370,12 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, const cricketWarpInfo *wi,
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_REGISTERS, suffix, mem,
                                 register_size)) {
-        fprintf(stderr, "cricket-cr: error writing registers\n");
+        print_error("error writing registers\n");
         goto cleanup;
     }
 
     if ((mem = realloc(mem, sizeof(uint64_t))) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%u): error during memory allocation of size %lu\n",
-                __LINE__, sizeof(uint64_t));
+        print_error("memory allocation of size %zu failed\n", sizeof(uint64_t));
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -1451,8 +1443,8 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
                                      (uint64_t)elf_info->param_addr, param_mem,
                                      (uint32_t)elf_info->param_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("write param memory failed, %s\n",
+                    cudbgGetErrorString(res));
         goto cleanup;
     }
     for (int i = 0; i != elf_info->param_num; ++i) {
@@ -1486,8 +1478,8 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             *(uint64_t *)(param_mem + elf_info->params[i].offset), param_data,
             heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("write global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
         free(param_data);
@@ -1521,18 +1513,10 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         cudbgAPI->readParamMemory(dev, sm, warp, (uint64_t)elf_info->param_addr,
                                   param_mem, (uint32_t)elf_info->param_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("write param memory failed, %s\n",
+                    cudbgGetErrorString(res));
         goto cleanup;
     }
-
-#ifdef _CRICKET_DEBUG_CR_
-    printf("param-mem: ");
-    for (int i = 0; i != elf_info->param_size; ++i) {
-        printf("%02x ", param_mem[i]);
-    }
-    printf("\n");
-#endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_PARAM, NULL, param_mem,
                                 elf_info->param_size)) {
@@ -1547,9 +1531,9 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         if (!cricket_heap_memreg_size(
                  *(void **)(param_mem + elf_info->params[i].offset),
                  &heapsize)) {
-            printf("cricket-heap: param %u is a 64 bit parameter but does not "
-                   "point to an allocated region or an error occured\n",
-                   i);
+            print_error("param %u is a 64 bit parameter but does not point to "
+                        "an allocated region or an error occured\n",
+                        i);
             continue;
         }
 
@@ -1564,8 +1548,8 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             *(uint64_t *)(param_mem + elf_info->params[i].offset), param_data,
             heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
 
@@ -1609,8 +1593,8 @@ bool cricket_cr_ckp_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
     res = cudbgAPI->readSharedMemory(dev, sm, warp, 0x0LLU, shared_mem,
                                      (uint32_t)elf_info->shared_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s\n", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("read shared memory failed, %s\n",
+                    cudbgGetErrorString(res));
         goto cleanup;
     }
 
@@ -1666,8 +1650,8 @@ bool cricket_cr_rst_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
     res = cudbgAPI->writeSharedMemory(dev, sm, warp, 0x0LLU, shared_mem,
                                       (uint32_t)elf_info->shared_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
-                cudbgGetErrorString(res));
+        print_error("write shared memory failed, %s\n",
+                    cudbgGetErrorString(res));
         goto cleanup;
     }
 
@@ -1710,7 +1694,7 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_GLOBALS, NULL, globals_mem,
                                globals_mem_size)) {
-        fprintf(stderr, "cricket-cr: error while reading globals\n");
+        print_error("error while reading globals\n");
         goto cleanup;
     }
 
@@ -1726,8 +1710,8 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->writeGlobalMemory(
             globals[i].address, globals_mem + offset, globals[i].size);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("write global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
         offset += globals[i].size;
@@ -1741,8 +1725,8 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         asprintf(&heap_suffix, "-G%s", globals[i].symbol);
 
         if (!cricket_file_exists(ckp_dir, CRICKET_DT_HEAP, heap_suffix)) {
-            printf("cricket-cr: no checkpoint file for global variable %s\n",
-                   globals[i].symbol);
+            print_error("no checkpoint file for global variable %s\n",
+                        globals[i].symbol);
             free(heap_suffix);
             heap_suffix = NULL;
             continue;
@@ -1750,7 +1734,7 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         globals_data = NULL;
         if (!cricket_file_read_mem_size(ckp_dir, CRICKET_DT_HEAP, heap_suffix,
                                         &globals_data, 0, &heapsize)) {
-            printf("cricket error while writing globals heap\n");
+            print_error("error while writing globals heap\n");
             free(heap_suffix);
             heap_suffix = NULL;
             goto cleanup;
@@ -1771,8 +1755,8 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->writeGlobalMemory(*(uint64_t *)(globals_mem + offset),
                                           globals_data, heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("write global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
         free(globals_data);
@@ -1822,8 +1806,8 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->readGlobalMemory(globals[i].address,
                                          globals_mem + offset, globals[i].size);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
         offset += globals[i].size;
@@ -1839,7 +1823,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_GLOBALS, NULL, globals_mem,
                                 globals_mem_size)) {
-        fprintf(stderr, "cricket-cr: error writing globals\n");
+        print_error("error writing globals\n");
         goto cleanup;
     }
 
@@ -1857,7 +1841,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
                    globals[i].symbol);
             continue;
         }
-        printf("heap param %u: %llx (%lu)\n", i,
+        printf("heap param %zu: %p (%lu)\n", i,
                *(void **)(globals_mem + offset), heapsize);
 
         if ((globals_data = realloc(globals_data, heapsize)) == NULL) {
@@ -1867,8 +1851,8 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->readGlobalMemory(*(uint64_t *)(globals_mem + offset),
                                          globals_data, heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
-                    cudbgGetErrorString(res));
+            print_error("read global memory failed, %s\n",
+                        cudbgGetErrorString(res));
             goto cleanup;
         }
 
