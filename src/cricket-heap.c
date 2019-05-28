@@ -1,10 +1,11 @@
-
 #include "defs.h"
 #include "command.h"
 #include "cli/cli-cmds.h"
 #include "value.h"
+#include <assert.h>
 
 #include "cricket-heap.h"
+#include "cricket-utils.h"
 
 bool cricket_focus_host(bool batch_flag)
 {
@@ -44,20 +45,18 @@ bool cricket_heap_memreg_size(void *addr, size_t *size)
     struct value *val;
     struct type *type;
 
-    if (size == NULL)
+    assert(size != NULL);
+
+    if (addr == NULL)
         return false;
 
-    if (asprintf(&callstr, "getSize(0x%llx)", addr) == -1)
+    // Call the function getSize in the CUDA kernel
+    if (asprintf(&callstr, "getSize(%p)", addr) == -1)
         return false;
-
-    if (callstr == NULL) {
-        fprintf(stderr, "cricket-heap: asprintf returned NULL\n");
-        return false;
-    }
-    printf("callstr: %s\n", callstr);
     *size = parse_and_eval_long(callstr);
     free(callstr);
 
+    // No memory is allocated at the given address
     if (*size == 0)
         return false;
 
