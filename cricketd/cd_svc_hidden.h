@@ -26,7 +26,7 @@
  * To circument thes ugly and mean hack we do a bit of hacking ourselved:
  */
 
-int cd_svc_hidden_add_table(void* export_table, size_t len);
+void* cd_svc_hidden_add_table(void* export_table, size_t len);
 void *cd_svc_hidden_get(size_t call, size_t index);
 
 

@@ -25,7 +25,7 @@ default:
 
 union str_result switch (int err) {
 case 0:
-    string str<>;
+    string str<128>;
 default:
     void;
 };
@@ -54,9 +54,13 @@ program RPC_CD_PROG {
         int         rpc_cuCtxSetCurrent(uint64_t)                       = 11;
         ptr_result  rpc_cuDevicePrimaryCtxRetain(int)                   = 12;
         ptr_result  rpc_cuModuleGetFunction(uint64_t, string)           = 13;
-        int_result  rpc_cuGetExportTable(rpc_uuid uuid)                 = 14;
+        ptr_result  rpc_cuGetExportTable(rpc_uuid uuid)                 = 14;
+        ptr_result  rpc_cuMemAlloc(uint64_t)                            = 15;
         
         ptr_result  rpc_hidden_get_device_ctx(int)                      = 101;
+        ptr_result  rpc_hidden_1_1(void)                                = 111;
+        ptr_result  rpc_hidden_1_5(void)                                = 115;
+        ptr_result  rpc_hidden_3_2(int, uint64_t)                       = 132;
 
     } = 1;
 } = 99;

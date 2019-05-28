@@ -27,9 +27,11 @@
  */
 
 //void* cd_client_hidden_replace(void* orig_addr, size_t index);
+void cd_client_hidden_init(void *new_clnt);
 void cd_client_hidden_reset(void);
 int cd_client_hidden_incr(void);
-void *cd_client_hidden_get(void);
+void *cd_client_hidden_get(void *orig_ptr);
+void *cd_client_hidden_orgi_ptr(void *replaced_ptr);
 
 void* cd_client_get_real_ctx(void* fake_ctx);
 void* cd_client_get_fake_ctx(void* real_ctx);

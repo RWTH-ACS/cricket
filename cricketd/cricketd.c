@@ -126,7 +126,7 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
 }
 
 
-bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, int_result *result,
+bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, ptr_result *result,
                                   struct svc_req *rqstp)
 {
     void *exportTable = NULL;
@@ -154,11 +154,24 @@ bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, int_result *result,
     }
     printf("\ttablesize = %lu\n", tablesize);
 
-    cd_svc_hidden_add_table(exportTable, tablesize);
+    if (!(result->ptr_result_u.ptr = 
+          (uint64_t)cd_svc_hidden_add_table(exportTable, tablesize))) {
+        fprintf(stderr, "\tfailed to add table!\n");
+        return 0;
+    }
 
     return 1;
 }
 
+bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
+                                     struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuMemAlloc_v2((CUdeviceptr*)&result->ptr_result_u.ptr, (size_t)size);
+    return 1;
+}
+
+/* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
 bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
                                      struct svc_req *rqstp)
@@ -167,6 +180,43 @@ bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
     
     result->err = ((int(*)(void**,int))(cd_svc_hidden_get(0,1)))
                                         ((void**)&result->ptr_result_u.ptr, dev);
+    return 1;
+}
+
+bool_t rpc_hidden_1_1_1_svc(ptr_result *result,
+                            struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    void *l_arg1 = NULL;
+    
+    ((int(*)(void**, void**))(cd_svc_hidden_get(1,1)))
+                             (&l_arg1, (void**)&result->ptr_result_u.ptr);
+    result->err = 0;
+    return 1;
+}
+
+bool_t rpc_hidden_1_5_1_svc(ptr_result *result,
+                            struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    void *l_arg1 = NULL;
+    
+    ((int(*)(void**, void**))(cd_svc_hidden_get(1,5)))
+                             (&l_arg1, (void**)&result->ptr_result_u.ptr);
+    result->err = 0;
+    return 1;
+}
+
+
+bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
+                            struct svc_req *rqstp)
+{
+    result->ptr_result_u.ptr = 0;
+    printf("%s(%d, %p->%p)\n", __FUNCTION__, arg2, arg3, *(void**)arg3);
+    void *fptr = cd_svc_hidden_get(3,2);
+    ((int(*)(void**, int, void*))(fptr))
+                             ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
+    result->err = 0;
     return 1;
 }
 

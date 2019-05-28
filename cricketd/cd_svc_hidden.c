@@ -29,29 +29,36 @@ static void* hidden_table[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3] = {0};
 
 static int call_cnt = 0;
 
-int cd_svc_hidden_add_table(void* export_table, size_t len)
+/* append a ptr table segment to the static array above
+ */
+void* cd_svc_hidden_add_table(void* export_table, size_t len)
 {
-    if (call_cnt == EXPECT_CALL_CNT) {
-        return 0;
+    if (call_cnt >= EXPECT_CALL_CNT) {
+        return NULL;
     }
-    if ((call_cnt == 3 && expect_elem_cnt[call_cnt] != len-1) || 
-        (call_cnt != 3 && expect_elem_cnt[call_cnt] != len)) {
-        return 0;
+    if ((call_cnt == 3 && expect_elem_cnt[call_cnt] != len) || 
+        (call_cnt != 3 && expect_elem_cnt[call_cnt] != len-1)) {
+        return NULL;
     }
     if (call_cnt == 3) {
-        memcpy(hidden_table+hidden_offset[call_cnt], export_table+1, len);
+        memcpy(hidden_table+hidden_offset[call_cnt], export_table, len*sizeof(void*));
     } else {
-        memcpy(hidden_table+hidden_offset[call_cnt], export_table, len);
+        //there is a length element at the beginning of some tables
+        memcpy(hidden_table+hidden_offset[call_cnt],
+               export_table+sizeof(void*),
+               (len-1)*sizeof(void*));
     }
 
     call_cnt++;
 
-    return 1;
+    return hidden_table+hidden_offset[call_cnt-1];
 }
 
+/* get the function pointer to a specific hidden function
+ */
 void *cd_svc_hidden_get(size_t call, size_t index)
 {
-    if (call >= EXPECT_CALL_CNT || index >= expect_elem_cnt[index])
+    if (call >= EXPECT_CALL_CNT || index >= expect_elem_cnt[call])
         return NULL;
 
     return hidden_table[hidden_offset[call]+index];

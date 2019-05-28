@@ -53,31 +53,16 @@ static void* hidden_table[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3+EXPECT_CALL_CNT] =
     hidden_3_2,
     NULL,
 };
-/*
-static void* hidden_table2[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3] = {
-    hidden_0_0,
-    hidden_get_device_ctx,
-    hidden_0_2,
-    hidden_0_3,
-    hidden_0_4,
-    hidden_get_module,
-    hidden_0_6,
-    hidden_0_7,
-    hidden_1_0,
-    hidden_1_1,
-    hidden_1_2,
-    hidden_1_3,
-    hidden_1_4,
-    hidden_1_5,
-    hidden_2_0,
-    hidden_2_1,
-    hidden_3_0,
-    hidden_3_1,
-    hidden_3_2,
-};
-static void* map_table[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3] = {0};
-*/
+
+static void* orig_ptrs[EXPECT_CALL_CNT] = {0};
+
 static int call_cnt = 0;
+static CLIENT *clnt = NULL;
+
+void cd_client_hidden_init(void *new_clnt)
+{
+    clnt = (CLIENT*)new_clnt;
+}
 
 void cd_client_hidden_reset(void)
 {
@@ -89,11 +74,27 @@ int cd_client_hidden_incr(void)
     return ++call_cnt;
 }
 
-void *cd_client_hidden_get(void)
+void *cd_client_hidden_get(void *orig_ptr)
 {
+    //lets remember the original pointer in the server address space
+    //so we can use it when we do the next RPC
+    orig_ptrs[call_cnt] = orig_ptr;
     return hidden_table+hidden_offset[call_cnt];
-
 }
+
+/* get ptr to function ptr array in server address space from a ptr in client space
+ * see cd_client_hidden_get
+ */
+void *cd_client_hidden_orgi_ptr(void *replaced_ptr)
+{
+    for (int i = 0; i < EXPECT_CALL_CNT; ++i) {
+        if (hidden_table+hidden_offset[i] == replaced_ptr) {
+            return orig_ptrs[i];
+        }
+    }
+    return NULL;
+}
+
 /*
 void* cd_client_hidden_replace(void* orig_addr, size_t index)
 {
@@ -149,9 +150,9 @@ int hidden_get_device_ctx(void** cu_ctx, int cu_device)
                                         result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
-        return CUDA_ERROR_UNKNOWN;
+        return 1;
 	}
-    *cu_ctx = result.ptr_result_u.ptr;
+    *cu_ctx = (void*)result.ptr_result_u.ptr;
     return result.err;
 }
 
@@ -259,17 +260,24 @@ int hidden_1_0(int arg1, void* arg2)
  */
 int hidden_1_1(void* arg1, void *arg2)
 {
-    int map_index = hidden_offset[1]+1;
-    int ret = 1;
-    printf("pre %s(%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, arg2, *(void**)arg2);
-    //ret = ((int(*)(void*,void*))(map_table[map_index]))(arg1,arg2);
-    printf("post %s(%p->%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, **(void***)arg1, arg2, *(void**)arg2);
+    //printf("pre %s(%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, arg2, *(void**)arg2);
+
+	enum clnt_stat retval;
+    ptr_result result;
+    retval = rpc_hidden_1_1_1(&result, clnt);
+    printf("[rpc] %s = %d\n", __FUNCTION__, result.err);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return 1;
+	}
+
+    //printf("post %s(%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, arg2, *(void**)arg2);
+    *(void**)arg2 = (void*)result.ptr_result_u.ptr;
     *(void**)arg1 = malloc(0x54);
     int *test_ptr = (int*)((*(char**)arg1)+0x50);
     //I have not the slightest idea what this does, but the runtime tests this address
     *test_ptr = 0;
-    return ret;
-
+    return result.err;
 }
 
 int hidden_1_2(void* arg1) 
@@ -292,16 +300,26 @@ int hidden_1_4(void* arg1)
 
 /* called as part of
  * cudart::globalState::initializeDriverInternal()
+ * I have no clue what this does and whether the below is correct.
+ * The calling function seems to do not much else than check that the pointers are
+ * non-NULL (you verify this before assuming this statement is correct).
  */
 int hidden_1_5(void* arg1, void* arg2) 
 {
-    int map_index = hidden_offset[1]+5;
-    int ret = 1;
-    printf("pre %s(%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, arg2, *(void**)arg2);
-    //ret = ((int(*)(void*,void*))(map_table[map_index]))(arg1,arg2);
-    printf("post %s(%p->%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, **(void***)arg1, arg2, *(void**)arg2);
+	enum clnt_stat retval;
+    ptr_result result;
+    //printf("pre %s(%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, arg2, *(void**)arg2);
+    retval = rpc_hidden_1_5_1(&result, clnt);
+    printf("[rpc] %s = %d\n", __FUNCTION__, result.err);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return 1;
+	}
+
+    //printf("post %s(%p->%p->%p, %p->%p) called\n", __FUNCTION__, arg1, *(void**)arg1, **(void***)arg1, arg2, *(void**)arg2);
+    *(void**)arg2 = (void*)result.ptr_result_u.ptr;
     *(void**)arg1 = (void*)1;
-    return ret;
+    return result.err;
 }
 
 
@@ -354,14 +372,25 @@ int hidden_3_1(void* arg1, void* arg2)
  */
 int hidden_3_2(void** arg1, int arg2, void** arg3)
 {
-    int map_index = hidden_offset[3]+2;
-    int ret = 1;
-    printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
-   // ret = ((int(*)(void*,int,void*))(map_table[map_index]))(arg1,arg2,arg3);
+	enum clnt_stat retval;
+    ptr_result result;
+    void *arg3_orig = cd_client_hidden_orgi_ptr(*arg3);
     //printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
-    printf("post %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3);
+    if (arg3_orig == NULL) {
+        fprintf(stderr, "[rpc] %s failed to retrieve original ptr table\n", __FUNCTION__);
+        return 1;
+    }
+    retval = rpc_hidden_3_2_1(arg2, (uint64_t)arg3_orig, &result, clnt);
+    printf("[rpc] %s = %d, result = %p\n", __FUNCTION__, result.err,
+           (void*)result.ptr_result_u.ptr);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
+        return 1;
+	}
+    *arg1 = (void*)result.ptr_result_u.ptr;
+    //printf("post %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3);
     if (*arg1 != NULL) {
         printf("\t->%p\n", **(void***)arg1);
     }
-    return ret;
+    return result.err;
 }

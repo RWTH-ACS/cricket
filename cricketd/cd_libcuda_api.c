@@ -20,6 +20,7 @@ static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 static void *so_handle = NULL;
 
 static CLIENT *clnt = NULL;
+
 static void init_rpc(void)
 {
 	enum clnt_stat retval_1;
@@ -34,6 +35,7 @@ static void init_rpc(void)
         printf("error\n");
 		exit (1);
 	}
+    cd_client_hidden_init((void*)clnt);
 
 	retval_1 = printmessage_1(printmessage_1_arg1, &result_1, clnt);
     printf("return:%d\n", result_1);
@@ -122,9 +124,23 @@ DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevi
 DEF_FN(CUresult, cuGraphicsVDPAURegisterVideoSurface, CUgraphicsResource*, pCudaResource, VdpVideoSurface, vdpSurface, unsigned int, flags)
 DEF_FN(CUresult, cuGraphicsVDPAURegisterOutputSurface, CUgraphicsResource*, pCudaResource, VdpOutputSurface, vdpSurface, unsigned int, flags)
 
-DEF_FN(CUresult, cuDeviceTotalMem, size_t*, bytes, CUdevice, dev)
-//DEF_FN(CUresult, cuCtxCreate, CUcontext*, pctx, unsigned int, flags, CUdevice, dev)
+//DEF_FN(CUresult, cuDeviceTotalMem, size_t*, bytes, CUdevice, dev)
+CUresult cuDeviceTotalMem(size_t* bytes, CUdevice dev)
+{
+	enum clnt_stat retval;
+    u64_result result;
+    retval = rpc_cudevicetotalmem_1(dev, &result, clnt);
+    printf("[rpc] %s = %d, result %u\n", __FUNCTION__, result.err,
+                                        result.u64_result_u.u64);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *bytes = result.u64_result_u.u64;
+    return result.err;
+}
 
+//DEF_FN(CUresult, cuCtxCreate, CUcontext*, pctx, unsigned int, flags, CUdevice, dev)
 CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
 {
     DEF_FN_PTR(CUresult, CUcontext*, unsigned int, CUdevice);
@@ -139,12 +155,18 @@ DEF_FN(CUresult, cuMemGetInfo, size_t*, free, size_t*, total)
 //DEF_FN(CUresult, cuMemAlloc, CUdeviceptr*, dptr, size_t, bytesize)
 CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
 {
-    DEF_FN_PTR(CUresult, CUdeviceptr*, size_t);
-    DEF_DLSYM(CUresult, cuMemAlloc_v2)
-    printf("pre %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
-    CAL_FN_PTR(dptr, bytesize);
-    printf("post %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
-    return ret;
+	enum clnt_stat retval;
+    ptr_result result;
+    retval = rpc_cumemalloc_1(bytesize, &result, clnt);
+    //printf("pre %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
+    printf("[rpc] %s = %d, result %p\n", __FUNCTION__, result.err, result.ptr_result_u.ptr);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *dptr = result.ptr_result_u.ptr;
+    //printf("post %s(%p->%p, %lu) = %d\n", __FUNCTION__, dptr, *dptr, bytesize, ret);
+    return result.err;
 }
 DEF_FN(CUresult, cuMemAllocPitch, CUdeviceptr*, dptr, size_t*, pPitch, size_t, WidthInBytes, size_t, Height, unsigned int, ElementSizeBytes)
 DEF_FN(CUresult, cuMemFree, CUdeviceptr, dptr)
@@ -244,7 +266,28 @@ CUresult cuDeviceGetCount(int* count)
     return result.err;
 }
 
-DEF_FN(CUresult, cuDeviceGetName, char*, name, int, len, CUdevice, dev)
+//DEF_FN(CUresult, cuDeviceGetName, char*, name, int, len, CUdevice, dev)
+CUresult cuDeviceGetName(char* name, int len, CUdevice dev)
+{
+	enum clnt_stat retval;
+    str_result result;
+    result.str_result_u.str = malloc(128);
+    retval = rpc_cudevicegetname_1(dev, &result, clnt);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    if (result.str_result_u.str == NULL) {
+		fprintf(stderr, "[rpc] %s str is NULL.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    printf("[rpc] %s = %d, result \"%s\"\n", __FUNCTION__, result.err,
+                                        result.str_result_u.str);
+    strncpy(name, result.str_result_u.str, len);
+    free(result.str_result_u.str);
+    return result.err;
+}
+
 //DEF_FN(CUresult, cuDeviceGetUuid, CUuuid*, uuid, CUdevice, dev)
 
 /* CUuuid = struct { char bytes[16] };
@@ -266,7 +309,21 @@ CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 }
 
 DEF_FN(CUresult, cuDeviceGetLuid, char*, luid, unsigned int*, deviceNodeMask, CUdevice, dev)
-DEF_FN(CUresult, cuDeviceGetAttribute, int*, pi, CUdevice_attribute, attrib, CUdevice, dev)
+//DEF_FN(CUresult, cuDeviceGetAttribute, int*, pi, CUdevice_attribute, attrib, CUdevice, dev)
+CUresult cuDeviceGetAttribute(int* pi, CUdevice_attribute attrib, CUdevice dev)
+{
+	enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cudevicegetattribute_1(attrib, dev, &result, clnt);
+    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
+                                        result.int_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *pi = result.int_result_u.data;
+    return result.err;
+}
 DEF_FN(CUresult, cuDeviceGetProperties, CUdevprop*, prop, CUdevice, dev)
 DEF_FN(CUresult, cuDeviceGetByPCIBusId, CUdevice*, dev, const char*, pciBusId)
 DEF_FN(CUresult, cuDeviceGetP2PAttribute, int*, value, CUdevice_P2PAttribute, attrib, CUdevice, srcDevice, CUdevice, dstDevice)
@@ -548,10 +605,10 @@ CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTable
 {
 	enum clnt_stat retval;
     rpc_uuid uuid;
-    int_result result;
+    ptr_result result;
     const void* p1_data = *ppExportTable;
     char idstr[64];
-    uint64_t tablesize = 0;
+    void *orig_table;
     if (pExportTableId == NULL) {
         return CUDA_ERROR_UNKNOWN;
     }
@@ -564,46 +621,17 @@ CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTable
     //printf("precall %p->%p\n", ppExportTable, *ppExportTable);
     retval = rpc_cugetexporttable_1(uuid, &result, clnt);
     //printf("postcall %p->%p\n", p1_data, *((void**)p1_data));
-    tablesize = result.int_result_u.data;
-    printf("[rpc] %s(%p, %s) = %d, result = %d\n", __FUNCTION__, p1_data, idstr, result.err,
-                                                   tablesize);
+    orig_table = (void*)result.ptr_result_u.ptr;
+    printf("[rpc] %s(%s) = %d, result = %p\n", __FUNCTION__, idstr, result.err,
+                                               orig_table);
 
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
-    *ppExportTable = cd_client_hidden_get();
+    *ppExportTable = cd_client_hidden_get(orig_table);
 
     cd_client_hidden_incr();
-/*
-    memcpy(*((void**)ppExportTable), p1_data, tablesize*sizeof(void*));
-
-    if (((uint32_t*)p1_data)[1] > 0) {
-        for (int i=0; i < tablesize; ++i) {
-            ((void**)*ppExportTable)[i] =
-                cd_client_hidden_replace(((void**)*ppExportTable)[i], i);
-        }
-    } else {
-        for (int i=1; i < tablesize; ++i) {
-            ((void**)*ppExportTable)[i] =
-                cd_client_hidden_replace(((void**)*ppExportTable)[i], i-1);
-        }
-    }
-*/
-    /*if (test2_1fptr == NULL) {
-        test2_1fptr = ((void**)*ppExportTable)[2];
-        ((void**)*ppExportTable)[2] = test2_1;
-    } else if (test2_2fptr == NULL) {
-        test2_2fptr = ((void**)*ppExportTable)[2];
-        ((void**)*ppExportTable)[2] = test2_2;
-    } else {
-        printf("\tthis is too much\n");
-        ((void**)*ppExportTable)[2] = NULL;
-    }*/
-    //((void**)*ppExportTable)[1] = test1;
-    //((void**)*ppExportTable)[3] = test1;
-    for (int i=0; i < tablesize; ++i)
-        printf("\t%p\n", ((void**)*ppExportTable)[i]);
     return result.err;
 }
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize)
