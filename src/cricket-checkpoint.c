@@ -86,14 +86,107 @@ void print_profile_times(const struct profile_times *pt)
     }
 }
 
+
+bool checkpoint_warp(struct profile_times *timestamps, const int profile,
+                     CUDBGAPI cudbgAPI, const cricket_elf_info *elf_info,
+                     const cricketWarpInfo *warp_info,
+                     const cricket_function_info_array *function_array,
+                     const char *ckp_dir)
+{
+
+    cricket_callstack callstack;
+    if (profile) {
+        timestamps->warp[timestamps->entry_count].warp_id = warp_info->warp,
+        timestamps->warp[timestamps->entry_count].sm_id = warp_info->sm,
+        gettimeofday(&(timestamps->warp[timestamps->entry_count].misc_begin),
+                     NULL);
+    }
+
+    // Verify the kernel name
+    const char *warp_kn = cricket_cr_kernel_name(
+        cudbgAPI, warp_info->dev, warp_info->sm, warp_info->warp);
+    if (warp_kn == NULL) {
+        // TODO: why is error not in cr_kernel_name?
+        print_error("could not get kernel name for D%uS%uW%u\n", warp_info->dev,
+                    warp_info->sm, warp_info->warp);
+        return false;
+    }
+    if (strcmp(warp_kn, warp_info->kernel_name) != 0) {
+        print_error("found kernel \"%s\" while checkpointing kernel \"%s\"."
+                    "Only one kernel can be checkpointed\n",
+                    warp_kn, warp_info->kernel_name);
+        return false;
+    }
+
+    if (!cricket_cr_callstack(cudbgAPI, warp_info, CRICKET_CR_NOLANE,
+                              &callstack)) {
+        print_error("failed to get callstack\n");
+        return false;
+    }
+
+    printf("SM %u warp %u (active): %x - ", warp_info->sm, warp_info->warp,
+           callstack.active_lanes);
+    print_binary32(callstack.active_lanes);
+    printf("SM %u warp %u (valid): %x - ", warp_info->sm, warp_info->warp,
+           callstack.valid_lanes);
+    print_binary32(callstack.valid_lanes);
+
+    if (profile) {
+        gettimeofday(
+            &(timestamps->warp[timestamps->entry_count].checkpointable_begin),
+            NULL);
+    }
+
+    if (!cricket_cr_make_checkpointable(cudbgAPI, warp_info, function_array,
+                                        &callstack)) {
+        print_error("could not make checkpointable.\n");
+        return false;
+    }
+
+    if (profile) {
+        gettimeofday(&(timestamps->warp[timestamps->entry_count].pc_begin),
+                     NULL);
+    }
+    if (!cricket_cr_ckp_pc(cudbgAPI, warp_info, CRICKET_CR_NOLANE, ckp_dir,
+                           &callstack)) {
+        print_error("ckp_pc failed\n");
+        return false;
+    }
+    cricket_cr_free_callstack(&callstack);
+
+    if (profile) {
+        gettimeofday(&(timestamps->warp[timestamps->entry_count].lanes_begin),
+                     NULL);
+    }
+    for (uint8_t lane = 0; lane != warp_info->dev_prop->numLanes; lane++) {
+        if (callstack.valid_lanes & (1LU << lane)) {
+            cricket_cr_ckp_lane(cudbgAPI, warp_info, lane, ckp_dir);
+        }
+    }
+
+    if (profile) {
+        gettimeofday(&(timestamps->warp[timestamps->entry_count].shared_begin),
+                     NULL);
+    }
+
+    if (!cricket_cr_ckp_shared(cudbgAPI, ckp_dir, elf_info, 0, warp_info->sm,
+                               warp_info->warp)) {
+        printf("cricket_cr_ckp_shared unsuccessful\n");
+    }
+
+    if (profile) {
+        gettimeofday(&(timestamps->warp[timestamps->entry_count].warp_end),
+                     NULL);
+        timestamps->entry_count += 1;
+    }
+    return true;
+}
+
 int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
 {
-    char *kernel_name = NULL;
-    char *warp_kn;
-    cricket_callstack callstack;
-    cricket_function_info *function_info = NULL;
+    const char *kernel_name = NULL;
+    cricket_function_info_array function_array = { 0 };
     int ret = -1;
-    size_t fi_num;
     uint32_t calldepth;
     uint32_t first_warp = 0;
     uint32_t numDev = 0;
@@ -112,7 +205,6 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
     printf("attaching to PID %s\n", pid);
     // TODO check if parameter is a valid pid
     attach_command(pid, !batch_flag);
-
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
         printf("Cuda api not initialized!\n");
         return -1;
@@ -160,21 +252,20 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
     }
     for (first_warp = 0; first_warp != dev_prop.numWarps; first_warp++) {
         if (*warp_mask & (1LU << first_warp)) {
-            if (cricket_cr_kernel_name(cudbgAPI, 0, 0, first_warp,
-                                       &kernel_name)) {
+            kernel_name = cricket_cr_kernel_name(cudbgAPI, 0, 0, first_warp);
+            if (kernel_name != NULL) {
                 break;
             }
         }
     }
     if (kernel_name == NULL) {
-        fprintf(stderr, "cricket-checkpoint: error getting kernel name!\n");
+        print_error("getting kernel name failed\n");
         goto detach;
     } else {
         printf("checkpointing kernel with name: \"%s\"\n", kernel_name);
     }
-
-    if (!cricket_elf_build_fun_info(&function_info, &fi_num)) {
-        fprintf(stderr, "failed to build function info array\n");
+    if (!cricket_elf_build_fun_info(&function_array)) {
+        print_error("failed to build function info array\n");
         goto detach;
     }
     /* for (int i = 0; i < fi_num; ++i) {
@@ -187,12 +278,6 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
     printf("stack-size: %u, param-addr: %u, param-size: %u, param-num: %lu\n",
            elf_info.stack_size, elf_info.param_addr, elf_info.param_size,
            elf_info.param_num);
-
-    cricketWarpInfo warp_info = { 0 };
-    warp_info.dev = 0;
-    warp_info.dev_prop = &dev_prop;
-    warp_info.sm = 0;
-    warp_info.warp = 0;
 
     // checkpointing kernel
     if (profile) {
@@ -219,110 +304,27 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
         print_binary64(warp_mask[sm]);
         for (uint8_t warp = 0; warp != dev_prop.numWarps; warp++) {
             if (warp_mask[sm] & (1LU << warp)) {
-                if (profile) {
-                    timestamps.warp[timestamps.entry_count].warp_id = warp,
-                    timestamps.warp[timestamps.entry_count].sm_id = sm,
-                    gettimeofday(
-                        &(timestamps.warp[timestamps.entry_count].misc_begin),
-                        NULL);
-                }
-
-                if (!cricket_cr_kernel_name(cudbgAPI, 0, sm, warp, &warp_kn)) {
-                    fprintf(stderr, "cricket-checkpoint: could not get kernel "
-                                    "name for D%uS%uW%u\n",
-                            0, sm, warp);
-                    goto detach;
-                }
-                if (strcmp(warp_kn, kernel_name) != 0) {
-                    // TODO: here are some arguments missing
-                    fprintf(stderr, "cricket-checkpoint: found kernel \"%s\" "
-                                    "while checkpointing kernel \"%s\". only "
-                                    "one "
-                                    "kernel can be checkpointed\n");
-                    goto detach;
-                }
-
-                warp_info.sm = sm;
-                warp_info.warp = warp;
-                warp_info.kernel_name = kernel_name;
-                warp_info.stack_size = elf_info.stack_size;
-
-                if (!cricket_cr_callstack(cudbgAPI, &warp_info,
-                                          CRICKET_CR_NOLANE, &callstack)) {
-                    fprintf(stderr, "failed to get callstack\n");
-                    goto detach;
-                }
-
-                printf("SM %u warp %u (active): %x - ", sm, warp,
-                       callstack.active_lanes);
-                print_binary32(callstack.active_lanes);
-                printf("SM %u warp %u (valid): %x - ", sm, warp,
-                       callstack.valid_lanes);
-                print_binary32(callstack.valid_lanes);
-
-                if (profile) {
-                    gettimeofday(&(timestamps.warp[timestamps.entry_count]
-                                       .checkpointable_begin),
-                                 NULL);
-                    printf("=== Debug timestamp %d ",
-                           timestamps.warp[timestamps.entry_count]
-                               .checkpointable_begin);
-                }
-
-                if (!cricket_cr_make_checkpointable(cudbgAPI, &warp_info,
-                                                    function_info, fi_num,
-                                                    &callstack)) {
-                    fprintf(stderr, "cricket-checkpoint: could not make "
-                                    "checkpointable.\n");
-                    goto detach;
-                }
-
-                if (profile) {
-                    gettimeofday(
-                        &(timestamps.warp[timestamps.entry_count].pc_begin),
-                        NULL);
-                }
-                if (!cricket_cr_ckp_pc(cudbgAPI, &warp_info, CRICKET_CR_NOLANE,
-                                       ckp_dir, &callstack)) {
-                    fprintf(stderr, "cricket-checkpoint: ckp_pc failed\n");
-                    goto detach;
-                }
-                cricket_cr_free_callstack(&callstack);
-
-                if (profile) {
-                    gettimeofday(
-                        &(timestamps.warp[timestamps.entry_count].lanes_begin),
-                        NULL);
-                }
-                for (uint8_t lane = 0; lane != dev_prop.numLanes; lane++) {
-                    if (callstack.valid_lanes & (1LU << lane)) {
-                        cricket_cr_ckp_lane(cudbgAPI, &warp_info, lane,
-                                            ckp_dir);
-                    }
-                }
-
-                if (profile) {
-                    gettimeofday(
-                        &(timestamps.warp[timestamps.entry_count].shared_begin),
-                        NULL);
-                }
-
-                if (!cricket_cr_ckp_shared(cudbgAPI, ckp_dir, &elf_info, 0, sm,
-                                           warp)) {
-                    printf("cricket_cr_ckp_shared unsuccessful\n");
-                }
-
-                if (profile) {
-                    gettimeofday(
-                        &(timestamps.warp[timestamps.entry_count].warp_end),
-                        NULL);
-                    timestamps.entry_count += 1;
-                }
+                // TODO checkpoint warp
+                cricketWarpInfo warp_info = { .dev = 0,
+                                              .sm = sm,
+                                              .warp = warp,
+                                              .kernel_name = kernel_name,
+                                              .stack_size = elf_info.stack_size,
+                                              .dev_prop = &dev_prop };
+                /* warp_info.dev = 0; */
+                /* warp_info.dev_prop = &dev_prop; */
+                /* warp_info.sm = sm; */
+                /* warp_info.warp = warp; */
+                /* warp_info.kernel_name = kernel_name; */
+                /* warp_info.stack_size = elf_info.stack_size; */
+                checkpoint_warp(&timestamps, profile, cudbgAPI, &elf_info,
+                                &warp_info, &function_array, ckp_dir);
             }
         }
     }
 
     // Checkpoint non-kernel data
+    printf("DEBUG: Checkpointing non-kernel data\n");
     if (profile) {
         gettimeofday(&timestamps.outkernel_begin, NULL);
     }
@@ -332,6 +334,7 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
+    printf("DEBUG: Checkpointing global data\n");
     if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
         printf("cricket_cr_ckp_globals unsuccessful\n");
     }
@@ -346,7 +349,7 @@ int cricket_checkpoint(char *pid, const char *ckp_dir, const int profile)
 cuda_error:
     printf("Cuda Error: \"%s\"\n", cudbgGetErrorString(res));
 detach:
-    free(function_info);
+    free(function_array.entries);
     if (profile) {
         free(timestamps.warp);
     }
