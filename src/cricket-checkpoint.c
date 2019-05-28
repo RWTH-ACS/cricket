@@ -26,7 +26,7 @@ struct profile_times_warp
 {
     struct timeval misc_begin, checkpointable_begin, pc_begin, shared_begin,
         lanes_begin, warp_end;
-    uint warp_id, sm_id;
+    uint32_t warp_id, sm_id;
 };
 
 struct profile_times
@@ -34,7 +34,8 @@ struct profile_times
     struct timeval attach_begin, init_begin, inkernel_begin, outkernel_begin,
         checkpoint_end;
     struct profile_times_warp *warp;
-    uint entry_count, nr_sm, nr_warps;
+    uint32_t nr_sm, nr_warps;
+    size_t entry_count;
 };
 
 void print_profile_times(const struct profile_times *pt)
@@ -58,28 +59,28 @@ void print_profile_times(const struct profile_times *pt)
            attach_time, init_time, inkernel_time, outkernel_time,
            complete_time);
 
-    for (uint i = 0; i < pt->entry_count; ++i) {
-        uint misc_time = time_diff_usec(&pt->warp[i].checkpointable_begin,
-                                        &pt->warp[i].misc_begin);
-        uint checkpointable_time = time_diff_usec(
+    for (size_t i = 0; i < pt->entry_count; ++i) {
+        suseconds_t misc_time = time_diff_usec(
+            &pt->warp[i].checkpointable_begin, &pt->warp[i].misc_begin);
+        suseconds_t checkpointable_time = time_diff_usec(
             &pt->warp[i].pc_begin, &pt->warp[i].checkpointable_begin);
-        uint pc_time =
+        suseconds_t pc_time =
             time_diff_usec(&pt->warp[i].lanes_begin, &pt->warp[i].pc_begin);
-        uint lane_time =
+        suseconds_t lane_time =
             time_diff_usec(&pt->warp[i].shared_begin, &pt->warp[i].lanes_begin);
-        uint shared_time =
+        suseconds_t shared_time =
             time_diff_usec(&pt->warp[i].warp_end, &pt->warp[i].shared_begin);
-        uint warp_total =
+        suseconds_t warp_total =
             time_diff_usec(&pt->warp[i].warp_end, &pt->warp[i].misc_begin);
 
         printf("SM %d Warp %d duration:\n", pt->warp[i].sm_id,
                pt->warp[i].warp_id);
-        printf("\tmisc:           %u us\n"
-               "\tcheckpointable: %u us\n"
-               "\tpc:             %u us\n"
-               "\tlane:           %u us\n"
-               "\tshared:         %u us\n"
-               "\twarp:           %u us\n\n",
+        printf("\tmisc:           %ld us\n"
+               "\tcheckpointable: %ld us\n"
+               "\tpc:             %ld us\n"
+               "\tlane:           %ld us\n"
+               "\tshared:         %ld us\n"
+               "\twarp:           %ld us\n\n",
                misc_time, checkpointable_time, pc_time, lane_time, shared_time,
                warp_total);
     }

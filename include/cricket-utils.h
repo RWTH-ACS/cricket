@@ -11,13 +11,14 @@
 
 #define print_error(fmt, ...)                                                  \
     do {                                                                       \
-        fprintf(stderr, "Error in %s:%d:%s(): " fmt, __FILE__, __LINE__,       \
+        fprintf(stderr, "ERROR in %s:%d:%s(): " fmt, __FILE__, __LINE__,       \
                 __func__, ##__VA_ARGS__);                                      \
     } while (0)
 
 double time_diff_sec(const struct timeval *tv1, const struct timeval *tv2);
 
-uint time_diff_usec(const struct timeval *tv1, const struct timeval *tv2);
+suseconds_t time_diff_usec(const struct timeval *tv1,
+                           const struct timeval *tv2);
 
 void print_binary32(uint32_t num);
 
