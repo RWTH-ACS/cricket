@@ -131,7 +131,7 @@ void inline_matmul(uint16_t *A, uint16_t *x, uint16_t *res, bool restore)
             if (i==0 && blockIdx.x == 0) {
                 //A_global += lres[i];
                 //printf("sum: %u, A_global: %lx\n", local_sum(res,N), A_global);
-                printf("local still running: %u/%u\n", r/(ITERATIONS/128), 128);
+                //printf("local still running: %u/%u\n", r/(ITERATIONS/128), 128);
             }
             //while(r/(ITERATIONS/32) == 5);
         }

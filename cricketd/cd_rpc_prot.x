@@ -23,6 +23,11 @@ default:
     void;
 };
 
+struct ptr_ptr {
+    uint64_t ptr1;
+    uint64_t ptr2;
+};
+
 union str_result switch (int err) {
 case 0:
     string str<128>;
@@ -56,10 +61,13 @@ program RPC_CD_PROG {
         ptr_result  rpc_cuModuleGetFunction(uint64_t, string)           = 13;
         ptr_result  rpc_cuGetExportTable(rpc_uuid uuid)                 = 14;
         ptr_result  rpc_cuMemAlloc(uint64_t)                            = 15;
+        int_result  rpc_cuCtxGetDevice(void)                            = 16;
         
         ptr_result  rpc_hidden_get_device_ctx(int)                      = 101;
+        ptr_result  rpc_hidden_get_module(uint64_t arg2, uint64_t arg3, uint64_t arg4, int arg5)                                                     = 105;
         ptr_result  rpc_hidden_1_1(void)                                = 111;
         ptr_result  rpc_hidden_1_5(void)                                = 115;
+        int         rpc_hidden_3_0(int, uint64_t, uint64_t)             = 130;
         ptr_result  rpc_hidden_3_2(int, uint64_t)                       = 132;
 
     } = 1;

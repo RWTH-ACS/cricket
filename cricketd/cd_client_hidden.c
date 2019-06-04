@@ -215,21 +215,26 @@ void* cd_client_get_real_module(void* fake_module)
  * loadCubin(bool*, cudart::globalModule*)
  * seems to return the current/global module
  * arg1 = *CUmodule returns the module
- * Why does this function have so many parameters?
+ * arg2 is a pointer to a pointer to the symbol fatDeviceText in 
+ * the program binary (use elfread!) that, presumably,
+ * contains the device code.
+ * This function seems to be similar to cuModuleLoadDataEx (at least the 
+ * signature is almost identical and the functions seems to be the same as
+ * well. However, this is a distinct function with different disassembly)
  */
 int hidden_get_module(void** cu_module, void** arg2, void* arg3, void* arg4, int arg5) 
 {
-    int map_index = hidden_offset[0]+5;
-    int ret = 1;
-    printf("pre %s(%p->%p, %p->%p, %p, %p, %d) = %d\n", __FUNCTION__, cu_module, *cu_module, arg2, *arg2, arg3, arg4, arg5, ret);
-    //ret = ((int(*)(void*,void*,void*,void*,int))(map_table[map_index]))(&module_map[module_map_cnt++],arg2,arg3,arg4,arg5);
-    //We actually want the below statement to begin at 1 because 0 will
-    //be interpreted as an error.
-    *cu_module = (void*)module_map_cnt;
-    printf("post %s(%p->%p->(CUmodule_st), %p->%p, %p, %p, %d) = %d\n", __FUNCTION__, cu_module, *cu_module, arg2, *arg2, arg3, arg4, arg5, ret);
-    printf("\treal_module: %p\n", module_map[module_map_cnt-1]);
+	enum clnt_stat retval;
+    ptr_result result;
+    
+    //printf("pre %s(%p->%p, %p->%p, %p, %p, %d)\n", __FUNCTION__, cu_module, *cu_module, arg2, *arg2, arg3, arg4, arg5);
 
-    return ret;
+    retval = rpc_hidden_get_module_1((uint64_t)*arg2, (uint64_t)arg3,
+                                     (uint64_t)arg4, arg5, &result, clnt);
+    *cu_module = (void*)result.ptr_result_u.ptr;
+    printf("[rpc] %s(%p->%p->(CUmodule_st), %p->%p, %p, %p, %d) = %d\n", __FUNCTION__, cu_module, *cu_module, arg2, *arg2, arg3, arg4, arg5, result.err);
+
+    return result.err;
 }
 
 /* called as part of 
@@ -302,7 +307,7 @@ int hidden_1_4(void* arg1)
  * cudart::globalState::initializeDriverInternal()
  * I have no clue what this does and whether the below is correct.
  * The calling function seems to do not much else than check that the pointers are
- * non-NULL (you verify this before assuming this statement is correct).
+ * non-NULL (better verify this before assuming this statement is correct).
  */
 int hidden_1_5(void* arg1, void* arg2) 
 {
@@ -341,14 +346,25 @@ int hidden_2_1(void* arg1)
  * the second parameter is a NULL-terminated function pointer array
  * the third parameter is the module (CUmodule*)
  */
-int hidden_3_0(int arg1, void* arg2, void* arg3)
+int hidden_3_0(int arg1, void** arg2, void** arg3)
 {
-    int map_index = hidden_offset[3]+0;
-    int ret = 1;
-    printf("pre %s(%d, %p->%p, %p->%d) called\n", __FUNCTION__, arg1, arg2, *(void**)arg2, arg3, *(void**)arg3);
-    //ret = ((int(*)(int,void*,void*))(map_table[map_index]))(arg1,arg2,arg3);
-    printf("pre %s(%d, %p->%p, %p->%d) called\n", __FUNCTION__, arg1, arg2, *(void**)arg2, arg3, *(void**)arg3);
-    return ret;
+	enum clnt_stat retval;
+    int result;
+    void *arg2_orig = cd_client_hidden_orgi_ptr(*arg2);
+    //printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
+    if (arg2_orig == NULL) {
+        fprintf(stderr, "[rpc] %s failed to retrieve original ptr table\n", __FUNCTION__);
+        return 1;
+    }
+    retval = rpc_hidden_3_0_1(arg1, (uint64_t)arg2_orig, (uint64_t)*arg3,
+                              &result, clnt);
+    printf("[rpc] %s(%d, %p->%p, %p->%p = %d\n", __FUNCTION__,
+           arg1, arg2, arg2_orig, arg3, *arg3, result);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
+        return 1;
+	}
+    return result;
 }
 
 /* called as part of cudart::contextStateManager::

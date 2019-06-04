@@ -57,7 +57,7 @@ int hidden_1_5(void* arg1, void* arg2);
 int hidden_2_0(void* arg1);
 int hidden_2_1(void* arg1);
 
-int hidden_3_0(int arg1, void* arg2, void* arg3);
+int hidden_3_0(int arg1, void** arg2, void** arg3);
 int hidden_3_1(void* arg1, void* arg2);
 int hidden_3_2(void** arg1, int arg2, void** arg3);
 

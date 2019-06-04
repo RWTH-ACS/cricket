@@ -98,6 +98,11 @@ bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     printf("%s\n", __FUNCTION__);
     result->err = cuCtxGetCurrent((struct CUctx_st**)&result->ptr_result_u.ptr);
+    if ((void*)result->ptr_result_u.ptr != NULL) {
+        unsigned int version = 0;
+        cuCtxGetApiVersion((CUcontext)result->ptr_result_u.ptr, &version);
+        printf("ctxapi version: %d\n", version);
+    }
     return 1;
 }
 
@@ -153,12 +158,13 @@ bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, ptr_result *result,
         tablesize = *((uint64_t*)exportTable)/8;
     }
     printf("\ttablesize = %lu\n", tablesize);
+    printf("\tpost %p->%p\n", exportTable, *(void**)exportTable);
 
-    if (!(result->ptr_result_u.ptr = 
-          (uint64_t)cd_svc_hidden_add_table(exportTable, tablesize))) {
+    if (!(uint64_t)cd_svc_hidden_add_table(exportTable, tablesize)) {
         fprintf(stderr, "\tfailed to add table!\n");
         return 0;
     }
+    result->ptr_result_u.ptr = (uint64_t)exportTable;
 
     return 1;
 }
@@ -171,6 +177,13 @@ bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
     return 1;
 }
 
+bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
+    return 1;
+}
+
 /* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
 bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
@@ -180,6 +193,31 @@ bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
     
     result->err = ((int(*)(void**,int))(cd_svc_hidden_get(0,1)))
                                         ((void**)&result->ptr_result_u.ptr, dev);
+    return 1;
+}
+
+/* This function loads the module (the device code)
+ * It could be replaced by cuModuleLoad which loads a module via a path
+ * string. However, this seems to only work for cubin files that were
+ * compiled using "nvcc -cubin" or extracted from a fatbinary using
+ * "cuobjdump -xelf". When this returns 200 or 300 the cubin may be
+ * compiled for the wrong compute capabilities (e.g. Pascal needs sm_61 and
+ * Turing needs sm_75).
+ */
+bool_t rpc_hidden_get_module_1_svc(uint64_t arg2, uint64_t arg3,
+                                   uint64_t arg4, int arg5,
+                                   ptr_result *result, struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    //TODO: make a parameter. Probably must be globally stored somehow
+    //      thread-safety may be an issue
+    char str[] = "/home/eiling/projects/cricket/tests/test_api.1.sm_61.cubin";
+    result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, str);
+    
+/*    result->err = ((int(*)(void**,void*,uint64_t,uint64_t,int))
+                   (cd_svc_hidden_get(0,5)))
+                   ((void**)&result->ptr_result_u.ptr, &arg2, arg3,
+                    arg4, arg5);*/
     return 1;
 }
 
@@ -207,16 +245,27 @@ bool_t rpc_hidden_1_5_1_svc(ptr_result *result,
     return 1;
 }
 
+bool_t rpc_hidden_3_0_1_svc(int arg1, uint64_t arg2, uint64_t arg3,
+                            int *result, struct svc_req *rqstp)
+{
+    printf("%s(%d, %p, %p)\n", __FUNCTION__, arg1, arg2, arg3);
+    void *fptr = cd_svc_hidden_get(3,0);
+    *result = ((int(*)(int, void*, void*))(fptr))
+                      (arg1, &arg2, &arg3);
+    return 1;
+}
 
 bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
                             struct svc_req *rqstp)
 {
+    void* exportTable = (void*)arg3;
     result->ptr_result_u.ptr = 0;
-    printf("%s(%d, %p->%p)\n", __FUNCTION__, arg2, arg3, *(void**)arg3);
+    printf("%s(%d, %p)\n", __FUNCTION__, arg2, arg3);
+    printf("\t%p->%p\n", exportTable, *(void**)exportTable);
     void *fptr = cd_svc_hidden_get(3,2);
-    ((int(*)(void**, int, void*))(fptr))
-                             ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
-    result->err = 0;
+    result->err = ((int(*)(void**, int, void*))(fptr))
+                             ((void**)&result->ptr_result_u.ptr, arg2, &exportTable);
+    printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
     return 1;
 }
 
