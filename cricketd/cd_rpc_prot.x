@@ -66,7 +66,9 @@ program RPC_CD_PROG {
         ptr_result  rpc_hidden_get_device_ctx(int)                      = 101;
         ptr_result  rpc_hidden_get_module(uint64_t arg2, uint64_t arg3, uint64_t arg4, int arg5)                                                     = 105;
         ptr_result  rpc_hidden_1_1(void)                                = 111;
+        void        rpc_hidden_1_3(uint64_t, uint64_t)                  = 113;
         ptr_result  rpc_hidden_1_5(void)                                = 115;
+        void        rpc_hidden_2_1(uint64_t)                            = 121;
         int         rpc_hidden_3_0(int, uint64_t, uint64_t)             = 130;
         ptr_result  rpc_hidden_3_2(int, uint64_t)                       = 132;
 

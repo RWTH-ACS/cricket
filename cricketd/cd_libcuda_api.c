@@ -351,7 +351,7 @@ CUresult cuDevicePrimaryCtxRetain(CUcontext *pctx, CUdevice dev)
 	enum clnt_stat retval;
     ptr_result result;
     retval = rpc_cudeviceprimaryctxretain_1(dev, &result, clnt);
-    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
+    printf("[rpc] %s = %d, result %p\n", __FUNCTION__, result.err,
                                         result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
@@ -370,7 +370,6 @@ CUresult cuCtxSetCurrent(CUcontext ctx)
 {
 	enum clnt_stat retval;
     int result;
-    printf("pre ctx = %p\n", ctx);
     retval = rpc_cuctxsetcurrent_1((uint64_t)ctx, &result, clnt);
     printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result);
 	if (retval != RPC_SUCCESS) {
@@ -384,9 +383,8 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
 {
 	enum clnt_stat retval;
     ptr_result result;
-    printf("pre ctx = %p\n", *pctx);
     retval = rpc_cuctxgetcurrent_1(&result, clnt);
-    printf("[rpc] %s = %d, result %p\n", __FUNCTION__, result.err,
+    printf("[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, pctx, result.err,
                                         result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);

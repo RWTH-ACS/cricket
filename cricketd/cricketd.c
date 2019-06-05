@@ -233,6 +233,16 @@ bool_t rpc_hidden_1_1_1_svc(ptr_result *result,
     return 1;
 }
 
+bool_t rpc_hidden_1_3_1_svc(uint64_t arg1, uint64_t arg2, void* unused,
+                            struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    
+    ((void(*)(uint64_t, uint64_t))(cd_svc_hidden_get(1,3)))
+                             (arg1, arg2);
+    return 1;
+}
+
 bool_t rpc_hidden_1_5_1_svc(ptr_result *result,
                             struct svc_req *rqstp)
 {
@@ -242,6 +252,16 @@ bool_t rpc_hidden_1_5_1_svc(ptr_result *result,
     ((int(*)(void**, void**))(cd_svc_hidden_get(1,5)))
                              (&l_arg1, (void**)&result->ptr_result_u.ptr);
     result->err = 0;
+    return 1;
+}
+
+bool_t rpc_hidden_2_1_1_svc(uint64_t arg1, void* unused,
+                            struct svc_req *rqstp)
+{
+    printf("%s\n", __FUNCTION__);
+    
+    ((void(*)(uint64_t))(cd_svc_hidden_get(2,1)))
+                             (arg1);
     return 1;
 }
 
@@ -258,13 +278,13 @@ bool_t rpc_hidden_3_0_1_svc(int arg1, uint64_t arg2, uint64_t arg3,
 bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
                             struct svc_req *rqstp)
 {
-    void* exportTable = (void*)arg3;
     result->ptr_result_u.ptr = 0;
     printf("%s(%d, %p)\n", __FUNCTION__, arg2, arg3);
-    printf("\t%p->%p\n", exportTable, *(void**)exportTable);
+    printf("\tppre %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
     void *fptr = cd_svc_hidden_get(3,2);
     result->err = ((int(*)(void**, int, void*))(fptr))
-                             ((void**)&result->ptr_result_u.ptr, arg2, &exportTable);
+                             ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
+    printf("\tppost %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
     printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
     return 1;
 }

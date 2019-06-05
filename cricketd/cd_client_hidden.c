@@ -295,7 +295,7 @@ int hidden_1_2(void* arg1)
  */
 int hidden_1_3(void* arg1, void* arg2) 
 {
-    printf("%s(%p, %p) -> UNIMPLEMENTED!\n", __FUNCTION__, arg1, arg2);
+    printf("%s(%p, %p->%p) -> UNIMPLEMENTED!\n", __FUNCTION__, arg1, arg2, *(void**)arg2);
 }
 
 int hidden_1_4(void* arg1) 
@@ -338,7 +338,7 @@ int hidden_2_0(void* arg1)
  */
 int hidden_2_1(void* arg1)
 {
-    printf("%s(%p) -> UNIMPLEMENTED!\n", __FUNCTION__, arg1);
+    printf("%s(%p->%p) -> UNIMPLEMENTED!\n", __FUNCTION__, arg1, *(void**)arg1);
 }
 
 /* called as part of cudart::contextStateManager::
@@ -389,9 +389,10 @@ int hidden_3_1(void* arg1, void* arg2)
 int hidden_3_2(void** arg1, int arg2, void** arg3)
 {
 	enum clnt_stat retval;
-    ptr_result result;
+    ptr_result result = {0};
     void *arg3_orig = cd_client_hidden_orgi_ptr(*arg3);
-    //printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
+    printf("\tppre %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
+    printf("\tfaked arg3: %p\n", arg3_orig);
     if (arg3_orig == NULL) {
         fprintf(stderr, "[rpc] %s failed to retrieve original ptr table\n", __FUNCTION__);
         return 1;
@@ -404,9 +405,6 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
         return 1;
 	}
     *arg1 = (void*)result.ptr_result_u.ptr;
-    //printf("post %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3);
-    if (*arg1 != NULL) {
-        printf("\t->%p\n", **(void***)arg1);
-    }
+    printf("\tppost %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     return result.err;
 }

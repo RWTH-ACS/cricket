@@ -278,7 +278,7 @@ int hidden_3_0(int arg1, void* arg2, void* arg3)
     int ret = 1;
     printf("pre %s(%d, %p->%p, %p->%d) called\n", __FUNCTION__, arg1, arg2, *(void**)arg2, arg3, *(void**)arg3);
     ret = ((int(*)(int,void*,void*))(map_table[map_index]))(arg1,arg2,arg3);
-    printf("pre %s(%d, %p->%p, %p->%d) called\n", __FUNCTION__, arg1, arg2, *(void**)arg2, arg3, *(void**)arg3);
+    printf("post %s(%d, %p->%p, %p->%d) = %d called\n", __FUNCTION__, arg1, arg2, *(void**)arg2, arg3, *(void**)arg3, ret);
     return ret;
 }
 
@@ -307,7 +307,7 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
     printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     ret = ((int(*)(void*,int,void*))(map_table[map_index]))(arg1,arg2,arg3);
     //printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
-    printf("post %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3);
+    printf("post %s(%p, %d, %p->%p) = %d\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, ret);
     if (*arg1 != NULL) {
         printf("\t->%p\n", **(void***)arg1);
     }
