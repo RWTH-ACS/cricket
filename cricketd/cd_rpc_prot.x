@@ -43,6 +43,7 @@ default:
 };
 
 typedef char rpc_uuid<16>;
+typedef opaque mem_data<>;
 
 program RPC_CD_PROG {
     version RPC_CD_VERS {
@@ -62,9 +63,11 @@ program RPC_CD_PROG {
         ptr_result  rpc_cuGetExportTable(rpc_uuid uuid)                 = 14;
         ptr_result  rpc_cuMemAlloc(uint64_t)                            = 15;
         int_result  rpc_cuCtxGetDevice(void)                            = 16;
+        int         rpc_cuMemcpyHtoD(uint64_t, mem_data)                = 17;
+        int         rpc_cuLaunchKernel(uint64_t, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, uint64_t, mem_data)                                                              = 18;
         
         ptr_result  rpc_hidden_get_device_ctx(int)                      = 101;
-        ptr_result  rpc_hidden_get_module(uint64_t arg2, uint64_t arg3, uint64_t arg4, int arg5)                                                     = 105;
+        ptr_result  rpc_hidden_get_module(uint64_t arg2, uint64_t arg3, uint64_t arg4, int arg5)                                                      = 105;
         ptr_result  rpc_hidden_1_1(void)                                = 111;
         void        rpc_hidden_1_3(uint64_t, uint64_t)                  = 113;
         ptr_result  rpc_hidden_1_5(void)                                = 115;

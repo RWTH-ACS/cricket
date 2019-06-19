@@ -18,9 +18,9 @@ RPC_XDR = rpc_prot_xdr.c
 RPC_DEF = cd_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
-SRC_CLIENT = $(RPC_CLIENT) $(RPC_XDR) client.c
-SRC_SERVER = $(RPC_SERVER) $(RPC_XDR) cricketd.c cd_svc_hidden.c
-SRC_LIBCUDA = $(RPC_CLIENT) $(RPC_XDR) cd_libcuda_api.c cd_client_hidden.c
+SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) client.c
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c cd_svc_hidden.c
+SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cd_libcuda_api.c cd_client_hidden.c
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)

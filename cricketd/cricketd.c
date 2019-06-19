@@ -184,6 +184,27 @@ bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
     return 1;
 }
 
+bool_t rpc_cumemcpyhtod_1_svc(uint64_t dptr, mem_data hptr, int *result,
+                                     struct svc_req *rqstp)
+{
+    printf("%s(%p,%p,%d)\n", __FUNCTION__, dptr, hptr.mem_data_val, hptr.mem_data_len);
+    *result = cuMemcpyHtoD_v2((CUdeviceptr)dptr, hptr.mem_data_val,
+                              hptr.mem_data_len);
+    return 1;
+}
+
+bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, uint64_t hStream, mem_data kernelParams, int* result, struct svc_req *rqstp)
+{
+    void *config[] = {
+        CU_LAUNCH_PARAM_BUFFER_POINTER, kernelParams.mem_data_val,
+        CU_LAUNCH_PARAM_BUFFER_SIZE,    &kernelParams.mem_data_len,
+        CU_LAUNCH_PARAM_END};
+    printf("%s\n", __FUNCTION__);
+    *result = cuLaunchKernel((CUfunction)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (CUstream)hStream, NULL, config);
+    return 1;
+
+}
+
 /* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
 bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
@@ -280,12 +301,12 @@ bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
 {
     result->ptr_result_u.ptr = 0;
     printf("%s(%d, %p)\n", __FUNCTION__, arg2, arg3);
-    printf("\tppre %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
+    //printf("\tppre %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
     void *fptr = cd_svc_hidden_get(3,2);
     result->err = ((int(*)(void**, int, void*))(fptr))
                              ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
-    printf("\tppost %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
-    printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
+    //printf("\tppost %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
+    //printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
     return 1;
 }
 

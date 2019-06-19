@@ -391,8 +391,8 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
 	enum clnt_stat retval;
     ptr_result result = {0};
     void *arg3_orig = cd_client_hidden_orgi_ptr(*arg3);
-    printf("\tppre %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
-    printf("\tfaked arg3: %p\n", arg3_orig);
+    //printf("\tppre %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
+    //printf("\tfaked arg3: %p\n", arg3_orig);
     if (arg3_orig == NULL) {
         fprintf(stderr, "[rpc] %s failed to retrieve original ptr table\n", __FUNCTION__);
         return 1;
@@ -405,6 +405,6 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
         return 1;
 	}
     *arg1 = (void*)result.ptr_result_u.ptr;
-    printf("\tppost %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
+    //printf("\tppost %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     return result.err;
 }

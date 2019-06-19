@@ -459,7 +459,22 @@ DEF_FN(CUresult, cuPointerGetAttribute, void*, data, CUpointer_attribute, attrib
 DEF_FN(CUresult, cuPointerGetAttributes, unsigned int, numAttributes, CUpointer_attribute*, attributes, void**, data, CUdeviceptr, ptr)
 DEF_FN(CUresult, cuMemcpy, CUdeviceptr, dst, CUdeviceptr, src, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpy_ptds, CUdeviceptr, dst, CUdeviceptr, src, size_t, ByteCount)
-DEF_FN(CUresult, cuMemcpyHtoD, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
+//DEF_FN(CUresult, cuMemcpyHtoD, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
+CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void* srcHost, size_t ByteCount)
+{
+	enum clnt_stat retval;
+    mem_data src;
+    int result;
+    src.mem_data_len = ByteCount;
+    src.mem_data_val = (void*)srcHost;
+    retval = rpc_cumemcpyhtod_1((uint64_t)dstDevice, src, &result, clnt);
+    printf("[rpc] %s = %d\n", __FUNCTION__, result);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result;
+}
 DEF_FN(CUresult, cuMemcpyHtoD_v2_ptds, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpyDtoH, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpyDtoH_v2_ptds, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount)
@@ -543,7 +558,29 @@ DEF_FN(CUresult, cuWaitExternalSemaphoresAsync, const CUexternalSemaphore*, extS
 DEF_FN(CUresult, cuWaitExternalSemaphoresAsync_ptsz, const CUexternalSemaphore*, extSemArray, const CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS*, paramsArray, unsigned int, numExtSems, CUstream, stream)
 DEF_FN(CUresult, cuDestroyExternalSemaphore, CUexternalSemaphore, extSem)
 #undef cuLaunchKernel
-DEF_FN(CUresult, cuLaunchKernel, CUfunction, f, unsigned int, gridDimX, unsigned int, gridDimY, unsigned int, gridDimZ, unsigned int, blockDimX, unsigned int, blockDimY, unsigned int, blockDimZ, unsigned int, sharedMemBytes, CUstream, hStream, void**, kernelParams, void**, extra)
+//DEF_FN(CUresult, cuLaunchKernel, CUfunction, f, unsigned int, gridDimX, unsigned int, gridDimY, unsigned int, gridDimZ, unsigned int, blockDimX, unsigned int, blockDimY, unsigned int, blockDimZ, unsigned int, sharedMemBytes, CUstream, hStream, void**, kernelParams, void**, extra)
+CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream, void** kernelParams, void** extra)
+{
+	enum clnt_stat retval;
+    mem_data params = {0};
+    int result;
+    if (kernelParams != NULL) {
+        params.mem_data_val = (void*)kernelParams;
+        //We know nothing about the parameter length. Just assume 512 bytes
+        //for now.
+        params.mem_data_len = 512;
+    } else if (extra != NULL) {
+        params.mem_data_val = extra[1];
+        params.mem_data_len = (uint64_t)extra[3];
+    }
+    retval = rpc_culaunchkernel_1((uint64_t)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (uint64_t)hStream, params, &result, clnt);
+    printf("[rpc] %s = %d\n", __FUNCTION__, result);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result;
+}
 DEF_FN(CUresult, cuLaunchKernel_ptsz, CUfunction, f, unsigned int, gridDimX, unsigned int, gridDimY, unsigned int, gridDimZ, unsigned int, blockDimX, unsigned int, blockDimY, unsigned int, blockDimZ, unsigned int, sharedMemBytes, CUstream, hStream, void**, kernelParams, void**, extra)
 #undef cuLaunchCooperativeKernel
 DEF_FN(CUresult, cuLaunchCooperativeKernel, CUfunction, f, unsigned int, gridDimX, unsigned int, gridDimY, unsigned int, gridDimZ, unsigned int, blockDimX, unsigned int, blockDimY, unsigned int, blockDimZ, unsigned int, sharedMemBytes, CUstream, hStream, void**, kernelParams)
