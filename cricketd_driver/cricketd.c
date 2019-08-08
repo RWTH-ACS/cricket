@@ -211,7 +211,7 @@ bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
                                      struct svc_req *rqstp)
 {
     printf("%s\n", __FUNCTION__);
-    
+
     result->err = ((int(*)(void**,int))(cd_svc_hidden_get(0,1)))
                                         ((void**)&result->ptr_result_u.ptr, dev);
     return 1;
@@ -234,7 +234,7 @@ bool_t rpc_hidden_get_module_1_svc(uint64_t arg2, uint64_t arg3,
     //      thread-safety may be an issue
     char str[] = "/home/eiling/projects/cricket/tests/test_api.1.sm_61.cubin";
     result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, str);
-    
+
 /*    result->err = ((int(*)(void**,void*,uint64_t,uint64_t,int))
                    (cd_svc_hidden_get(0,5)))
                    ((void**)&result->ptr_result_u.ptr, &arg2, arg3,
@@ -247,7 +247,7 @@ bool_t rpc_hidden_1_1_1_svc(ptr_result *result,
 {
     printf("%s\n", __FUNCTION__);
     void *l_arg1 = NULL;
-    
+
     ((int(*)(void**, void**))(cd_svc_hidden_get(1,1)))
                              (&l_arg1, (void**)&result->ptr_result_u.ptr);
     result->err = 0;
@@ -258,7 +258,7 @@ bool_t rpc_hidden_1_3_1_svc(uint64_t arg1, uint64_t arg2, void* unused,
                             struct svc_req *rqstp)
 {
     printf("%s\n", __FUNCTION__);
-    
+
     ((void(*)(uint64_t, uint64_t))(cd_svc_hidden_get(1,3)))
                              (arg1, arg2);
     return 1;
@@ -269,7 +269,7 @@ bool_t rpc_hidden_1_5_1_svc(ptr_result *result,
 {
     printf("%s\n", __FUNCTION__);
     void *l_arg1 = NULL;
-    
+
     ((int(*)(void**, void**))(cd_svc_hidden_get(1,5)))
                              (&l_arg1, (void**)&result->ptr_result_u.ptr);
     result->err = 0;
@@ -280,7 +280,7 @@ bool_t rpc_hidden_2_1_1_svc(uint64_t arg1, void* unused,
                             struct svc_req *rqstp)
 {
     printf("%s\n", __FUNCTION__);
-    
+
     ((void(*)(uint64_t))(cd_svc_hidden_get(2,1)))
                              (arg1);
     return 1;
@@ -305,6 +305,9 @@ bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
     void *fptr = cd_svc_hidden_get(3,2);
     result->err = ((int(*)(void**, int, void*))(fptr))
                              ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
+    void **res = ((void**)result->ptr_result_u.ptr);
+    if (res != 0)
+        printf("\t%p, @0x30: %p, @0x40: %p->%p\n", res, res[6], res[8], *(void**)res[8]);
     //printf("\tppost %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
     //printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
     return 1;

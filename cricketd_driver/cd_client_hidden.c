@@ -85,7 +85,7 @@ void *cd_client_hidden_get(void *orig_ptr)
 /* get ptr to function ptr array in server address space from a ptr in client space
  * see cd_client_hidden_get
  */
-void *cd_client_hidden_orgi_ptr(void *replaced_ptr)
+void *cd_client_hidden_orig_ptr(void *replaced_ptr)
 {
     for (int i = 0; i < EXPECT_CALL_CNT; ++i) {
         if (hidden_table+hidden_offset[i] == replaced_ptr) {
@@ -118,7 +118,8 @@ int hidden_0_0(void* arg1)
 }
 
 
-static void* ctx_map[16] = {0};
+static void* ctx_map_orig[16] = {0};
+static void* ctx_map_fake[16] = {0};
 static size_t ctx_map_cnt = 0;
 
 /* called as part of 
@@ -158,20 +159,45 @@ int hidden_get_device_ctx(void** cu_ctx, int cu_device)
 
 void* cd_client_get_fake_ctx(void* real_ctx)
 {
-    for (size_t i=0; i <= ctx_map_cnt; ++i) {
-        if (real_ctx == ctx_map[i]) {
-            return (void*)(i+1);
+    size_t i;
+    uint64_t *ctx_elem = malloc(sizeof(uint64_t));
+    for (i=0; i <= ctx_map_cnt; ++i) {
+        if (real_ctx == ctx_map_orig[i]) {
+            return ctx_map_fake[i];
+        }
+    }
+    if (i == 16) return NULL;
+    ctx_map_fake[i] = calloc(1,0x58);
+    ((uint64_t*)ctx_map_fake[i])[6] = 0x6;
+    // cudart::contextState::getEntryFunction dereferences ctx+0x40.
+    // This is called during kernel startup
+    ((uint64_t**)ctx_map_fake[i])[8] = ctx_elem;
+    *ctx_elem = (uint64_t)&((uint64_t**)ctx_map_fake[i])[9];
+    ((uint64_t**)ctx_map_fake[i])[10] = 0x403ca9;
+    ctx_map_orig[i] = real_ctx;
+    ctx_map_cnt++;
+    return ctx_map_fake[i];
+}
+
+void* cd_client_get_real_ctx(void* fake_ctx)
+{
+    size_t i;
+    for (i=0; i <= ctx_map_cnt; ++i) {
+        if (fake_ctx == ctx_map_fake[i]) {
+            return ctx_map_orig[i];
         }
     }
     return NULL;
 }
 
-void* cd_client_get_real_ctx(void* fake_ctx)
+//TODO: use!
+void cd_client_free_ctx_map()
 {
-    if ((size_t)fake_ctx > ctx_map_cnt) {
-        return NULL;
+    size_t i;
+    for (i=0; i <= ctx_map_cnt; ++i) {
+        free(((uint64_t**)ctx_map_fake[i])[8]);
+        free(ctx_map_fake[i]);
     }
-    return ctx_map[(size_t)fake_ctx-1];
 }
 
 int hidden_0_2(void* arg1) 
@@ -350,7 +376,7 @@ int hidden_3_0(int arg1, void** arg2, void** arg3)
 {
 	enum clnt_stat retval;
     int result;
-    void *arg2_orig = cd_client_hidden_orgi_ptr(*arg2);
+    void *arg2_orig = cd_client_hidden_orig_ptr(*arg2);
     //printf("pre %s(%p, %d, %p->%p->%p)\n", __FUNCTION__, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     if (arg2_orig == NULL) {
         fprintf(stderr, "[rpc] %s failed to retrieve original ptr table\n", __FUNCTION__);
@@ -390,7 +416,7 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
 {
 	enum clnt_stat retval;
     ptr_result result = {0};
-    void *arg3_orig = cd_client_hidden_orgi_ptr(*arg3);
+    void *arg3_orig = cd_client_hidden_orig_ptr(*arg3);
     //printf("\tppre %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     //printf("\tfaked arg3: %p\n", arg3_orig);
     if (arg3_orig == NULL) {
@@ -404,7 +430,12 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
 		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
         return 1;
 	}
-    *arg1 = (void*)result.ptr_result_u.ptr;
+    *arg1 = cd_client_get_fake_ctx((void*)result.ptr_result_u.ptr);
+    printf("\tfaked result: %p\n", *arg1);
+
+    if (*arg1 != 0)
+        printf("\t%p, @0x30: %p, @0x40: %p\n", *arg1, (*(void***)arg1)[6], (*(void***)arg1)[8]);
+    //*arg1 = (void*)result.ptr_result_u.ptr;
     //printf("\tppost %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     return result.err;
 }
