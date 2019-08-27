@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <cudadebugger.h>
+#include <math.h>
 #include "interps.h"
 #include "top.h"
 #include "main.h"
@@ -143,6 +144,15 @@ bool cricket_init_gdb(char *name)
     gdb_stdtargerr = gdb_stderr;
     gdb_stdtargin = gdb_stdin;
     instream = fopen("/dev/null", "r");
+
+    if (! getcwd (gdb_dirbuf, sizeof (gdb_dirbuf))) {
+        /* Don't use *_filtered or warning() (which relies on
+           current_target) until after initialize_all_files().  */
+        fprintf(stderr, "%s: warning: error finding working directory: %s\n",
+                       name, safe_strerror (errno));
+    }
+    
+    current_directory = gdb_dirbuf;
 
     /* initialize gdb paths */
     gdb_sysroot = strdup("");

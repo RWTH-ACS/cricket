@@ -51,7 +51,7 @@ static char doc[] = "cricket - Checkpoint-Restart in Cuda KErnels Tool";
 static char args_doc[] = "";
 
 static struct argp_option options
-    [] = { { "\bProvide exactly one these:", 0, 0,
+    [] = { { "\bProvide exactly one of these:", 0, 0,
              OPTION_DOC | OPTION_NO_USAGE,   0, 0 },
            { "analyze", 'a', "executable", 0, "Analyze something TODO!", 1 },
            { "restore", 'r', "executable", 0, "Restore a kernel from a "
