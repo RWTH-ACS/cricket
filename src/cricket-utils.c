@@ -8,6 +8,11 @@
 #include "top.h"
 #include "main.h"
 
+void cricket_error_unreachable(void)
+{
+    printf("ERROR 2200: We've reached an unreachable state. Anything is possible. The limits were in our heads all along. Follow your dreams.\n");
+}
+
 double time_diff_sec(const struct timeval *tv1, const struct timeval *tv2)
 {
     return fabs((tv2->tv_sec - tv1->tv_sec) +
