@@ -3,29 +3,22 @@
 # Use only P4 GPU
 export CUDA_VISIBLE_DEVICES="1"
 
-TEST_PATH=$(dirname $(readlink -f "$0"))
+CRICKET=../cricket
+TEST_PATH=/home/eiling/projects/cricket/tests
 TEST_BIN=test_kernel
-CRICKET_EXEC=${TEST_PATH}/../cricket
-CKP_PATH=$(mktemp -d -t cricket_ckp.XXXXXXX)
+CKP_PATH=/tmp/cricket-ckp
+
+mkdir -p $CKP_PATH
+rm $CKP_PATH/*
+
+$CRICKET start $TEST_PATH/$TEST_BIN &
+
+sleep 2
+
+$CRICKET checkpoint `pgrep $TEST_BIN`
+
+sleep 7
+
+$CRICKET restore $TEST_PATH/$TEST_BIN
 
 
-$CRICKET_EXEC -s $TEST_PATH/$TEST_BIN
-# $TEST_PATH/$TEST_BIN &
-
-sleep 1.5
-
-TEST_PID=$(pgrep $TEST_BIN)
-echo "$CRICKET_EXEC -c $TEST_PID -d $CKP_PATH "
-$CRICKET_EXEC -c $TEST_PID -d $CKP_PATH
-
-sleep 4
-echo ""
-echo ""
-echo ""
-echo ""
-echo "Restoring now"
-
-echo "$CRICKET_EXEC -r $TEST_PATH/$TEST_BIN -d $CKP_PATH"
-$CRICKET_EXEC -r $TEST_PATH/$TEST_BIN -d $CKP_PATH
-
-rm  -r $CKP_PATH

@@ -93,6 +93,7 @@ static bool cricket_cr_gen_suffix(char **suffix, cricketWarpInfo *wi,
     return true;
 }
 
+#define CRICKET_PROFILE 1
 bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                          const char *ckp_dir)
 {
@@ -1301,6 +1302,7 @@ sizeof(struct cricket_pc_data))) {
 #undef _CRICKET_DEBUG_CR_*/
 
 /* stores stack, registers and PC */
+#define CRICKET_PROFILE 1
 bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
                          const char *ckp_dir)
 {
@@ -1544,6 +1546,7 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
     }
     cricket_focus_host(0);
     for (int i = 0; i != elf_info->param_num; ++i) {
+        continue;
         if (elf_info->params[i].size != 8)
             continue;
 
@@ -1849,6 +1852,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
     offset = 0;
     cricket_focus_host(0);
     for (i = 0; i != globals_num; ++i, offset += globals[i].size) {
+        continue;
         if (globals[i].size != 8)
             continue;
 

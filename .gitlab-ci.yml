@@ -14,7 +14,7 @@ stages:
 
 # For some reason, GitLab CI prunes the contents of the submodules so we need to restore them.
 before_script:
-  - git submodule foreach git checkout .
+   - git submodule foreach git checkout .
 
 # Stage: prepare
 ##############################################################################

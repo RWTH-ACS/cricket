@@ -54,14 +54,11 @@ bool cricket_file_cpy(const char *source, const char *destination)
 {
     int input, output;
     if ((input = open(source, O_RDONLY)) == -1) {
-        fprintf(stderr, "cricket_file_cpy: failed to open source file %s\n",
-                source);
+        fprintf(stderr, "cricket_file_cpy: failed to open source file %s\n", source);
         return false;
     }
     if ((output = creat(destination, 0770)) == -1) {
-        fprintf(stderr, "cricket_file_cpy: failed to create destination "
-                        "file %s\n",
-                destination);
+        fprintf(stderr, "cricket_file_cpy: failed to create destination file %s\n", destination);
         close(input);
         return false;
     }
