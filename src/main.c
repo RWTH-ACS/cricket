@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
         return cricket_restore(cricket_args.executable, cricket_args.ckp_dir);
     default:
         fprintf(stderr, "unknown mode\n");
+        cricket_error_unreachable();
         return -1;
     }
 }

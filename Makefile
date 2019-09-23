@@ -73,4 +73,4 @@ show: # For debugging purposes
 	@echo -e '\033[36mDEPS        \033[0m' $(DEPS)
 	@echo -e '\033[36mOBJS        \033[0m' $(OBJS)
 
-include $(wildcard build/*.d)
+#include $(wildcard build/*.d)

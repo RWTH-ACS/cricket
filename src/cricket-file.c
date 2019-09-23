@@ -53,8 +53,11 @@ bool cricket_file_exists(const char *path, cricketDataType data_type,
         return false;
     }
     if (stat(path, &path_stat) != 0) {
-        fprintf(stderr, "cricket-file: path \"%s\" does not exist\n", path);
-        return false;
+        printf("cricket-file: directory \"%s\" does not exist. Let's create it.\n", path);
+        if (mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0) {
+            fprintf(stderr, "cricket-file: failed to create directory \"%s\"\n");
+            return false;
+        }
     }
     if (!S_ISDIR(path_stat.st_mode)) {
         fprintf(stderr, "cricket-file: file \"%s\" is not a directory\n", path);
