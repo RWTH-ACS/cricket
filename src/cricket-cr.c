@@ -1546,7 +1546,7 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
     }
     cricket_focus_host(0);
     for (int i = 0; i != elf_info->param_num; ++i) {
-        continue;
+        //continue;
         if (elf_info->params[i].size != 8)
             continue;
 
@@ -1852,7 +1852,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
     offset = 0;
     cricket_focus_host(0);
     for (i = 0; i != globals_num; ++i, offset += globals[i].size) {
-        continue;
+        //continue;
         if (globals[i].size != 8)
             continue;
 
