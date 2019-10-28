@@ -1,0 +1,7 @@
+*.dump
+client
+cricketd
+cd_rpc_prot.h
+rpc_prot_clnt.c
+rpc_prot_svc.c
+rpc_prot_xdr.c
