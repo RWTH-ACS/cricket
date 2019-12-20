@@ -18,7 +18,7 @@ static void *so_handle = NULL;
 
 static CLIENT *clnt = NULL;
 
-static void init_rpc(void)
+void __attribute__ ((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;
     int result_1;
@@ -138,7 +138,22 @@ DEF_FN(void* cudaGetParameterBufferV2, void*, func, dim3, gridDimension, dim3, b
 DEF_FN(cudaError_t, cudaLaunchCooperativeKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaLaunchCooperativeKernelMultiDevice, struct cudaLaunchParams*, launchParamsList, unsigned int, numDevices, unsigned int, flags)
 DEF_FN(cudaError_t, cudaLaunchHostFunc, cudaStream_t, stream, cudaHostFn_t, fn, void*, userData)
-DEF_FN(cudaError_t, cudaLaunchKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
+//DEF_FN(cudaError_t, cudaLaunchKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
+cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream)
+{
+    int result;
+    enum clnt_stat retval_1;
+    rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    mem_data rpc_args;
+    rpc_args.mem_data_len = 0;
+    rpc_args.mem_data_val = NULL;
+    retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaSetDoubleForDevice, double*, d)
 DEF_FN(cudaError_t, cudaSetDoubleForHost, double*, d)
 DEF_FN(cudaError_t, cudaOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, const void*, func, int,  blockSize, size_t, dynamicSMemSize)
@@ -156,7 +171,21 @@ DEF_FN(cudaError_t, cudaHostGetDevicePointer, void**, pDevice, void*, pHost, uns
 DEF_FN(cudaError_t, cudaHostGetFlags, unsigned int*, pFlags, void*, pHost)
 DEF_FN(cudaError_t, cudaHostRegister, void*, ptr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
-DEF_FN(cudaError_t, cudaMalloc, void**, devPtr, size_t, size)
+//DEF_FN(cudaError_t, cudaMalloc, void**, devPtr, size_t, size)
+cudaError_t cudaMalloc(void** devPtr, size_t size)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_malloc_1(size, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        return result.err;
+    }
+    *devPtr = (void*)result.ptr_result_u.ptr;
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaMalloc3D, struct cudaPitchedPtr*, pitchedDevPtr, struct cudaExtent, extent)
 DEF_FN(cudaError_t, cudaMalloc3DArray, cudaArray_t*, array, const struct cudaChannelFormatDesc*, desc, struct cudaExtent, extent, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaMallocArray, cudaArray_t*, array, const struct cudaChannelFormatDesc*, desc, size_t, width, size_t, height, unsigned int,  flags)
@@ -169,7 +198,40 @@ DEF_FN(cudaError_t, cudaMemGetInfo, size_t*, free, size_t*, total)
 DEF_FN(cudaError_t, cudaMemPrefetchAsync, const void*, devPtr, size_t, count, int,  dstDevice, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemRangeGetAttribute, void*, data, size_t, dataSize, enum cudaMemRangeAttribute, attribute, const void*, devPtr, size_t, count)
 DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes, enum cudaMemRangeAttribute*, attributes, size_t, numAttributes, const void*, devPtr, size_t, count)
-DEF_FN(cudaError_t, cudaMemcpy, void*, dst, const void*, src, size_t, count, enum cudaMemcpyKind, kind)
+//DEF_FN(cudaError_t, cudaMemcpy, void*, dst, const void*, src, size_t, count, enum cudaMemcpyKind, kind)
+cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
+{
+    if (kind == cudaMemcpyHostToDevice) {
+        int result;
+        enum clnt_stat retval;
+        mem_data src_mem;
+        src_mem.mem_data_len = count;
+        src_mem.mem_data_val = (void*)src;
+        retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &result, clnt);
+        if (retval != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        return result;
+    } else if (kind == cudaMemcpyDeviceToHost) {
+        mem_result result;
+        enum clnt_stat retval;
+        retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
+        if (retval != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        if (result.err != 0) {
+            return result.err;
+        }
+        if (result.mem_result_u.data.mem_data_len != count) {
+            fprintf(stderr, "error\n");
+            return result.err;
+        }
+        memcpy(dst, (void*)result.mem_result_u.data.mem_data_val, count);
+        return result.err;
+    } else {
+        fprintf(stderr, "error\n");
+    }
+}
 DEF_FN(cudaError_t, cudaMemcpy2D, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpy2DArrayToArray, cudaArray_t, dst, size_t, wOffsetDst, size_t, hOffsetDst, cudaArray_const_t, src, size_t, wOffsetSrc, size_t, hOffsetSrc, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpy2DAsync, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind, cudaStream_t, stream)

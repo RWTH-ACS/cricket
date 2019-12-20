@@ -33,7 +33,7 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
-LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda
+LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
 
 LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
 

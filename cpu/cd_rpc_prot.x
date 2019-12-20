@@ -2,6 +2,12 @@
  * msg.x: Remote message printing protocol
  */
 
+
+typedef char rpc_uuid<16>;
+typedef opaque mem_data<>;
+typedef uint64_t size_t;
+typedef uint64_t ptr;
+
 union int_result switch (int err) {
 case 0:
     int data;
@@ -42,12 +48,26 @@ default:
     void;
 };
 
-typedef char rpc_uuid<16>;
-typedef opaque mem_data<>;
+union mem_result switch (int err) {
+case 0:
+    mem_data data;
+default:
+    void;
+};
+
+struct rpc_dim3 {
+    unsigned int x;
+    unsigned int y;
+    unsigned int z;
+};
 
 program RPC_CD_PROG {
     version RPC_CD_VERS {
-        int PRINTMESSAGE(string)                                        = 1;
+        int         PRINTMESSAGE(string)                                 = 1;
+        ptr_result  CUDA_MALLOC(size_t)                                  = 2;
+        int         CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
+        mem_result  CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
+        int         CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
     } = 1;
 } = 99;
 

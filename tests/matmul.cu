@@ -147,6 +147,12 @@ void kernel(uint16_t *A, uint16_t *x, uint16_t *res, char b, short c, int a, lon
     inline_matmul(A,x,res,false);
 }
 
+__global__
+void kernel_no_param(void)
+{
+    printf("i am working\n");
+}
+
 size_t getSize(void *address)
 {
     CUdeviceptr ptr=0;
