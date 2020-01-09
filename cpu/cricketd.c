@@ -15,6 +15,7 @@
 #include "cd_rpc_prot.h"
 
 #include "cd_common.h"
+#include "cricketd_launch.h"
 
 
 
@@ -63,7 +64,14 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
                                 int *result, struct svc_req *rqstp)
 {
     printf("cudaLaunchKernel\n");
-    void* cuda_args[] = {};
+    void *elf;
+    size_t elf_size;
+
+    if (cricketd_launch_load_elf("/home/eiling/projects/cricket/tests/test_kernel", &elf, &elf_size) != 1) {
+        fprintf(stderr, "error while loading elf\n");
+    }
+
+  /*  void* cuda_args[] = {};
     CUresult res;
     CUmodule cuModule;
     res = cuModuleLoad(&cuModule, "/home/eiling/projects/cricket/tests/test_kernel");
@@ -73,6 +81,7 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     printf("%d: res=%d\n", __LINE__, res);
     res = cuLaunchKernel(kernel, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, sharedMem, (void*)stream, cuda_args, NULL);
     printf("%d: res=%d\n", __LINE__, res);
+    */
     //*result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
     return 1;
 }

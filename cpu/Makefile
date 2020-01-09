@@ -19,7 +19,7 @@ RPC_DEF = cd_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) client.c
-SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c cricketd_launch.c 
 SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cd_libcuda_api.c
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
@@ -28,12 +28,19 @@ OBJ_LIBCUDA = $(SRC_LIBCUDA:%.c=%.o)
 
 # Compiler flags
 
+LIB_DIR = ../lib
+# Order of .a files is important!
+SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
+SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
+
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/usr/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
+INC_FLAGS += -I../include/bfd -I../include/gdb -I../include/include -I../include/gdb/common -I../include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
+SERVER_LD_FLAGS = $(LD_FLAGS) -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list
 
 LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
 
@@ -51,7 +58,7 @@ $(LIBCUDA_WRAPPER) : $(OBJ_LIBCUDA)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LD_LIBCUDA)
 
 $(SERVER) : $(OBJ_SERVER)
-	$(LD) $(CC_FLAGS) -o $@ $^ $(LD_FLAGS)
+	$(LD) $(CC_FLAGS) -o $@ $^  $(SLIBS) $(SERVER_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
