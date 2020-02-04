@@ -30,7 +30,7 @@ OBJ_LIBCUDA = $(SRC_LIBCUDA:%.c=%.o)
 
 LIB_DIR = ../lib
 # Order of .a files is important!
-SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
+SLIBS = libgdb.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
 
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/usr/include/tirpc
@@ -38,9 +38,10 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 INC_FLAGS += -I../include/bfd -I../include/gdb -I../include/include -I../include/gdb/common -I../include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib
+LIB_FLAGS += -L/home/eiling/tmp/cuda-gdb/bfd/install/usr/local/lib
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
-SERVER_LD_FLAGS = $(LD_FLAGS) -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list
+SERVER_LD_FLAGS = $(LD_FLAGS) -lbfd -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list
 
 LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
 
@@ -58,7 +59,7 @@ $(LIBCUDA_WRAPPER) : $(OBJ_LIBCUDA)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LD_LIBCUDA)
 
 $(SERVER) : $(OBJ_SERVER)
-	$(LD) $(CC_FLAGS) -o $@ $^  $(SLIBS) $(SERVER_LD_FLAGS)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<

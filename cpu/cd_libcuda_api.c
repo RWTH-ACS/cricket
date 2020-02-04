@@ -68,6 +68,69 @@ static inline void libwrap_post_call(char *ret, char *name, char *parameters)
 }
 
 
+void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,
+                            const char *deviceName, int thread_limit, uint3 *tid,
+                            uint3 *bid, dim3 *bDim, dim3 *gDim, int *wSize)
+{
+    int result;
+    enum clnt_stat retval_1;
+
+    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
+
+    retval_1 = RPC_SUCCESS;//cuda_register_function_1((uint64_t)fatCubinHandle, (uint64_t)hostFun, deviceFun, (char*)deviceName, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+}
+
+struct __fatCubin {
+    uint32_t magic;
+    uint32_t seq;
+    uint64_t text;
+    uint64_t data;
+    uint64_t ptr;
+    uint64_t ptr2;
+    uint64_t zero;
+};
+
+void** __cudaRegisterFatBinary(void *fatCubin)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
+
+    struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
+    struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
+                                   .seq   = fat->seq,
+                                   .text  = fat->text,
+                                   .data  = fat->data,
+                                   .ptr   = fat->ptr,
+                                   .ptr2  = fat->ptr2,
+                                   .zero  = fat->zero};
+    printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
+           fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
+    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        return NULL;
+    }
+    return (void*)result.ptr_result_u.ptr;
+}
+
+void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
+{
+    int result;
+    enum clnt_stat retval_1;
+
+    printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", fatCubinHandle);
+
+    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_end_1((uint64_t)fatCubinHandle, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+}
+
 DEF_FN(cudaError_t, cudaChooseDevice, int*, device, const struct cudaDeviceProp*, prop)
 DEF_FN(cudaError_t, cudaDeviceGetAttribute, int*, value, enum cudaDeviceAttr, attr, int, device)
 DEF_FN(cudaError_t, cudaDeviceGetByPCIBusId, int*, device, const char*, pciBusId)
@@ -143,6 +206,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 {
     int result;
     enum clnt_stat retval_1;
+    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;

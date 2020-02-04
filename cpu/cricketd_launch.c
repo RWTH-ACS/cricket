@@ -15,6 +15,11 @@
 extern void** __cudaRegisterFatBinary(
   void *fatCubin
 );
+extern void __cudaRegisterFunction(
+  void **fatCubinHandle, const char *hostFun, char *deviceFun,
+  const char *deviceName, int thread_limit, void *tid,
+  void *bid, void *bDim, void *gDim, int *wSize
+);
 
 static int cricket_elf_print_symtab(bfd *abfd)
 {
@@ -133,8 +138,22 @@ int cricketd_launch_load_elf(const char *filename, void **fatbin, size_t *fatbin
            fat.magic, fat.seq, fat.text, fat.data, fat.ptr, fat.ptr2, fat.zero);
 
 
-    void** fatCubinHandle = __cudaRegisterFatBinary(&fat);
+    void **fatCubinHandle = __cudaRegisterFatBinary(&fat);
     printf("%p\n", fatCubinHandle);
+
+
+    char *fun_name = "_Z6kernelPtS_S_csix";
+
+    section = bfd_get_section_by_name(hostbfd, fun_name);
+    if (section == NULL) {
+        fprintf(stderr, "cricket-elf (%d): fatbin section %s not found\n",
+                __LINE__, fun_name);
+        goto cleanup;
+    }
+
+    printf("function %s is at %p and %p bytes long\n", section->filepos, section->size);
+
+    __cudaRegisterFunction(fatCubinHandle, (void*)(0x40168d+*fatbin), fun_name, fun_name,                            -1, NULL, NULL, NULL, NULL, NULL);
     /*if ((cudabfd_fd = fmemopen(fatbin, fatbin_size, "rb")) == NULL) {
         fprintf(stderr, "cricket-elf (%d): fmemopen failed\n", __LINE__);
         goto cleanup;

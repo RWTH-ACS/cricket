@@ -61,6 +61,16 @@ struct rpc_dim3 {
     unsigned int z;
 };
 
+struct rpc_fatCubin {
+    uint32_t magic;
+    uint32_t seq;
+    uint64_t text;
+    uint64_t data;
+    uint64_t ptr;
+    uint64_t ptr2;
+    uint64_t zero;
+};
+
 program RPC_CD_PROG {
     version RPC_CD_VERS {
         int         PRINTMESSAGE(string)                                 = 1;
@@ -68,6 +78,9 @@ program RPC_CD_PROG {
         int         CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result  CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
         int         CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
+        /*ptr_result  CUDA_REGISTER_FAT_BINARY(rpc_fatCubin)               = 6;
+        int         CUDA_REGISTER_FUNCTION(ptr, ptr, string, string)     = 7;
+        int         CUDA_REGISTER_FAT_BINARY_END(ptr)                    = 8;*/
     } = 1;
 } = 99;
 

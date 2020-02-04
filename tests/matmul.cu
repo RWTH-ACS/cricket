@@ -177,13 +177,13 @@ int main()
     const int x_size = N*sizeof(uint16_t);
 
     int cnt = 5;
-    cuInit(0);
-    cuDeviceGetCount(&cnt);
+    //cuInit(0);
+    //cuDeviceGetCount(&cnt);
     printf("found %d devices\n", cnt);
-    CUdevice cuDevice;
-    cuDeviceGet(&cuDevice, 0);
-    CUcontext cuContext;
-    cuCtxCreate(&cuContext, 0, cuDevice);
+    //CUdevice cuDevice;
+    //cuDeviceGet(&cuDevice, 0);
+    //CUcontext cuContext;
+    //cuCtxCreate(&cuContext, 0, cuDevice);
 
     gettimeofday(&begin, NULL);
     srand(time(NULL));
@@ -249,7 +249,11 @@ int main()
 
     dim3 dimBlock( blocksize, 1 );
     dim3 dimGrid( 1, 1);
-    kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
+    //kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
+    //kernel_no_param<<<dimGrid, dimBlock>>>();
+    void *args = NULL;
+    int result = cudaLaunchKernel((void*)kernel_no_param, dimGrid, dimBlock, &args, 0LL, NULL);
+
 #ifdef TEST_KERNEL
     printf("Kernel Test: Create a checkpoint now!\n");
     cudaDeviceSynchronize();

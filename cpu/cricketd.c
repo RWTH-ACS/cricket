@@ -18,7 +18,6 @@
 #include "cricketd_launch.h"
 
 
-
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 void int_handler(int signal) {
@@ -63,14 +62,13 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
                                 mem_data args, size_t sharedMem, ptr stream,
                                 int *result, struct svc_req *rqstp)
 {
-    printf("cudaLaunchKernel\n");
-    void *elf;
+/*    void *elf;
     size_t elf_size;
 
     if (cricketd_launch_load_elf("/home/eiling/projects/cricket/tests/test_kernel", &elf, &elf_size) != 1) {
         fprintf(stderr, "error while loading elf\n");
     }
-
+*/
   /*  void* cuda_args[] = {};
     CUresult res;
     CUmodule cuModule;
@@ -83,8 +81,65 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     printf("%d: res=%d\n", __LINE__, res);
     */
     //*result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
+
+   // void *kernel_addr = (void*)(function+elf);
+    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    void *t_args = NULL;
+
+    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, (void**)args.mem_data_val, sharedMem, (void*)stream);
+
+    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, t_args, sharedMem, (void*)stream);
+
+    //*result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, &t_args, sharedMem, (cudaStream_t)stream);
+    *result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, &t_args, 0, NULL);
+    printf("cudaLaunchKernel result: %d\n", *result);
     return 1;
 }
+
+/*extern void** __cudaRegisterFatBinary(
+  void *fatCubin
+);
+extern void __cudaRegisterFunction(
+  void **fatCubinHandle, const char *hostFun, char *deviceFun,
+  const char *deviceName, int thread_limit, void *tid,
+  void *bid, void *bDim, void *gDim, int *wSize
+);
+extern void __cudaRegisterFatBinaryEnd(
+  void **fatCubinHandle
+);
+
+bool_t cuda_register_fat_binary_1_svc(rpc_fatCubin cubin, ptr_result *result, struct svc_req *rqstp)
+{
+    struct __fatCubin fat = {.magic = cubin.magic,
+                             .seq   = cubin.seq,
+                             .text  = cubin.text,
+                             .data  = cubin.data,
+                             .ptr   = cubin.ptr,
+                             .ptr2  = cubin.ptr2,
+                             .zero  = cubin.zero};
+    printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
+           fat.magic, fat.seq, fat.text, fat.data, fat.ptr, fat.ptr2, fat.zero);
+    //result->ptr_result_u.ptr = (uint64_t)__cudaRegisterFatBinary(&fat);
+    result->err = 0;
+    return 1;
+}
+
+bool_t cuda_register_function_1_svc(ptr cubinHandle, ptr hostFun, char *deviceFun, char *deviceName, int *result, struct svc_req * rqstp)
+{
+    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s)\n", (void*)cubinHandle, (void*)hostFun, deviceFun, deviceName);
+   // __cudaRegisterFunction((void*)cubinHandle, (void*)hostFun, deviceFun, deviceName,                            -1, NULL, NULL, NULL, NULL, NULL);
+    *result = 0;
+    return 1;
+}
+
+bool_t cuda_register_fat_binary_end_1_svc(ptr cubinHandle, int *result, struct svc_req * rqstp)
+{
+    printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", (void*)cubinHandle);
+    //__cudaRegisterFatBinaryEnd((void*)cubinHandle);
+    *result = 0;
+    return 1;
+}*/
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
 {
@@ -93,8 +148,8 @@ int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
     }
 }
 
-
-int main (int argc, char **argv)
+/* shared object constructor; executes before main and thus hijacks main program */
+void __attribute__ ((constructor)) cricketd_main(void)
 {
     register SVCXPRT *transp;
 
@@ -111,9 +166,15 @@ int main (int argc, char **argv)
         fprintf (stderr, "%s", "unable to register (RPC_PROG_PROG, RPC_PROG_VERS, ).");
         exit(1);
     }
+
+    /* Call CUDA initialization function (usually called by __libc_init_main())
+     * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is 0x4016c8
+     */
+    ((void(*)(void))0x4016c8)();
+
     svc_run ();
     fprintf (stderr, "%s", "svc_run returned");
     unlink(CD_SOCKET_PATH);
-    return 0;
+    exit(0);
 }
 
