@@ -18,6 +18,71 @@
 #include "cricketd_launch.h"
 
 
+#include <bfd.h>
+void* get_symbol_address(char *symbol)
+{
+    bfd *hostbfd = NULL;
+    asection *section;
+    FILE *hostbfd_fd = NULL;
+    void *ret = NULL;
+    size_t symtab_size, symtab_length;
+    asymbol **symtab = NULL;
+
+
+    bfd_init();
+
+    if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
+        fprintf(stderr, "cricketd (%d): fopen failed\n", __LINE__);
+        return NULL;
+    }
+
+    if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
+        fprintf(stderr, "cricketd (%d): bfd_openr failed on %s\n", __LINE__,
+                "/proc/self/exe");
+        fclose(hostbfd_fd);
+        goto cleanup;
+    }
+
+    if (!bfd_check_format(hostbfd, bfd_object)) {
+        fprintf(stderr, "cricketd (%d): %s has wrong bfd format\n", __LINE__,
+                "/proc/self/exe");
+        goto cleanup;
+    }
+
+    if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) == -1) {
+        fprintf(stderr, "cricketd: bfd_get_symtab_upper_bound failed\n");
+        return NULL;
+    }
+
+    //printf("symtab size: %lu\n", symtab_size);
+
+    if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
+        fprintf(stderr, "cricketd: malloc symtab failed\n");
+        return NULL;
+    }
+
+    if ((symtab_length = bfd_canonicalize_symtab(hostbfd, symtab)) == 0) {
+        printf("symtab empty...\n");
+    } else {
+        printf("%lu symtab entries\n", symtab_length);
+    }
+
+    for (int i = 0; i < symtab_length; ++i) {
+        if (strcmp(bfd_asymbol_name(symtab[i]), "_ZL24__sti____cudaRegisterAllv") == 0) {
+            ret = (void*)bfd_asymbol_value(symtab[i]);
+            goto cleanup;
+        }
+        //printf("%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
+        //       bfd_asymbol_value(symtab[i]));
+    }
+
+cleanup:
+    free(symtab);
+    if (hostbfd != NULL)
+        bfd_close(hostbfd);
+    return ret;
+}
+
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 void int_handler(int signal) {
@@ -170,7 +235,11 @@ void __attribute__ ((constructor)) cricketd_main(void)
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is 0x4016c8
      */
-    ((void(*)(void))0x4016c8)();
+    void (*cudaRegisterAllv)(void) = (void(*)(void)) get_symbol_address("_ZL24__sti____cudaRegisterAllv");
+    printf("found CUDA initialization function at %p\n", cudaRegisterAllv);
+    cudaRegisterAllv();
+
+    printf("waiting for RPC requests...\n");
 
     svc_run ();
     fprintf (stderr, "%s", "svc_run returned");

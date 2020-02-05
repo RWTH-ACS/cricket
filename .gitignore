@@ -8,6 +8,10 @@ build/
 .directory
 *.swp
 *.o
+*.so
+*.out
+*.txt
+*.cubin
 cricket
 
 # YouCompleteMe
