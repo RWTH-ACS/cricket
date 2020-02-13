@@ -78,9 +78,7 @@ program RPC_CD_PROG {
         int         CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result  CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
         int         CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
-        /*ptr_result  CUDA_REGISTER_FAT_BINARY(rpc_fatCubin)               = 6;
-        int         CUDA_REGISTER_FUNCTION(ptr, ptr, string, string)     = 7;
-        int         CUDA_REGISTER_FAT_BINARY_END(ptr)                    = 8;*/
+        int         CUDA_FREE(ptr)                                       = 6;
     } = 1;
 } = 99;
 

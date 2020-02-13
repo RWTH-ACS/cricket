@@ -19,7 +19,7 @@ RPC_DEF = cd_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) client.c
-SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c cricketd_launch.c 
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c cricketd_utils.c
 SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cd_libcuda_api.c
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
@@ -35,10 +35,9 @@ SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
 
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/usr/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
-INC_FLAGS += -I../include/bfd -I../include/gdb -I../include/include -I../include/gdb/common -I../include
+#INC_FLAGS += -I../include/bfd -I../include/gdb -I../include/include -I../include/gdb/common -I../include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib
-LIB_FLAGS += -L/home/eiling/tmp/cuda-gdb/bfd/install/usr/local/lib
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
 #SERVER_LD_FLAGS = $(LD_FLAGS) -lbfd -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list

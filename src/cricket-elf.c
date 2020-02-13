@@ -13,29 +13,6 @@
 
 #include "cricket-elf.h"
 
-#define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
-#define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
-#define CRICKET_ELF_NV_TEXT_PREFIX ".nv.text."
-#define CRICKET_ELF_TEXT_PREFIX ".text."
-
-#define CRICKET_ELF_FATBIN ".nv_fatbin"
-
-#define EIFMT_SVAL 4
-#define EIFMT_HVAL 3
-#define EIFMT_NVAL 1
-
-#define EIATTR_PARAM_CBANK 10
-#define EIATTR_CBANK_PARAM_SIZE 25
-#define EIATTR_KPARAM_INFO 23
-#define EIATTR_MAXREG_COUNT 27
-#define EIATTR_S2RCTAID_INSTR_OFFSETS 29
-#define EIATTR_EXIT_INSTR_OFFSETS 28
-#define EIATTR_EXTERNS 15
-#define EIATTR_CRS_STACK_SIZE 30
-#define EIATTR_MAX_STACK_SIZE 35
-#define EIATTR_MIN_STACK_SIZE                                                  \
-    18 // maximal size of the stack when calling this kernel
-#define EIATTR_FRAME_SIZE 17 // size of stack in this function (without subcall)
 
 typedef struct
 {
@@ -196,39 +173,33 @@ static bool cricket_elf_get_symindex(bfd *obfd, const char *name,
     return false;
 }
 
-static bool stack_size_filter(void *data, void *kernel_i)
+bool stack_size_filter(void *data, void *kernel_i)
 {
     return *((uint32_t *)data) == *((uint32_t *)kernel_i) + 1;
 }
 
-static bool cricket_elf_extract_multiple_attributes(struct objfile *objfile,
-                                                    Elf_Internal_Shdr *shdr,
-                                                    uint8_t attribute,
-                                                    uint16_t size, void **data,
-                                                    size_t *data_size)
+bool cricket_elf_extract_multiple_attributes(bfd *obfd,
+                                             asection *section,
+                                             uint8_t attribute,
+                                             uint16_t size, void **data,
+                                             size_t *data_size)
 {
-    void *buf = NULL;
     cuda_nv_info_t *info;
     bool res = false;
     cuda_magic_cast_t trav, range;
-    file_ptr prev_location, result;
     *data_size = 0;
     *data = NULL;
 
-    buf = malloc(shdr->sh_size);
-    prev_location = objfile->obfd->iovec->btell(objfile->obfd);
-    if (prev_location == -1)
+    char *contents = malloc(section->size);
+    if (contents == NULL) {
         goto cleanup;
-    result = (file_ptr)objfile->obfd->iovec->bseek(
-        objfile->obfd, (file_ptr)shdr->sh_offset, 0);
-    if (result == -1)
+    }
+    if (!bfd_get_section_contents(obfd, section, contents, 0, section->size)) {
+        fprintf(stderr, "error during bfd_get_section_contents\n");
         goto cleanup;
-    result = objfile->obfd->iovec->bread(objfile->obfd, buf,
-                                         (file_ptr)shdr->sh_size);
-    if (result == -1 || result < (file_ptr)shdr->sh_size)
-        goto cleanup;
-    trav.c = (char *)buf;
-    range.c = (char *)buf + shdr->sh_size;
+    }
+    trav.c = (char *)contents;
+    range.c = (char *)contents + section->size;
     while (trav.c < range.c) {
         info = trav.info;
         ++trav.info;
@@ -242,7 +213,7 @@ static bool cricket_elf_extract_multiple_attributes(struct objfile *objfile,
                 res = true;
             } else {
                 fprintf(stderr,
-                        " cricket_stack_extract_elf_attribut: warning: "
+                        "cricket_elf_extract_multiple_attributes: warning: "
                         "requested attribute found but size does not match or "
                         "attribute is not an EIFMT_SVAL\n");
                 res = false;
@@ -253,39 +224,32 @@ static bool cricket_elf_extract_multiple_attributes(struct objfile *objfile,
             trav.c += info->size;
         }
     }
-    objfile->obfd->iovec->bseek(objfile->obfd, prev_location, 0);
 cleanup:
-    free(buf);
+    free(contents);
     return res;
 }
 
-static bool cricket_elf_extract_attribute(struct objfile *objfile,
-                                          Elf_Internal_Shdr *shdr,
-                                          uint8_t attribute, uint16_t size,
-                                          char *data,
-                                          bool (*filter_func)(void *, void *),
-                                          void *filter_data)
+bool cricket_elf_extract_attribute(bfd *obfd,
+                                   asection *section,
+                                   uint8_t attribute, uint16_t size,
+                                   char *data,
+                                   bool (*filter_func)(void *, void *),
+                                   void *filter_data)
 {
-    void *buf = NULL;
     cuda_nv_info_t *info;
     bool res = false;
     cuda_magic_cast_t trav, range;
-    file_ptr prev_location, result;
 
-    buf = malloc(shdr->sh_size);
-    prev_location = objfile->obfd->iovec->btell(objfile->obfd);
-    if (prev_location == -1)
+    char *contents = malloc(section->size);
+    if (contents == NULL) {
         goto cleanup;
-    result = (file_ptr)objfile->obfd->iovec->bseek(
-        objfile->obfd, (file_ptr)shdr->sh_offset, 0);
-    if (result == -1)
+    }
+    if (!bfd_get_section_contents(obfd, section, contents, 0, section->size)) {
+        fprintf(stderr, "error during bfd_get_section_contents\n");
         goto cleanup;
-    result = objfile->obfd->iovec->bread(objfile->obfd, buf,
-                                         (file_ptr)shdr->sh_size);
-    if (result == -1 || result < (file_ptr)shdr->sh_size)
-        goto cleanup;
-    trav.c = (char *)buf;
-    range.c = (char *)buf + shdr->sh_size;
+    }
+    trav.c = (char *)contents;
+    range.c = (char *)contents + section->size;
     while (trav.c < range.c) {
         info = trav.info;
         ++trav.info;
@@ -297,8 +261,6 @@ static bool cricket_elf_extract_attribute(struct objfile *objfile,
                 if (!filter_func || filter_func(trav.c, filter_data)) {
                     memcpy(data, trav.c, size);
                     res = true;
-                    objfile->obfd->iovec->bseek(objfile->obfd, prev_location,
-                                                0);
                     goto cleanup;
                 }
             } else {
@@ -313,20 +275,17 @@ static bool cricket_elf_extract_attribute(struct objfile *objfile,
             trav.c += info->size;
         }
     }
-    objfile->obfd->iovec->bseek(objfile->obfd, prev_location, 0);
 cleanup:
-    free(buf);
+    free(contents);
     return res;
 }
 
-static bool cricket_elf_extract_shared_size(struct objfile *objfile,
-                                            Elf_Internal_Shdr *shdr,
-                                            size_t *size)
+bool cricket_elf_extract_shared_size(asection *section,
+                                     size_t *size)
 {
     if (size == NULL)
         return false;
-    printf("sh memory size: %lu\n", shdr->sh_size);
-    *size = shdr->sh_size;
+    *size = section->size;
     return *size > 0;
 }
 
@@ -353,7 +312,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
 
     ALL_OBJFILES(objfile)
     {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
+        if (!objfile || !objfile->obfd ||
             !objfile->cuda_objfile)
             continue;
 
@@ -361,16 +320,13 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                                       &kernel_index))
             continue;
 
-        for (i = 0; i < objfile->obfd->tdata.elf_obj_data->num_elf_sections;
-             ++i) {
-            shdr = objfile->obfd->tdata.elf_obj_data->elf_sect_ptr[i];
-            if (!shdr || !(section = shdr->bfd_section))
-                continue;
 
+        for (section = objfile->obfd->sections; section != NULL;
+             section = section->next) {
             if (strncmp(section->name, CRICKET_ELF_NV_INFO_PREFIX,
                         prefixlen + 1) == 0) {
                 if (!cricket_elf_extract_attribute(
-                         objfile, shdr, EIATTR_MIN_STACK_SIZE, 8, data,
+                         objfile->obfd, section, EIATTR_MIN_STACK_SIZE, 8, data,
                          stack_size_filter, &kernel_index)) {
                     fprintf(stderr,
                             "error: found .nv.info section but could not find "
@@ -383,7 +339,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                        strncmp(section->name + prefixlen + 1, function_name,
                                strlen(function_name)) == 0) {
                 if (!cricket_elf_extract_multiple_attributes(
-                         objfile, shdr, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
+                         objfile->obfd, section, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
                          &attr_num)) {
                     fprintf(stderr, "error: found .nv.info.%s section but "
                                     "could not find "
@@ -399,7 +355,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                         *(uint8_t *)(attrs + 10 + i * 12) >> 2;
                 }
                 free(attrs);
-                if (!cricket_elf_extract_attribute(objfile, shdr,
+                if (!cricket_elf_extract_attribute(objfile->obfd, section,
                                                    EIATTR_PARAM_CBANK, 8, data,
                                                    NULL, NULL)) {
                     fprintf(stderr, "error: found .nv.info.%s section but "
@@ -411,7 +367,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                 info->param_addr = *(uint16_t *)(data + 4);
             } else if (strncmp(section->name, CRICKET_ELF_NV_SHARED_PREFIX,
                                strlen(CRICKET_ELF_NV_SHARED_PREFIX) - 1) == 0) {
-                if (!cricket_elf_extract_shared_size(objfile, shdr,
+                if (!cricket_elf_extract_shared_size(section,
                                                      &info->shared_size)) {
                     fprintf(stderr, "error while reading shared memory size\n");
                 }
@@ -432,7 +388,7 @@ static void cricket_elf_print_mem(void *offset, size_t size)
     printf("\n");
 }
 
-static bool cricket_elf_print_symtab(bfd *abfd)
+bool cricket_elf_print_symtab(bfd *abfd)
 {
     size_t symtab_size, symtab_length;
     asymbol **symtab;

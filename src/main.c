@@ -162,6 +162,170 @@ int cricket_analyze(int argc, char *argv[])
     return 0;
 }
 
+int cricket_info(int argc, char *argv[])
+{
+    bfd *hostbfd = NULL;
+    bfd *cudabfd = NULL;
+    asection *section;
+    Elf_Internal_Shdr *shdr = NULL;
+    size_t fatbin_pos, fatbin_size;
+    FILE *hostbfd_fd = NULL;
+    FILE *cudabfd_fd = NULL;
+    void *fatbin = NULL;
+    bool ret = false;
+    size_t prefixlen = strlen(CRICKET_ELF_NV_INFO_PREFIX);
+    char *filename = NULL;
+
+    cricket_elf_info info = {0};
+    char data[8];
+    uint32_t kernel_index;
+    size_t attr_num;
+    char *attrs;
+
+    if (argc != 3) {
+        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        return -1;
+    }
+    filename = argv[2];
+    
+    if (filename == NULL) {
+        fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
+        return false;
+    }
+
+    bfd_init();
+
+    if ((hostbfd_fd = fopen(filename, "rb")) == NULL) {
+        fprintf(stderr, "cricket (%d): fopen failed\n", __LINE__);
+        return false;
+    }
+
+    if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
+        fprintf(stderr, "cricket (%d): bfd_openr failed on %s\n", __LINE__,
+                filename);
+        fclose(hostbfd_fd);
+        goto cleanup;
+    }
+
+    if (!bfd_check_format(hostbfd, bfd_object)) {
+        fprintf(stderr, "cricket (%d): %s has wrong bfd format\n", __LINE__,
+                filename);
+        goto cleanup;
+    }
+
+    section = bfd_get_section_by_name(hostbfd, CRICKET_ELF_FATBIN);
+    if (section == NULL) {
+        fprintf(stderr, "cricket (%d): fatbin section %s not found\n",
+                __LINE__, CRICKET_ELF_FATBIN);
+        goto cleanup;
+    }
+
+    fatbin_pos = section->filepos + 0x50;
+    fatbin_size = section->size - 0x50;
+
+    if ((fatbin = malloc(fatbin_size)) == NULL) {
+        goto cleanup;
+    }
+    if (fseek(hostbfd_fd, fatbin_pos, SEEK_SET) != 0) {
+        fprintf(stderr, "cricket: fseek failed\n");
+        goto cleanup;
+    }
+    if (fread(fatbin, fatbin_size, 1, hostbfd_fd) != 1) {
+        fprintf(stderr, "cricket: fread failed\n");
+        goto cleanup;
+    }
+
+    if ((cudabfd_fd = fmemopen(fatbin, fatbin_size, "rb")) == NULL) {
+        fprintf(stderr, "cricket (%d): fmemopen failed\n", __LINE__);
+        goto cleanup;
+    }
+
+    if ((cudabfd = bfd_openstreamr(filename, NULL, cudabfd_fd)) == NULL) {
+        fprintf(stderr, "cricket: bfd_openstreamr failed\n");
+        fclose(cudabfd_fd);
+        goto cleanup;
+    }
+
+    if (!bfd_check_format(cudabfd, bfd_object)) {
+        fprintf(stderr, "cricket: wrong bfd format\n");
+        goto cleanup;
+    }
+
+
+    for (section = cudabfd->sections; section != NULL;
+         section = section->next) {
+
+        if (strncmp(section->name, CRICKET_ELF_NV_INFO_PREFIX,
+                    prefixlen + 1) == 0) {
+            if (!cricket_elf_extract_attribute(
+                     cudabfd, section, EIATTR_MIN_STACK_SIZE, 8, data,
+                     NULL, NULL)) {
+                fprintf(stderr,
+                        "error: found .nv.info section but could not find "
+                        "stack size for kernel %s\n",
+                        section->name);
+            }
+            info.stack_size = *(uint32_t *)(data + 4);
+        } else if (strncmp(section->name, CRICKET_ELF_NV_INFO_PREFIX,
+                           prefixlen) == 0) {
+            if (!cricket_elf_extract_multiple_attributes(
+                     cudabfd, section, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
+                     &attr_num)) {
+                fprintf(stderr, "warning: found %s section but "
+                                "could not find any EIATTR_KPARAM_INFO attributes. "
+                                "Maybe the kernel has no parameters?\n",
+                        section->name);
+                attr_num = 0;
+                attrs = NULL;
+            }
+            info.params = malloc(attr_num * sizeof(cricket_param_info));
+            info.param_num = attr_num;
+            for (int i = 0; i != attr_num; ++i) {
+                info.params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
+                info.params[i].offset = *(uint16_t *)(attrs + 6 + i * 12);
+                info.params[i].size = *(uint8_t *)(attrs + 10 + i * 12) >> 2;
+            }
+            free(attrs);
+            if (!cricket_elf_extract_attribute(cudabfd, section,
+                                               EIATTR_PARAM_CBANK, 8, data,
+                                               NULL, NULL)) {
+                fprintf(stderr, "warning: found %s section but "
+                                "could not find EIATTR_PARAM_CBANK attribute. "
+                                "Maybe the kernel has no parameters?\n",
+                        section->name);
+               memset(data, 0, 8); 
+            }
+            info.param_size = *(uint16_t *)(data + 6);
+            info.param_addr = *(uint16_t *)(data + 4);
+            printf("%s param_num %d\n", section->name+prefixlen+1,
+                   info.param_num);
+            printf("%s param_size %d\n", section->name+prefixlen+1,
+                   info.param_size);
+            printf("%s param_addr %d\n", section->name+prefixlen+1,
+                   info.param_addr);
+        } else if (strncmp(section->name, CRICKET_ELF_NV_SHARED_PREFIX,
+                           strlen(CRICKET_ELF_NV_SHARED_PREFIX) - 1) == 0) {
+
+            if (!cricket_elf_extract_shared_size(section,
+                                                 &info.shared_size)) {
+                fprintf(stderr, "error while reading shared memory size\n");
+            }
+            printf("%s shared %d\n", section->name+strlen(CRICKET_ELF_NV_SHARED_PREFIX),
+                   info.shared_size);
+        }
+
+    }
+
+    ret = true;
+cleanup:
+    free(fatbin);
+    if (cudabfd != NULL)
+        bfd_close(cudabfd);
+    if (hostbfd != NULL)
+        bfd_close(hostbfd);
+    return ret;
+}
+
 int cricket_restore(int argc, char *argv[])
 {
     CUDBGResult res;
@@ -1151,6 +1315,8 @@ int main(int argc, char *argv[])
         return cricket_restore(argc, argv);
     if (strcmp(argv[1], "analyze") == 0)
         return cricket_analyze(argc, argv);
+    if (strcmp(argv[1], "info") == 0)
+        return cricket_info(argc, argv);
 
     fprintf(stderr, "Unknown operation \"%s\".\n", argv[1]);
     return -1;

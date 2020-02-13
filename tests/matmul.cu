@@ -249,10 +249,10 @@ int main()
 
     dim3 dimBlock( blocksize, 1 );
     dim3 dimGrid( 1, 1);
-    //kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
+    kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
     //kernel_no_param<<<dimGrid, dimBlock>>>();
-    void *args = NULL;
-    int result = cudaLaunchKernel((void*)kernel_no_param, dimGrid, dimBlock, &args, 0LL, NULL);
+    //void *args = NULL;
+    //int result = cudaLaunchKernel((void*)kernel_no_param, dimGrid, dimBlock, &args, 0LL, NULL);
 
 #ifdef TEST_KERNEL
     printf("Kernel Test: Create a checkpoint now!\n");

@@ -5,6 +5,29 @@
 #include "cudadebugger.h"
 #include <stddef.h>
 
+#define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
+#define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
+#define CRICKET_ELF_NV_TEXT_PREFIX ".nv.text."
+#define CRICKET_ELF_TEXT_PREFIX ".text."
+
+#define CRICKET_ELF_FATBIN ".nv_fatbin"
+
+#define EIFMT_SVAL 4
+#define EIFMT_HVAL 3
+#define EIFMT_NVAL 1
+
+#define EIATTR_PARAM_CBANK 10
+#define EIATTR_CBANK_PARAM_SIZE 25
+#define EIATTR_KPARAM_INFO 23
+#define EIATTR_MAXREG_COUNT 27
+#define EIATTR_S2RCTAID_INSTR_OFFSETS 29
+#define EIATTR_EXIT_INSTR_OFFSETS 28
+#define EIATTR_EXTERNS 15
+#define EIATTR_CRS_STACK_SIZE 30
+#define EIATTR_MAX_STACK_SIZE 35
+#define EIATTR_MIN_STACK_SIZE 18 // maximal size of the stack when calling this kernel
+#define EIATTR_FRAME_SIZE 17 // size of stack in this function (without subcall)
+
 #define CRICKET_SASS_NOP 0x50b0000000070f00
 #define CRICKET_SASS_JMX(REG) (0xe20000000007000f | ((REG & 0xff) << 8))
 #define CRICKET_SASS_BRX(REG) (0xe25000000007000f | ((REG & 0xff) << 8))
@@ -52,5 +75,25 @@ bool cricket_elf_get_jmptable_index(cricket_jmptable_index *jmptbl,
 bool cricket_elf_get_jmptable_addr(cricket_jmptable_entry *entries,
                                    size_t entries_num, uint64_t destination,
                                    uint64_t *address);
+
+bool cricket_elf_print_symtab(bfd *abfd);
+
+bool cricket_elf_extract_attribute(bfd *obfd,
+                                   asection *section,
+                                   uint8_t attribute, uint16_t size,
+                                   char *data,
+                                   bool (*filter_func)(void *, void *),
+                                   void *filter_data);
+
+bool cricket_elf_extract_multiple_attributes(bfd *obfd,
+                                             asection *section,
+                                             uint8_t attribute,
+                                             uint16_t size, void **data,
+                                             size_t *data_size);
+
+bool stack_size_filter(void *data, void *kernel_i);
+
+bool cricket_elf_extract_shared_size(asection *section,
+                                     size_t *size);
 
 #endif //_CRICKET_ELF_H_

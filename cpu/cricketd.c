@@ -15,75 +15,13 @@
 #include "cd_rpc_prot.h"
 
 #include "cd_common.h"
-#include "cricketd_launch.h"
+#include "cricketd_utils.h"
 
-
-#include <bfd.h>
-void* get_symbol_address(char *symbol)
-{
-    bfd *hostbfd = NULL;
-    asection *section;
-    FILE *hostbfd_fd = NULL;
-    void *ret = NULL;
-    size_t symtab_size, symtab_length;
-    asymbol **symtab = NULL;
-
-
-    bfd_init();
-
-    if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
-        fprintf(stderr, "cricketd (%d): fopen failed\n", __LINE__);
-        return NULL;
-    }
-
-    if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricketd (%d): bfd_openr failed on %s\n", __LINE__,
-                "/proc/self/exe");
-        fclose(hostbfd_fd);
-        goto cleanup;
-    }
-
-    if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricketd (%d): %s has wrong bfd format\n", __LINE__,
-                "/proc/self/exe");
-        goto cleanup;
-    }
-
-    if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) == -1) {
-        fprintf(stderr, "cricketd: bfd_get_symtab_upper_bound failed\n");
-        return NULL;
-    }
-
-    //printf("symtab size: %lu\n", symtab_size);
-
-    if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
-        fprintf(stderr, "cricketd: malloc symtab failed\n");
-        return NULL;
-    }
-
-    if ((symtab_length = bfd_canonicalize_symtab(hostbfd, symtab)) == 0) {
-        printf("symtab empty...\n");
-    } else {
-        printf("%lu symtab entries\n", symtab_length);
-    }
-
-    for (int i = 0; i < symtab_length; ++i) {
-        if (strcmp(bfd_asymbol_name(symtab[i]), "_ZL24__sti____cudaRegisterAllv") == 0) {
-            ret = (void*)bfd_asymbol_value(symtab[i]);
-            goto cleanup;
-        }
-        //printf("%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
-        //       bfd_asymbol_value(symtab[i]));
-    }
-
-cleanup:
-    free(symtab);
-    if (hostbfd != NULL)
-        bfd_close(hostbfd);
-    return ret;
-}
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
+
+static size_t kernelnum = 0;
+static kernel_info_t *infos = NULL;
 
 void int_handler(int signal) {
     unlink(CD_SOCKET_PATH);
@@ -102,6 +40,13 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     printf("cudaMalloc\n");
     result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
+    return 1;
+}
+
+bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
+{
+    printf("cudaFree\n");
+    *result = cudaFree((void*)ptr);
     return 1;
 }
 
@@ -151,8 +96,6 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     void *t_args = NULL;
-
-    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, (void**)args.mem_data_val, sharedMem, (void*)stream);
 
     printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, t_args, sharedMem, (void*)stream);
 
@@ -235,10 +178,19 @@ void __attribute__ ((constructor)) cricketd_main(void)
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is 0x4016c8
      */
-    void (*cudaRegisterAllv)(void) = (void(*)(void)) get_symbol_address("_ZL24__sti____cudaRegisterAllv");
+    void (*cudaRegisterAllv)(void) =
+        (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
     printf("found CUDA initialization function at %p\n", cudaRegisterAllv);
+    if (cudaRegisterAllv == NULL) {
+        fprintf(stderr, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. I cannot operate without it.\n");
+        exit(1);
+    }
     cudaRegisterAllv();
 
+    if (!cricketd_utils_parameter_size(&infos, &kernelnum)) {
+        fprintf(stderr, "error while getting parameter sizes\n");
+        exit(0);
+    }
     printf("waiting for RPC requests...\n");
 
     svc_run ();

@@ -223,7 +223,17 @@ DEF_FN(cudaError_t, cudaSetDoubleForHost, double*, d)
 DEF_FN(cudaError_t, cudaOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, const void*, func, int,  blockSize, size_t, dynamicSMemSize)
 DEF_FN(cudaError_t, cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, int*, numBlocks, const void*, func, int,  blockSize, size_t, dynamicSMemSize, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaArrayGetInfo, struct cudaChannelFormatDesc*, desc, struct cudaExtent*, extent, unsigned int*, flags, cudaArray_t, array)
-DEF_FN(cudaError_t, cudaFree, void*, devPtr)
+//DEF_FN(cudaError_t, cudaFree, void*, devPtr)
+cudaError_t cudaFree(void *devPtr)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_free_1((uint64_t)devPtr, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaFreeArray, cudaArray_t, array)
 DEF_FN(cudaError_t, cudaFreeHost, void*, ptr)
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
