@@ -280,11 +280,16 @@ int cricket_info(int argc, char *argv[])
             }
             info.params = malloc(attr_num * sizeof(cricket_param_info));
             info.param_num = attr_num;
+            printf("%s param_num %d\n", section->name+prefixlen+1,
+                   info.param_num);
+            printf("%s param_offsets ", section->name+prefixlen+1);
             for (int i = 0; i != attr_num; ++i) {
                 info.params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
                 info.params[i].offset = *(uint16_t *)(attrs + 6 + i * 12);
+                printf("%04x,", info.params[i].offset);
                 info.params[i].size = *(uint8_t *)(attrs + 10 + i * 12) >> 2;
             }
+            printf("\n");
             free(attrs);
             if (!cricket_elf_extract_attribute(cudabfd, section,
                                                EIATTR_PARAM_CBANK, 8, data,
@@ -297,8 +302,6 @@ int cricket_info(int argc, char *argv[])
             }
             info.param_size = *(uint16_t *)(data + 6);
             info.param_addr = *(uint16_t *)(data + 4);
-            printf("%s param_num %d\n", section->name+prefixlen+1,
-                   info.param_num);
             printf("%s param_size %d\n", section->name+prefixlen+1,
                    info.param_size);
             printf("%s param_addr %d\n", section->name+prefixlen+1,

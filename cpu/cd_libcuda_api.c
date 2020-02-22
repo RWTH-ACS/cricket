@@ -11,12 +11,17 @@
 #include "cd_libwrap.h"
 #include "cd_rpc_prot.h"
 #include "cd_common.h"
+#include "cricketd_utils.h"
 
 //static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 static const char* LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
 static void *so_handle = NULL;
 
 static CLIENT *clnt = NULL;
+
+static size_t kernelnum = 0;
+static kernel_info_t *infos = NULL;
+
 
 void __attribute__ ((constructor)) init_rpc(void)
 {
@@ -38,6 +43,10 @@ void __attribute__ ((constructor)) init_rpc(void)
     printf("return:%d\n", result_1);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
+    }
+    if (!cricketd_utils_parameter_size(&infos, &kernelnum)) {
+        fprintf(stderr, "error while getting parameter sizes\n");
+        exit(0);
     }
 }
 
@@ -76,6 +85,12 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     enum clnt_stat retval_1;
 
     printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
+
+    kernel_info_t *info = cricketd_utils_search_info(infos, kernelnum, (char*)deviceName);
+    if (info == NULL) {
+        fprintf(stderr, "error: request to register unknown function\n");
+    }
+    info->host_fun = (void*)hostFun;
 
     retval_1 = RPC_SUCCESS;//cuda_register_function_1((uint64_t)fatCubinHandle, (uint64_t)hostFun, deviceFun, (char*)deviceName, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
@@ -206,16 +221,54 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 {
     int result;
     enum clnt_stat retval_1;
+    size_t i;
+    char *buf;
     printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
+
+    for (i=0; i < kernelnum; ++i) {
+        if (func != NULL && infos[i].host_fun == func) {
+            printf("param_size: %zd, param_num: %zd\n", infos[i].param_size, infos[i].param_num);
+            break;
+        }
+    }
+
+    for (int j=0; j < infos[i].param_num; ++j) {
+        printf("p%d: %p\n", j, *(void**)args[j]);
+    }
+    for (int j=0; j < infos[i].param_size; ++j) {
+        printf("%02x ", *(((char*)args[0])+j) & 0xFF);
+    }
+    printf("\n");
+
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;
-    rpc_args.mem_data_len = 0;
-    rpc_args.mem_data_val = NULL;
+    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
+    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
+        if (j == infos[i].param_num - 1) {
+            size = infos[i].param_size - infos[i].param_offsets[j];
+        } else {
+            size = infos[i].param_offsets[j+1] - infos[i].param_offsets[j];
+        }
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
+               infos[i].param_offsets[j],
+               args[j],
+               size);
+    }
+//    memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t),
+//           args[0],
+//           infos[i].param_size);
+//    for (char *ptr = rpc_args.mem_data_val; ptr < (char*)rpc_args.mem_data_val +rpc_args.mem_data_len ; ++ptr) {
+//        printf("%02x ", *ptr & 0xFF);
+//    } printf("\n");
     retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
+    free(rpc_args.mem_data_val);
     return result;
 }
 DEF_FN(cudaError_t, cudaSetDoubleForDevice, double*, d)
@@ -289,6 +342,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     } else if (kind == cudaMemcpyDeviceToHost) {
         mem_result result;
         enum clnt_stat retval;
+        printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
         retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");

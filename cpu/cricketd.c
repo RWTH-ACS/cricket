@@ -20,9 +20,6 @@
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
-static size_t kernelnum = 0;
-static kernel_info_t *infos = NULL;
-
 void int_handler(int signal) {
     unlink(CD_SOCKET_PATH);
     printf("have a nice day!\n");
@@ -63,8 +60,13 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
 
 bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
 {
-    printf("cudaMemcpyDtoH\n");
-    //*result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
+    printf("cudaMemcpyDtoH(%p, %zu)\n", ptr, size);
+    result->mem_result_u.data.mem_data_len = size;
+    result->mem_result_u.data.mem_data_val = malloc(size);
+    result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
+    for (char *i = result->mem_result_u.data.mem_data_val; i < result->mem_result_u.data.mem_data_val+size ; ++i) {
+        printf("%02x ", *i & 0xFF);
+    } printf("\n");
     return 1;
 }
 
@@ -72,35 +74,28 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
                                 mem_data args, size_t sharedMem, ptr stream,
                                 int *result, struct svc_req *rqstp)
 {
-/*    void *elf;
-    size_t elf_size;
-
-    if (cricketd_launch_load_elf("/home/eiling/projects/cricket/tests/test_kernel", &elf, &elf_size) != 1) {
-        fprintf(stderr, "error while loading elf\n");
-    }
-*/
-  /*  void* cuda_args[] = {};
-    CUresult res;
-    CUmodule cuModule;
-    res = cuModuleLoad(&cuModule, "/home/eiling/projects/cricket/tests/test_kernel");
-    printf("%d: res=%d\n", __LINE__, res);
-    CUfunction kernel;
-    res = cuModuleGetFunction(&kernel, cuModule, "kernel_no_param");
-    printf("%d: res=%d\n", __LINE__, res);
-    res = cuLaunchKernel(kernel, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, sharedMem, (void*)stream, cuda_args, NULL);
-    printf("%d: res=%d\n", __LINE__, res);
-    */
-    //*result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
-
-   // void *kernel_addr = (void*)(function+elf);
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
-    void *t_args = NULL;
+    void **cuda_args;
+    uint16_t *arg_offsets;
+    size_t param_num = *((size_t*)args.mem_data_val);
+    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
+    cuda_args = malloc(param_num*sizeof(void*));
+    printf("param_num: %zu\n", param_num);
+    for (int j=0; j < args.mem_data_len; ++j) {
+        printf("%02x ", *(((char*)args.mem_data_val)+j) & 0xFF);
+    }
+    printf("\n");
+    for (size_t i = 0; i < param_num; ++i) {
+        printf("offset: %d\n", arg_offsets[i]);
+        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+        printf("cuda_args: %p\n", *(void**)cuda_args[i]);
+    }
 
-    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, t_args, sharedMem, (void*)stream);
+    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
     //*result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, &t_args, sharedMem, (cudaStream_t)stream);
-    *result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, &t_args, 0, NULL);
+    *result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, cuda_args, sharedMem, (void*)stream);
     printf("cudaLaunchKernel result: %d\n", *result);
     return 1;
 }
@@ -187,10 +182,6 @@ void __attribute__ ((constructor)) cricketd_main(void)
     }
     cudaRegisterAllv();
 
-    if (!cricketd_utils_parameter_size(&infos, &kernelnum)) {
-        fprintf(stderr, "error while getting parameter sizes\n");
-        exit(0);
-    }
     printf("waiting for RPC requests...\n");
 
     svc_run ();

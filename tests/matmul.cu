@@ -144,6 +144,7 @@ __global__
 void kernel(uint16_t *A, uint16_t *x, uint16_t *res, char b, short c, int a, long long int d)
 {
     CRICKET_CR_ENABLE(19);
+    printf("%p, %p, %p, %d, %d, %d, %lld\n", A, x, res, b, c, a, d);
     inline_matmul(A,x,res,false);
 }
 

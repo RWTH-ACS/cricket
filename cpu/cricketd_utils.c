@@ -110,7 +110,7 @@ int cricketd_utils_launch_child(const char *file, char **args)
 kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum, char *kernelname)
 {
     if (infos == NULL || kernelname == NULL) {
-        fprintf(stderr, "error: wrong parameters (%d)\n", __LINE__);
+        //fprintf(stderr, "error: wrong parameters (%d)\n", __LINE__);
         return NULL;
     }
 
@@ -130,8 +130,10 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
     int res;
     char *args[] = {"cricket", "info", NULL, NULL};
     char linktarget[1024] = {0};
+    char valuebuf[1024] = {0};
     int output;
     FILE *fdesc;
+    kernel_info_t *buf = NULL;
 
     if (infos == NULL || kernelnum == NULL) {
         fprintf(stderr, "error: wrong parameters at %d\n", __LINE__);
@@ -155,7 +157,7 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
         return 0;
     }
     while (1) {
-        if ( (res = fscanf(fdesc, "%128s %64s %zd\n", knamebuf, type, &value)) != 3) {
+        if ( (res = fscanf(fdesc, "%128s %64s %1024s\n", knamebuf, type, valuebuf)) != 3) {
             if (feof(fdesc)) {
                 break;
             } else if (ferror(fdesc)) {
@@ -163,18 +165,45 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                 return 0;
             }
         } else {
+            if (knamebuf == NULL) {
+                continue;
+            }
+            buf = cricketd_utils_search_info(*infos, *kernelnum, knamebuf);
             //printf("kname: %s, type: %s, val: %zd\n", knamebuf, type, value);
-            if (strcmp("param_size", type) == 0) {
+            if (buf == NULL) {
                 if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
                     fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
                     return 0;
                 }
-                if (((*infos)[(*kernelnum)-1].name = malloc(strlen(knamebuf))) == NULL) {
+                buf = &((*infos)[(*kernelnum)-1]);
+                memset(buf, 0, sizeof(kernel_info_t));
+                if ((buf->name = malloc(strlen(knamebuf))) == NULL) {
                     fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
                     return 0;
                 }
-                strcpy((*infos)[(*kernelnum)-1].name, knamebuf);
-                (*infos)[(*kernelnum)-1].param_size = value;
+                strcpy(buf->name, knamebuf);
+            }
+            if (strcmp("param_size", type) == 0) {
+                if (sscanf(valuebuf, "%zu", &value) != 1) {
+                    fprintf(stderr, "error (%d)\n", __LINE__);
+                    return 0;
+                }
+                buf->param_size = value;
+            } else if (strcmp("param_num", type) == 0) {
+                if (sscanf(valuebuf, "%zu", &value) != 1) {
+                    fprintf(stderr, "error (%d)\n", __LINE__);
+                    return 0;
+                }
+                buf->param_num = value;
+            } else if (strcmp("param_offsets", type) == 0) {
+                buf->param_offsets = malloc(sizeof(uint16_t)*buf->param_num);
+                for (int i=0; i < buf->param_num; ++i) {
+                    if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
+                        fprintf(stderr, "error (%d)\n", __LINE__);
+                        return 0;
+                    }
+                    buf->param_offsets[i] = value;
+                }
             }
         }
     }
@@ -189,5 +218,6 @@ void kernel_infos_free(kernel_info_t *infos, size_t kernelnum)
 {
     for (int i=0; i < kernelnum; ++i) {
         free(infos[i].name);
+        free(infos[i].param_offsets);
     }
 }

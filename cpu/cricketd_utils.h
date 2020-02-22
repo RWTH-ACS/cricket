@@ -1,9 +1,14 @@
 #ifndef _CRICKETD_UTILS_H_
 #define _CRICKETD_UTILS_H_
 
+#include <stdint.h>
+
 typedef struct kernel_info {
     char *name;
     size_t param_size;
+    size_t param_num;
+    uint16_t *param_offsets;
+    void *host_fun;
 } kernel_info_t;
 
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum);
