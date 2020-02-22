@@ -232,14 +232,6 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
         }
     }
 
-    for (int j=0; j < infos[i].param_num; ++j) {
-        printf("p%d: %p\n", j, *(void**)args[j]);
-    }
-    for (int j=0; j < infos[i].param_size; ++j) {
-        printf("%02x ", *(((char*)args[0])+j) & 0xFF);
-    }
-    printf("\n");
-
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;
@@ -258,12 +250,6 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
                args[j],
                size);
     }
-//    memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t),
-//           args[0],
-//           infos[i].param_size);
-//    for (char *ptr = rpc_args.mem_data_val; ptr < (char*)rpc_args.mem_data_val +rpc_args.mem_data_len ; ++ptr) {
-//        printf("%02x ", *ptr & 0xFF);
-//    } printf("\n");
     retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");

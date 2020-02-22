@@ -81,20 +81,12 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     size_t param_num = *((size_t*)args.mem_data_val);
     arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
     cuda_args = malloc(param_num*sizeof(void*));
-    printf("param_num: %zu\n", param_num);
-    for (int j=0; j < args.mem_data_len; ++j) {
-        printf("%02x ", *(((char*)args.mem_data_val)+j) & 0xFF);
-    }
-    printf("\n");
     for (size_t i = 0; i < param_num; ++i) {
-        printf("offset: %d\n", arg_offsets[i]);
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        printf("cuda_args: %p\n", *(void**)cuda_args[i]);
     }
 
     printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
-    //*result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, &t_args, sharedMem, (cudaStream_t)stream);
     *result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, cuda_args, sharedMem, (void*)stream);
     printf("cudaLaunchKernel result: %d\n", *result);
     return 1;
