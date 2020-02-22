@@ -64,9 +64,6 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
     result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
-    for (char *i = result->mem_result_u.data.mem_data_val; i < result->mem_result_u.data.mem_data_val+size ; ++i) {
-        printf("%02x ", *i & 0xFF);
-    } printf("\n");
     return 1;
 }
 

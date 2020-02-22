@@ -327,6 +327,8 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         return result;
     } else if (kind == cudaMemcpyDeviceToHost) {
         mem_result result;
+        result.mem_result_u.data.mem_data_len = count;
+        result.mem_result_u.data.mem_data_val = dst;
         enum clnt_stat retval;
         printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
         retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
@@ -340,7 +342,6 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             fprintf(stderr, "error\n");
             return result.err;
         }
-        memcpy(dst, (void*)result.mem_result_u.data.mem_data_val, count);
         return result.err;
     } else {
         fprintf(stderr, "error\n");
