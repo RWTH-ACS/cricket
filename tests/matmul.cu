@@ -108,9 +108,11 @@ void inline_matmul(uint16_t *A, uint16_t *x, uint16_t *res, bool restore)
         if (A[j] != ptr_global[j] && i == 0)
             printf("mismatch\n");
     }*/
+    res[i] = 0;
     if (i==0) other_sh = 0x1234567;
-    for(j=0; j!=N; ++j)
+    for(j=0; j!=N; ++j) {
         lx[j] = x[j];
+    }
     __syncthreads();
     for(r=0; r!=ITERATIONS; r++) {
         if (i < N)
