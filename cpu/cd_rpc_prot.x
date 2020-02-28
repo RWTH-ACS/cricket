@@ -15,6 +15,13 @@ default:
     void;
 };
 
+union float_result switch (int err) {
+case 0:
+    float data;
+default:
+    void;
+};
+
 union u64_result switch (int err) {
 case 0:
     uint64_t u64;
@@ -73,12 +80,23 @@ struct rpc_fatCubin {
 
 program RPC_CD_PROG {
     version RPC_CD_VERS {
-        int         PRINTMESSAGE(string)                                 = 1;
-        ptr_result  CUDA_MALLOC(size_t)                                  = 2;
-        int         CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
-        mem_result  CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
-        int         CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
-        int         CUDA_FREE(ptr)                                       = 6;
+        int          PRINTMESSAGE(string)                                 = 1;
+        ptr_result   CUDA_MALLOC(size_t)                                  = 2;
+        int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
+        mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
+        int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
+        int          CUDA_FREE(ptr)                                       = 6;
+        int          CUDA_DEVICE_SYNCHRONIZE(void)                        = 7;
+        int_result   CUDA_GET_DEVICE_COUNT(void)                          = 8;
+        int_result   CUDA_DEVICE_GET_ATTRIBUTE(int, int)                  = 9;
+        int          CUDA_SET_DEVICE(int)                                 = 10;
+        ptr_result   CUDA_EVENT_CREATE(void)                              = 11;
+        ptr_result   CUDA_STREAM_CREATE_WITH_FLAGS(int)                   = 12;
+        int          CUDA_STREAM_SYNCHRONIZE(ptr)                         = 13;
+        int          CUDA_EVENT_RECORD(ptr, ptr)                          = 14;
+        float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
+        int          CUDA_EVENT_DESTROY(ptr)                              = 16;
+        
     } = 1;
 } = 99;
 

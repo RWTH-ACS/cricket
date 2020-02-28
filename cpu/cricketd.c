@@ -40,6 +40,13 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     return 1;
 }
 
+bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
+{
+    printf("cudaDeviceSynchronize\n");
+    *result = cudaDeviceSynchronize();
+    return 1;
+}
+
 bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     printf("cudaFree\n");
@@ -89,6 +96,69 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     return 1;
 }
 
+bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    printf("cudaGetDeviceCount\n");
+    result->err = cudaGetDeviceCount(&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result, struct svc_req *rqstp)
+{
+    printf("cudaDeviceGetAttribute\n");
+    result->err = cudaDeviceGetAttribute(&result->int_result_u.data, (enum cudaDeviceAttr)attr, device);
+    return 1;
+}
+
+bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
+{
+    printf("cudaSetDevice\n");
+    *result = cudaSetDevice(device);
+    return 1;
+}
+
+bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    printf("cudaEventCreate\n");
+    result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    printf("cudaStreamCreateWithFlags\n");
+    result->err = cudaStreamCreateWithFlags((struct CUstream_st**)&result->ptr_result_u.ptr,
+                                            flags);
+    return 1;
+}
+
+bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rqstp)
+{
+    printf("cudaStreamSynchronize\n");
+    *result = cudaStreamSynchronize((struct CUstream_st*)stream);
+    return 1;
+}
+
+bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
+{
+    printf("cudaEventRecord\n");
+    *result = cudaEventRecord((struct CUevent_st*) event, (struct CUstream_st*)stream);
+    return 1;
+}
+
+bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, struct svc_req *rqstp)
+{
+    printf("cudaEventElapsedTime\n");
+    result->err = cudaEventElapsedTime(&result->float_result_u.data, (struct CUevent_st*) start, (struct CUevent_st*)end);
+    return 1;
+}
+
+bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
+{
+    printf("cudaEventDestroy\n");
+    *result = cudaEventDestroy((struct CUevent_st*) event);
+    return 1;
+}
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
 );
@@ -178,4 +248,3 @@ void __attribute__ ((constructor)) cricketd_main(void)
     unlink(CD_SOCKET_PATH);
     exit(0);
 }
-

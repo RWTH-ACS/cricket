@@ -147,7 +147,19 @@ void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
 }
 
 DEF_FN(cudaError_t, cudaChooseDevice, int*, device, const struct cudaDeviceProp*, prop)
-DEF_FN(cudaError_t, cudaDeviceGetAttribute, int*, value, enum cudaDeviceAttr, attr, int, device)
+cudaError_t cudaDeviceGetAttribute(int* value, enum cudaDeviceAttr attr, int device)
+{
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_get_attribute_1((int)attr, device, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *value = result.int_result_u.data;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaDeviceGetByPCIBusId, int*, device, const char*, pciBusId)
 DEF_FN(cudaError_t, cudaDeviceGetCacheConfig, enum cudaFuncCache*, pCacheConfig)
 DEF_FN(cudaError_t, cudaDeviceGetLimit, size_t*, pValue, enum cudaLimit, limit)
@@ -159,9 +171,30 @@ DEF_FN(cudaError_t, cudaDeviceReset, void)
 DEF_FN(cudaError_t, cudaDeviceSetCacheConfig, enum cudaFuncCache, cacheConfig)
 DEF_FN(cudaError_t, cudaDeviceSetLimit, enum cudaLimit, limit, size_t, value)
 DEF_FN(cudaError_t, cudaDeviceSetSharedMemConfig, enum cudaSharedMemConfig, config)
-DEF_FN(cudaError_t, cudaDeviceSynchronize, void)
+cudaError_t cudaDeviceSynchronize(void)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_synchronize_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaGetDevice, int*, device)
-DEF_FN(cudaError_t, cudaGetDeviceCount, int*, count)
+cudaError_t cudaGetDeviceCount(int* count)
+{
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_device_count_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *count = result.int_result_u.data;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaGetDeviceFlags, unsigned int*, flags)
 DEF_FN(cudaError_t, cudaGetDeviceProperties, struct cudaDeviceProp*, prop, int,  device)
 DEF_FN(cudaError_t, cudaIpcCloseMemHandle, void*, devPtr)
@@ -169,7 +202,16 @@ DEF_FN(cudaError_t, cudaIpcGetEventHandle, cudaIpcEventHandle_t*, handle, cudaEv
 DEF_FN(cudaError_t, cudaIpcGetMemHandle, cudaIpcMemHandle_t*, handle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcOpenEventHandle, cudaEvent_t*, event, cudaIpcEventHandle_t, handle)
 DEF_FN(cudaError_t, cudaIpcOpenMemHandle, void**, devPtr, cudaIpcMemHandle_t, handle, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaSetDevice, int,  device)
+cudaError_t cudaSetDevice(int device)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_set_device_1(device, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaSetDeviceFlags, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaSetValidDevices, int*, device_arr, int,  len)
 DEF_FN(const char*, cudaGetErrorName, cudaError_t, error)
@@ -180,7 +222,19 @@ DEF_FN(cudaError_t, cudaStreamAddCallback, cudaStream_t, stream, cudaStreamCallb
 DEF_FN(cudaError_t, cudaStreamAttachMemAsync, cudaStream_t, stream, void*, devPtr, size_t, length, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamBeginCapture, cudaStream_t, stream, enum cudaStreamCaptureMode, mode)
 DEF_FN(cudaError_t, cudaStreamCreate, cudaStream_t*, pStream)
-DEF_FN(cudaError_t, cudaStreamCreateWithFlags, cudaStream_t*, pStream, unsigned int,  flags)
+cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_create_with_flags_1(flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pStream = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaStreamCreateWithPriority, cudaStream_t*, pStream, unsigned int,  flags, int,  priority)
 DEF_FN(cudaError_t, cudaStreamDestroy, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaStreamEndCapture, cudaStream_t, stream, cudaGraph_t*, pGraph)
@@ -189,15 +243,66 @@ DEF_FN(cudaError_t, cudaStreamGetFlags, cudaStream_t, hStream, unsigned int*, fl
 DEF_FN(cudaError_t, cudaStreamGetPriority, cudaStream_t, hStream, int*, priority)
 DEF_FN(cudaError_t, cudaStreamIsCapturing, cudaStream_t, stream, enum cudaStreamCaptureStatus*, pCaptureStatus)
 DEF_FN(cudaError_t, cudaStreamQuery, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaStreamSynchronize, cudaStream_t, stream)
+cudaError_t cudaStreamSynchronize(cudaStream_t stream)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_synchronize_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaStreamWaitEvent, cudaStream_t, stream, cudaEvent_t, event, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaThreadExchangeStreamCaptureMode, enum cudaStreamCaptureMode*, mode)
-DEF_FN(cudaError_t, cudaEventCreate, cudaEvent_t*, event)
+cudaError_t cudaEventCreate(cudaEvent_t* event)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_create_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *event = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaEventCreateWithFlags, cudaEvent_t*, event, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaEventDestroy, cudaEvent_t, event)
-DEF_FN(cudaError_t, cudaEventElapsedTime, float*, ms, cudaEvent_t, start, cudaEvent_t, end)
+cudaError_t cudaEventDestroy(cudaEvent_t event)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_destroy_1((ptr)event, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
+{
+    float_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_elapsed_time_1((ptr)start, (ptr)end, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *ms = result.float_result_u.data;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaEventQuery, cudaEvent_t, event)
-DEF_FN(cudaError_t, cudaEventRecord, cudaEvent_t, event, cudaStream_t, stream)
+cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_record_1((ptr)event, (ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaEventSynchronize, cudaEvent_t, event)
 DEF_FN(cudaError_t, cudaDestroyExternalMemory, cudaExternalMemory_t, extMem)
 DEF_FN(cudaError_t, cudaDestroyExternalSemaphore, cudaExternalSemaphore_t, extSem)
@@ -358,7 +463,10 @@ DEF_FN(cudaError_t, cudaMemcpy3D, const struct cudaMemcpy3DParms*, p)
 DEF_FN(cudaError_t, cudaMemcpy3DAsync, const struct cudaMemcpy3DParms*, p, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemcpy3DPeer, const struct cudaMemcpy3DPeerParms*, p)
 DEF_FN(cudaError_t, cudaMemcpy3DPeerAsync, const struct cudaMemcpy3DPeerParms*, p, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemcpyAsync, void*, dst, const void*, src, size_t, count, enum cudaMemcpyKind, kind, cudaStream_t, stream)
+cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
+{
+    return cudaMemcpy(dst, src, count, kind);
+}
 DEF_FN(cudaError_t, cudaMemcpyFromSymbol, void*, dst, const void*, symbol, size_t, count, size_t, offset, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpyFromSymbolAsync, void*, dst, const void*, symbol, size_t, count, size_t, offset, enum cudaMemcpyKind, kind, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemcpyPeer, void*, dst, int,  dstDevice, const void*, src, int,  srcDevice, size_t, count)
