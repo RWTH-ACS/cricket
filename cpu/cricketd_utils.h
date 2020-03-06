@@ -8,6 +8,7 @@ typedef struct kernel_info {
     size_t param_size;
     size_t param_num;
     uint16_t *param_offsets;
+    uint16_t *param_sizes;
     void *host_fun;
 } kernel_info_t;
 

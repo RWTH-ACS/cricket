@@ -169,7 +169,7 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                 continue;
             }
             buf = cricketd_utils_search_info(*infos, *kernelnum, knamebuf);
-            //printf("kname: %s, type: %s, val: %zd\n", knamebuf, type, value);
+            //printf("kname: %s, type: %s, val: %s\n", knamebuf, type, valuebuf);
             if (buf == NULL) {
                 if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
                     fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
@@ -203,6 +203,15 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                         return 0;
                     }
                     buf->param_offsets[i] = value;
+                }
+            } else if (strcmp("param_sizes", type) == 0) {
+                buf->param_sizes = malloc(sizeof(uint16_t)*buf->param_num);
+                for (int i=0; i < buf->param_num; ++i) {
+                    if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
+                        fprintf(stderr, "error (%d)\n", __LINE__);
+                        return 0;
+                    }
+                    buf->param_sizes[i] = value;
                 }
             }
         }

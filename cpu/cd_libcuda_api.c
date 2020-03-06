@@ -232,6 +232,7 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
     }
     if (result.err == 0) {
         *pStream = (void*)result.ptr_result_u.ptr;
+        printf("%p\n", result.ptr_result_u.ptr);
     }
     return result.err;
 }
@@ -251,6 +252,7 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
+    printf("%p\n", stream);
     return result;
 }
 DEF_FN(cudaError_t, cudaStreamWaitEvent, cudaStream_t, stream, cudaEvent_t, event, unsigned int,  flags)
@@ -345,11 +347,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
     memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
     for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
-        if (j == infos[i].param_num - 1) {
-            size = infos[i].param_size - infos[i].param_offsets[j];
-        } else {
-            size = infos[i].param_offsets[j+1] - infos[i].param_offsets[j];
-        }
+        size = infos[i].param_sizes[j];
         memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
                infos[i].param_offsets[j],
                args[j],
