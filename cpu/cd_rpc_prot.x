@@ -96,6 +96,7 @@ program RPC_CD_PROG {
         int          CUDA_EVENT_RECORD(ptr, ptr)                          = 14;
         float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
+        int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
         
     } = 1;
 } = 99;

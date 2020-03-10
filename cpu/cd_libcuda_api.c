@@ -8,6 +8,10 @@
 #include <texture_types.h>
 #include <cuda_runtime_api.h>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "cd_libwrap.h"
 #include "cd_rpc_prot.h"
 #include "cd_common.h"
@@ -23,17 +27,20 @@ static size_t kernelnum = 0;
 static kernel_info_t *infos = NULL;
 
 
+#define RPC_PORT 3399
 void __attribute__ ((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;
     int result_1;
     int_result result_2;
     char *printmessage_1_arg1 = "hello";
-    struct sockaddr_un sock = {.sun_family = AF_UNIX,
-                               .sun_path = CD_SOCKET_PATH};
+    struct sockaddr_in sock = {.sin_family = AF_INET,
+                               .sin_port = 0};
+    inet_aton("127.0.0.1", &sock.sin_addr);
+
     int isock = RPC_ANYSOCK;
     printf("test\n");
-    clnt = clntunix_create(&sock, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+    clnt = clnttcp_create(&sock, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
     if (clnt == NULL) {
         printf("error\n");
         exit (1);
@@ -305,7 +312,18 @@ cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaEventSynchronize, cudaEvent_t, event)
+
+cudaError_t cudaEventSynchronize(cudaEvent_t event)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaDestroyExternalMemory, cudaExternalMemory_t, extMem)
 DEF_FN(cudaError_t, cudaDestroyExternalSemaphore, cudaExternalSemaphore_t, extSem)
 DEF_FN(cudaError_t, cudaExternalMemoryGetMappedBuffer, void**, devPtr, cudaExternalMemory_t, extMem, const struct cudaExternalMemoryBufferDesc*, bufferDesc)
@@ -348,6 +366,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
     for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
         size = infos[i].param_sizes[j];
+        //printf("p%d - size: %d, offset: %d\n", j, size, infos[i].param_offsets[j]);
         memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
                infos[i].param_offsets[j],
                args[j],

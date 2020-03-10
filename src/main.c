@@ -326,17 +326,29 @@ int cricket_info(int argc, char *argv[])
                 info.param_num = attr_num;
                 printf("%s param_num %d\n", cudasection->name+prefixlen+1,
                        info.param_num);
-                printf("%s param_offsets ", cudasection->name+prefixlen+1);
                 for (int i = 0; i != attr_num; ++i) {
                     info.params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
                     info.params[i].offset = *(uint16_t *)(attrs + 6 + i * 12);
-                    printf("%04x,", info.params[i].offset);
                     info.params[i].size = *(uint8_t *)(attrs + 10 + i * 12) >> 2;
+                }
+                printf("%s param_offsets ", cudasection->name+prefixlen+1);
+                for (int i = 0; i != attr_num; ++i) {
+                    for (int j = 0; j != attr_num; ++j) {
+                        if (info.params[j].index == i) {
+                            printf("%04x,", info.params[j].offset);
+                            break;
+                        }
+                    }
                 }
                 printf("\n");
                 printf("%s param_sizes ", cudasection->name+prefixlen+1);
                 for (int i = 0; i != attr_num; ++i) {
-                    printf("%04x,", info.params[i].size);
+                    for (int j = 0; j != attr_num; ++j) {
+                        if (info.params[j].index == i) {
+                            printf("%04x,", info.params[j].size);
+                            break;
+                        }
+                    }
                 }
                 printf("\n");
                 free(attrs);

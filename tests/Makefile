@@ -4,10 +4,10 @@ HOST_CC = gcc
 HOST_LD = gcc
 HOST_CFLAGS = -Wall -std=gnu99
 
-CC = nvcc
+CC = nvcc -ccbin g++
 ARCH = sm_61
 CFLAGS = -arch=$(ARCH) -cudart shared
-LD = nvcc
+LD = nvcc -ccbin g++
 LDFLAGS = -lcuda -arch=$(ARCH) -cudart shared
 TEST_CPU_BIN = test_cpu
 TEST_CPU_O = test_cpu.o

@@ -21,7 +21,7 @@
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 void int_handler(int signal) {
-    unlink(CD_SOCKET_PATH);
+    //unlink(CD_SOCKET_PATH);
     printf("have a nice day!\n");
     exit(0);
 }
@@ -87,6 +87,7 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+        //printf("arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
     printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
@@ -159,6 +160,13 @@ bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
     *result = cudaEventDestroy((struct CUevent_st*) event);
     return 1;
 }
+
+bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
+{
+    printf("cudaEventSynchronize\n");
+    *result = cudaEventSynchronize((struct CUevent_st*) event);
+    return 1;
+}
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
 );
@@ -210,6 +218,7 @@ int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
     }
 }
 
+#define RPC_PORT 3399
 /* shared object constructor; executes before main and thus hijacks main program */
 void __attribute__ ((constructor)) cricketd_main(void)
 {
@@ -218,19 +227,36 @@ void __attribute__ ((constructor)) cricketd_main(void)
     struct sigaction act;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
+    int sockfd;
+    struct sockaddr_in sock = {.sin_family = AF_INET,
+                               .sin_port = htons(RPC_PORT)};
+    sock.sin_addr.s_addr = INADDR_ANY;
 
-    transp = svcunix_create(RPC_ANYSOCK, 0, 0, CD_SOCKET_PATH);
-    if (transp == NULL) {
-        fprintf (stderr, "%s", "cannot create unix service.");
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "ERROR: opening socket failed\n");
         exit(1);
     }
-    if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, 0)) {
-        fprintf (stderr, "%s", "unable to register (RPC_PROG_PROG, RPC_PROG_VERS, ).");
+
+    if (bind(sockfd, (struct sockaddr *) &sock, sizeof(sock)) < 0) {
+        fprintf(stderr, "ERROR: binding failed\n");
+        exit(1);
+    }
+
+    transp = svctcp_create(RPC_ANYSOCK, 0, 0);
+    if (transp == NULL) {
+        fprintf (stderr, "%s", "cannot create tcp service.");
+        exit(1);
+    } 
+    pmap_unset(RPC_CD_PROG, RPC_CD_VERS); 
+    printf("listening on port %d\n", transp->xp_port);
+    if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, IPPROTO_TCP)) {
+        fprintf (stderr, "%s", "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
     }
 
     /* Call CUDA initialization function (usually called by __libc_init_main())
-     * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is 0x4016c8
+     * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
     void (*cudaRegisterAllv)(void) =
         (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
