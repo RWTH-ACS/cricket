@@ -26,7 +26,7 @@ static CLIENT *clnt = NULL;
 static size_t kernelnum = 0;
 static kernel_info_t *infos = NULL;
 
-
+enum socktype_t {UNIX, TCP, UDP} socktype = TCP;
 #define RPC_PORT 3399
 void __attribute__ ((constructor)) init_rpc(void)
 {
@@ -34,13 +34,39 @@ void __attribute__ ((constructor)) init_rpc(void)
     int result_1;
     int_result result_2;
     char *printmessage_1_arg1 = "hello";
-    struct sockaddr_in sock = {.sin_family = AF_INET,
-                               .sin_port = 0};
-    inet_aton("127.0.0.1", &sock.sin_addr);
+    int isock;
+    struct sockaddr_un sock_un = {0};
+    struct sockaddr_in sock_in = {0};
 
-    int isock = RPC_ANYSOCK;
-    printf("test\n");
-    clnt = clnttcp_create(&sock, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+    switch (socktype) {
+    case UNIX:
+        printf("connecting via UNIX...\n");
+        isock = RPC_ANYSOCK;
+        sock_un.sun_family = AF_UNIX;
+        strcpy(sock_un.sun_path, CD_SOCKET_PATH);
+        clnt = clntunix_create(&sock_un, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+        break;
+    case TCP:
+        printf("connecting via TCP...\n");
+        isock = RPC_ANYSOCK;
+        sock_in.sin_family = AF_INET;
+        sock_in.sin_port = 0;
+        inet_aton("127.0.0.1", &sock_in.sin_addr);
+
+        clnt = clnttcp_create(&sock_in, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+        break;
+    case UDP:
+        /* From RPCEGEN documentation: 
+         * Warning: since UDP-based RPC messages can only hold up to 8 Kbytes
+         * of encoded data, this transport cannot be used for procedures that 
+         * take large arguments or return huge results. 
+         * -> Sounds like UDP does not make sense for CUDA, because we need to
+         *    be able to copy large memory chunks
+         **/
+        printf("UDP is not supported...\n");
+        break;
+    }
+
     if (clnt == NULL) {
         printf("error\n");
         exit (1);
@@ -91,7 +117,7 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     int result;
     enum clnt_stat retval_1;
 
-    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
+    //printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
 
     kernel_info_t *info = cricketd_utils_search_info(infos, kernelnum, (char*)deviceName);
     if (info == NULL) {
@@ -128,8 +154,8 @@ void** __cudaRegisterFatBinary(void *fatCubin)
                                    .ptr   = fat->ptr,
                                    .ptr2  = fat->ptr2,
                                    .zero  = fat->zero};
-    printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
-           fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
+    //printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
+    //       fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -145,7 +171,7 @@ void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
     int result;
     enum clnt_stat retval_1;
 
-    printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", fatCubinHandle);
+    //printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", fatCubinHandle);
 
     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_end_1((uint64_t)fatCubinHandle, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
@@ -348,7 +374,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     enum clnt_stat retval_1;
     size_t i;
     char *buf;
-    printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
+    //printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
 
     for (i=0; i < kernelnum; ++i) {
         if (func != NULL && infos[i].host_fun == func) {
@@ -452,7 +478,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         result.mem_result_u.data.mem_data_len = count;
         result.mem_result_u.data.mem_data_val = dst;
         enum clnt_stat retval;
-        printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
+        //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
         retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
