@@ -97,6 +97,7 @@ program RPC_CD_PROG {
         float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
+        mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                      = 18;
         
     } = 1;
 } = 99;

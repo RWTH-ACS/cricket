@@ -6,9 +6,11 @@ HOST_CFLAGS = -Wall -std=gnu99
 
 CC = nvcc -ccbin g++
 ARCH = sm_61
-CFLAGS = -arch=$(ARCH) -cudart shared
+#CFLAGS = -arch=$(ARCH) -cudart shared
+CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
-LDFLAGS = -lcuda -arch=$(ARCH) -cudart shared
+#LDFLAGS = -lcuda -arch=$(ARCH) -cudart shared
+LDFLAGS = -lcuda -arch=$(ARCH)
 TEST_CPU_BIN = test_cpu
 TEST_CPU_O = test_cpu.o
 TEST_API_BIN = test_api

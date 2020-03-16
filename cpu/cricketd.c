@@ -17,11 +17,14 @@
 #include "cd_common.h"
 #include "cricketd_utils.h"
 
+enum socktype_t {UNIX, TCP, UDP} socktype = UNIX;
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 void int_handler(int signal) {
-    //unlink(CD_SOCKET_PATH);
+    if (socktype == UNIX) {
+        unlink(CD_SOCKET_PATH);
+    }
     printf("have a nice day!\n");
     exit(0);
 }
@@ -51,6 +54,17 @@ bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     printf("cudaFree\n");
     *result = cudaFree((void*)ptr);
+    return 1;
+}
+
+bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct svc_req *rqstp)
+{
+    printf("cudaGetDeviceProperties(%d)\n", device);
+    result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
+    result->mem_result_u.data.mem_data_val = malloc(sizeof(struct cudaDeviceProp));
+    result->err = cudaGetDeviceProperties(
+                      (struct cudaDeviceProp*)result->mem_result_u.data.mem_data_val,
+                      device);
     return 1;
 }
 
@@ -218,7 +232,6 @@ int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
     }
 }
 
-#define RPC_PORT 3399
 /* shared object constructor; executes before main and thus hijacks main program */
 void __attribute__ ((constructor)) cricketd_main(void)
 {
@@ -227,30 +240,42 @@ void __attribute__ ((constructor)) cricketd_main(void)
     struct sigaction act;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
-    int sockfd;
-    struct sockaddr_in sock = {.sin_family = AF_INET,
-                               .sin_port = htons(RPC_PORT)};
-    sock.sin_addr.s_addr = INADDR_ANY;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        fprintf(stderr, "ERROR: opening socket failed\n");
-        exit(1);
+    int protocol = 0;
+
+    switch (socktype) {
+    case UNIX:
+        printf("using UNIX...\n");
+        transp = svcunix_create(RPC_ANYSOCK, 0, 0, CD_SOCKET_PATH);
+        if (transp == NULL) {
+            fprintf (stderr, "%s", "cannot create service.");
+            exit(1);
+        } 
+        break;
+    case TCP:
+        printf("using TCP...\n");
+        transp = svctcp_create(RPC_ANYSOCK, 0, 0);
+        if (transp == NULL) {
+            fprintf (stderr, "%s", "cannot create service.");
+            exit(1);
+        } 
+        pmap_unset(RPC_CD_PROG, RPC_CD_VERS); 
+        printf("listening on port %d\n", transp->xp_port);
+        protocol = IPPROTO_TCP;
+        break;
+    case UDP:
+        /* From RPCEGEN documentation: 
+         * Warning: since UDP-based RPC messages can only hold up to 8 Kbytes
+         * of encoded data, this transport cannot be used for procedures that 
+         * take large arguments or return huge results. 
+         * -> Sounds like UDP does not make sense for CUDA, because we need to
+         *    be able to copy large memory chunks
+         **/
+        printf("UDP is not supported...\n");
+        break;
     }
 
-    if (bind(sockfd, (struct sockaddr *) &sock, sizeof(sock)) < 0) {
-        fprintf(stderr, "ERROR: binding failed\n");
-        exit(1);
-    }
-
-    transp = svctcp_create(RPC_ANYSOCK, 0, 0);
-    if (transp == NULL) {
-        fprintf (stderr, "%s", "cannot create tcp service.");
-        exit(1);
-    } 
-    pmap_unset(RPC_CD_PROG, RPC_CD_VERS); 
-    printf("listening on port %d\n", transp->xp_port);
-    if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, IPPROTO_TCP)) {
+    if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, protocol)) {
         fprintf (stderr, "%s", "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
     }

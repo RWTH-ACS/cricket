@@ -7,8 +7,10 @@ build/
 .vscode/
 .directory
 *.swp
+*.swo
 *.o
 *.so
+*.so.*
 *.out
 *.txt
 *.cubin

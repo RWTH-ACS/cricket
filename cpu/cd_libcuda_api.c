@@ -8,9 +8,16 @@
 #include <texture_types.h>
 #include <cuda_runtime_api.h>
 
+//For TCP socket
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+//For SHM
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "cd_libwrap.h"
 #include "cd_rpc_prot.h"
@@ -26,8 +33,7 @@ static CLIENT *clnt = NULL;
 static size_t kernelnum = 0;
 static kernel_info_t *infos = NULL;
 
-enum socktype_t {UNIX, TCP, UDP} socktype = TCP;
-#define RPC_PORT 3399
+enum socktype_t {UNIX, TCP, UDP} socktype = UNIX;
 void __attribute__ ((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;
@@ -229,7 +235,25 @@ cudaError_t cudaGetDeviceCount(int* count)
     return result.err;
 }
 DEF_FN(cudaError_t, cudaGetDeviceFlags, unsigned int*, flags)
-DEF_FN(cudaError_t, cudaGetDeviceProperties, struct cudaDeviceProp*, prop, int,  device)
+cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
+{
+    mem_result result;
+    result.mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
+    result.mem_result_u.data.mem_data_val = (char*)prop;
+    enum clnt_stat retval;
+    retval = cuda_get_device_properties_1(device, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        return result.err;
+    }
+    if (result.mem_result_u.data.mem_data_len != sizeof(struct cudaDeviceProp)) {
+        fprintf(stderr, "error: expected size != retrieved size\n");
+        return result.err;
+    }
+    return result.err;
+}
 DEF_FN(cudaError_t, cudaIpcCloseMemHandle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcGetEventHandle, cudaIpcEventHandle_t*, handle, cudaEvent_t, event)
 DEF_FN(cudaError_t, cudaIpcGetMemHandle, cudaIpcMemHandle_t*, handle, void*, devPtr)
@@ -427,12 +451,42 @@ DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray
 DEF_FN(cudaError_t, cudaGetMipmappedArrayLevel, cudaArray_t*, levelArray, cudaMipmappedArray_const_t, mipmappedArray, unsigned int,  level)
 DEF_FN(cudaError_t, cudaGetSymbolAddress, void**, devPtr, const void*, symbol)
 DEF_FN(cudaError_t, cudaGetSymbolSize, size_t*, size, const void*, symbol)
-DEF_FN(cudaError_t, cudaHostAlloc, void**, pHost, size_t, size, unsigned int,  flags)
+cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
+{
+    //Should only be supported for UNIX transport (using shm).
+    //I don't see how TCP can profit from HostAlloc
+    int ret = 1;
+    int fd_shm;
+    void *shm_addr = (void*)src;
+    size_t shm_size = count;
+    void *mmap_addr;
+    //Make sure shm_addr is page-aligned (necessary for MAP_FIXED)
+    if ((size_t)src % getpagesize() != 0) {
+        shm_addr -= (size_t)src % getpagesize();
+        shm_size += (size_t)src % getpagesize();
+    }
+printf("src: %p, srcsz: %x, shm_addr: %p, shmsz: %x\n", src, count, shm_addr, shm_size);
+    if ((fd_shm = shm_open("/cudamemcpy", O_RDWR | O_CREAT, 600)) == -1) {
+        fprintf(stderr, "ERROR: could not open shared memory\n");
+        goto out;
+    }
+    if (ftruncate(fd_shm, shm_size) == -1) {
+        fprintf(stderr, "ERROR: cannot reize shared memory\n");
+        goto cleanup;
+    }
+    if ((mmap_addr = mmap(shm_addr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd_shm, 0)) != shm_addr) {
+        fprintf(stderr, "ERROR: mmap returned unexpected pointer: %p\n", mmap_addr);
+        goto cleanup;
+    }
+printf("%d\n", __LINE__);
+cleanup:
+    shm_unlink("/cudamemcpy");
+    return ret;
+}
 DEF_FN(cudaError_t, cudaHostGetDevicePointer, void**, pDevice, void*, pHost, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaHostGetFlags, unsigned int*, pFlags, void*, pHost)
 DEF_FN(cudaError_t, cudaHostRegister, void*, ptr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
-//DEF_FN(cudaError_t, cudaMalloc, void**, devPtr, size_t, size)
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
     ptr_result result;
@@ -459,20 +513,18 @@ DEF_FN(cudaError_t, cudaMemGetInfo, size_t*, free, size_t*, total)
 DEF_FN(cudaError_t, cudaMemPrefetchAsync, const void*, devPtr, size_t, count, int,  dstDevice, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemRangeGetAttribute, void*, data, size_t, dataSize, enum cudaMemRangeAttribute, attribute, const void*, devPtr, size_t, count)
 DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes, enum cudaMemRangeAttribute*, attributes, size_t, numAttributes, const void*, devPtr, size_t, count)
-//DEF_FN(cudaError_t, cudaMemcpy, void*, dst, const void*, src, size_t, count, enum cudaMemcpyKind, kind)
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
+    int ret = 1;
     if (kind == cudaMemcpyHostToDevice) {
-        int result;
         enum clnt_stat retval;
         mem_data src_mem;
         src_mem.mem_data_len = count;
         src_mem.mem_data_val = (void*)src;
-        retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &result, clnt);
+        retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
-        return result;
     } else if (kind == cudaMemcpyDeviceToHost) {
         mem_result result;
         result.mem_result_u.data.mem_data_len = count;
@@ -483,17 +535,19 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
+        ret = result.err;
         if (result.err != 0) {
-            return result.err;
+            goto cleanup;
         }
         if (result.mem_result_u.data.mem_data_len != count) {
             fprintf(stderr, "error\n");
-            return result.err;
+            goto cleanup;
         }
-        return result.err;
     } else {
         fprintf(stderr, "error\n");
     }
+cleanup:
+    return ret;
 }
 DEF_FN(cudaError_t, cudaMemcpy2D, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpy2DArrayToArray, cudaArray_t, dst, size_t, wOffsetDst, size_t, hOffsetDst, cudaArray_const_t, src, size_t, wOffsetSrc, size_t, hOffsetSrc, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
