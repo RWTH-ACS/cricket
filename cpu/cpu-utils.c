@@ -1,4 +1,4 @@
-#define _GNU_SOURCE 
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -8,7 +8,7 @@
 
 #include <bfd.h>
 
-#include "cricketd_utils.h"
+#include "cpu-utils.h"
 
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
 #define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."

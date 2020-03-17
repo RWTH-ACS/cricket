@@ -1,6 +1,6 @@
-CLIENT = client
-SERVER = cricketd
-LIBCUDA_WRAPPER = libcudawrap.so
+CLIENT = test-client
+SERVER = cricket-server.so
+LIBCUDA_WRAPPER = crick-client.so
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = /home/eiling/projects/libtirpc/install
@@ -12,15 +12,15 @@ LD = gcc
 
 RPCGEN = rpcgen
 
-RPC_SERVER = rpc_prot_svc.c
-RPC_CLIENT = rpc_prot_clnt.c
-RPC_XDR = rpc_prot_xdr.c
-RPC_DEF = cd_rpc_prot.x
+RPC_SERVER = cpu_rpc_prot_svc.c
+RPC_CLIENT = cpu_rpc_prot_clnt.c
+RPC_XDR = cpu_rpc_prot_xdr.c
+RPC_DEF = cpu_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
-SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) client.c
-SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cricketd.c cricketd_utils.c
-SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cd_libcuda_api.c cricketd_utils.c
+SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) test-client.c
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cpu-server.c cpu-utils.c
+SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cpu-client.c cpu-utils.c
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)
@@ -51,7 +51,7 @@ RPCGEN_FLAGS = -C -M -N
 # Targets
 .PHONY: all clean
 
-all : $(CLIENT) $(SERVER)
+all : $(SERVER) $(LIBCUDA_WRAPPER)
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(LD_FLAGS)

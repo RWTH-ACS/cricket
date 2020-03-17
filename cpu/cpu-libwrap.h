@@ -1,5 +1,5 @@
-#ifndef LIBWRAP_H_
-#define LIBWRAP_H_
+#ifndef _CPU_LIBWRAP_H_
+#define _CPU_LIBWRAP_H_
 
 #include <dlfcn.h>
 
@@ -129,5 +129,5 @@ RET NAME(P1_TYPE P1_NAME, P2_TYPE P2_NAME, P3_TYPE P3_NAME, P4_TYPE P4_NAME, P5_
                     DEF_FN_1 (__VA_ARGS__),,\
                     DEF_FN_0 (__VA_ARGS__))
 
-#endif //LIBWRAP_H_
+#endif //_CPU_LIBWRAP_H_
 

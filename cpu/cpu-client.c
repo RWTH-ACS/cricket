@@ -19,10 +19,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "cd_libwrap.h"
-#include "cd_rpc_prot.h"
-#include "cd_common.h"
-#include "cricketd_utils.h"
+#include "cpu-libwrap.h"
+#include "cpu_rpc_prot.h"
+#include "cpu-common.h"
+#include "cpu-utils.h"
 
 //static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 static const char* LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
@@ -456,31 +456,31 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
     //Should only be supported for UNIX transport (using shm).
     //I don't see how TCP can profit from HostAlloc
     int ret = 1;
-    int fd_shm;
-    void *shm_addr = (void*)src;
-    size_t shm_size = count;
-    void *mmap_addr;
-    //Make sure shm_addr is page-aligned (necessary for MAP_FIXED)
-    if ((size_t)src % getpagesize() != 0) {
-        shm_addr -= (size_t)src % getpagesize();
-        shm_size += (size_t)src % getpagesize();
-    }
-printf("src: %p, srcsz: %x, shm_addr: %p, shmsz: %x\n", src, count, shm_addr, shm_size);
-    if ((fd_shm = shm_open("/cudamemcpy", O_RDWR | O_CREAT, 600)) == -1) {
-        fprintf(stderr, "ERROR: could not open shared memory\n");
-        goto out;
-    }
-    if (ftruncate(fd_shm, shm_size) == -1) {
-        fprintf(stderr, "ERROR: cannot reize shared memory\n");
-        goto cleanup;
-    }
-    if ((mmap_addr = mmap(shm_addr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd_shm, 0)) != shm_addr) {
-        fprintf(stderr, "ERROR: mmap returned unexpected pointer: %p\n", mmap_addr);
-        goto cleanup;
-    }
-printf("%d\n", __LINE__);
-cleanup:
-    shm_unlink("/cudamemcpy");
+//    int fd_shm;
+//    void *shm_addr = (void*)src;
+//    size_t shm_size = count;
+//    void *mmap_addr;
+//    //Make sure shm_addr is page-aligned (necessary for MAP_FIXED)
+//    if ((size_t)src % getpagesize() != 0) {
+//        shm_addr -= (size_t)src % getpagesize();
+//        shm_size += (size_t)src % getpagesize();
+//    }
+//printf("src: %p, srcsz: %x, shm_addr: %p, shmsz: %x\n", src, count, shm_addr, shm_size);
+//    if ((fd_shm = shm_open("/cudamemcpy", O_RDWR | O_CREAT, 600)) == -1) {
+//        fprintf(stderr, "ERROR: could not open shared memory\n");
+//        goto out;
+//    }
+//    if (ftruncate(fd_shm, shm_size) == -1) {
+//        fprintf(stderr, "ERROR: cannot reize shared memory\n");
+//        goto cleanup;
+//    }
+//    if ((mmap_addr = mmap(shm_addr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd_shm, 0)) != shm_addr) {
+//        fprintf(stderr, "ERROR: mmap returned unexpected pointer: %p\n", mmap_addr);
+//        goto cleanup;
+//    }
+//printf("%d\n", __LINE__);
+//cleanup:
+//    shm_unlink("/cudamemcpy");
     return ret;
 }
 DEF_FN(cudaError_t, cudaHostGetDevicePointer, void**, pDevice, void*, pHost, unsigned int,  flags)
