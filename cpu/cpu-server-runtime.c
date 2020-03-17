@@ -194,10 +194,3 @@ bool_t cuda_register_fat_binary_end_1_svc(ptr cubinHandle, int *result, struct s
     *result = 0;
     return 1;
 }*/
-
-int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
-{
-    if (b == (xdrproc_t) xdr_str_result) {
-        free( ((str_result*)c)->str_result_u.str);
-    }
-}

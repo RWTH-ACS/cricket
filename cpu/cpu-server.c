@@ -95,3 +95,10 @@ void __attribute__ ((constructor)) cricketd_main(void)
     unlink(CD_SOCKET_PATH);
     exit(0);
 }
+
+int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
+{
+    if (b == (xdrproc_t) xdr_str_result) {
+        free( ((str_result*)c)->str_result_u.str);
+    }
+}
