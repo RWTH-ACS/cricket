@@ -9,6 +9,7 @@
 #include <bfd.h>
 
 #include "cpu-utils.h"
+#include "cpu-common.h"
 
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
 #define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
@@ -148,7 +149,7 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
     }
     args[2] = linktarget;
 
-    if ( (output = cricketd_utils_launch_child("/home/eiling/projects/cricket/cricket", args)) == -1) {
+    if ( (output = cricketd_utils_launch_child(CRICKET_PATH, args)) == -1) {
         fprintf(stderr, "error while launching child\n");
         return 0;
     }

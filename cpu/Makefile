@@ -1,6 +1,6 @@
 CLIENT = test-client
 SERVER = cricket-server.so
-LIBCUDA_WRAPPER = crick-client.so
+LIBCUDA_WRAPPER = cricket-client.so
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = /home/eiling/projects/libtirpc/install
