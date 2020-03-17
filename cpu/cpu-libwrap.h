@@ -3,6 +3,30 @@
 
 #include <dlfcn.h>
 
+const char* LIBCUDA_PATH;
+void *so_handle;
+
+inline void* libwrap_get_sohandle()
+{
+    if (!so_handle) {
+        if ( !(so_handle = dlopen(LIBCUDA_PATH, RTLD_LAZY)) ) {
+            fprintf(stderr, "%s\n", dlerror());
+            so_handle = NULL;
+            return 0;
+        }
+    }
+    return so_handle;
+}
+
+inline void libwrap_pre_call(char *ret, char *name, char *parameters)
+{
+    printf("%s\n", name);
+}
+inline void libwrap_post_call(char *ret, char *name, char *parameters)
+{
+    printf("%s\n", name);
+}
+
 #define DEF_FN_PTR(RET, P_TYPES...) RET (*fun)(P_TYPES)
 #define CAL_FN_PTR(P_NAMES...) ret = (*fun)(P_NAMES)
 #define DEF_DLSYM(RET, NAME) \

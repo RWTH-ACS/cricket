@@ -81,6 +81,7 @@ struct rpc_fatCubin {
 program RPC_CD_PROG {
     version RPC_CD_VERS {
         int          PRINTMESSAGE(string)                                 = 1;
+/* RUNTIME API */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
@@ -98,6 +99,38 @@ program RPC_CD_PROG {
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
         mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                      = 18;
+/* DRIVER API */
+        int_result  rpc_cuDeviceGetCount(void)                          = 1002;
+        int         rpc_cuInit(int)                                     = 1003;
+        int_result  rpc_cuDriverGetVersion(void)                        = 1004;
+        int_result  rpc_cuDeviceGet(int)                                = 1005;
+        str_result  rpc_cuDeviceGetName(int)                            = 1006;
+        u64_result  rpc_cuDeviceTotalMem(int)                           = 1007;
+        int_result  rpc_cuDeviceGetAttribute(int, int)                  = 1008;
+        uuid_result rpc_cuDeviceGetUuid(int)                            = 1009;
+        ptr_result  rpc_cuCtxGetCurrent(void)                           = 1010;
+        int         rpc_cuCtxSetCurrent(uint64_t)                       = 1011;
+        ptr_result  rpc_cuDevicePrimaryCtxRetain(int)                   = 1012;
+        ptr_result  rpc_cuModuleGetFunction(uint64_t, string)           = 1013;
+        ptr_result  rpc_cuGetExportTable(rpc_uuid uuid)                 = 1014;
+        ptr_result  rpc_cuMemAlloc(uint64_t)                            = 1015;
+        int_result  rpc_cuCtxGetDevice(void)                            = 1016;
+        int         rpc_cuMemcpyHtoD(uint64_t, mem_data)                = 1017;
+        int         rpc_cuLaunchKernel(uint64_t, unsigned int,
+                                       unsigned int, unsigned int,
+                                       unsigned int, unsigned int,
+                                       unsigned int, unsigned int, 
+                                       uint64_t, mem_data)              = 1018;
+        /* HIDDEN DRIVER API */
+        ptr_result  rpc_hidden_get_device_ctx(int)                      = 1101;
+        ptr_result  rpc_hidden_get_module(uint64_t arg2, uint64_t arg3,
+                                          uint64_t arg4, int arg5)      = 1105;
+        ptr_result  rpc_hidden_1_1(void)                                = 1111;
+        void        rpc_hidden_1_3(uint64_t, uint64_t)                  = 1113;
+        ptr_result  rpc_hidden_1_5(void)                                = 1115;
+        void        rpc_hidden_2_1(uint64_t)                            = 1121;
+        int         rpc_hidden_3_0(int, uint64_t, uint64_t)             = 1130;
+        ptr_result  rpc_hidden_3_2(int, uint64_t)                       = 1132;
         
     } = 1;
 } = 99;

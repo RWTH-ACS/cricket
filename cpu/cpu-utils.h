@@ -2,15 +2,7 @@
 #define _CPU_UTILS_H_
 
 #include <stdint.h>
-
-typedef struct kernel_info {
-    char *name;
-    size_t param_size;
-    size_t param_num;
-    uint16_t *param_offsets;
-    uint16_t *param_sizes;
-    void *host_fun;
-} kernel_info_t;
+#include "cpu-common.h"
 
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum);
 
