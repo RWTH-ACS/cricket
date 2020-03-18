@@ -31,15 +31,15 @@ prepare:centos7:docker-dev:
     - linux
 
 # check if styleguide is fulfilled
-style_check:
-  stage: build
-  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
-  allow_failure: true
-  tags:
-    - docker
-  script:
-    - ls
-    - utils/test_style.sh
+#style_check:
+#  stage: build
+#  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+#  allow_failure: true
+#  tags:
+#    - docker
+#  script:
+#    - ls
+#    - utils/test_style.sh
 
 # Stage: build
 ##############################################################################
@@ -52,7 +52,7 @@ build:
   artifacts:
     expire_in: 1 week
     paths:
-      - build/
+      - gpu/build/
       - cricket
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   tags:
