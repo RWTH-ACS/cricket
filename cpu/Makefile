@@ -3,7 +3,7 @@ SERVER = cricket-server.so
 LIBCUDA_WRAPPER = cricket-client.so
 
 CUDA_SRC = /usr/local/cuda
-LIBTIRPC_PREFIX = /home/eiling/projects/libtirpc/install
+LIBTIRPC_PREFIX = ../submodules/libtirpc/install
 
 
 CC = gcc
@@ -33,15 +33,15 @@ LIB_DIR = ../lib
 SLIBS = libgdb.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
 
-INC_FLAGS += -I$(LIBTIRPC_PREFIX)/usr/include/tirpc
+INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 #INC_FLAGS += -I../include/bfd -I../include/gdb -I../include/include -I../include/gdb/common -I../include
 
-LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/usr/lib -L$(CUDA_SRC)/lib64
+LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
 #SERVER_LD_FLAGS = $(LD_FLAGS) -lbfd -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list
-SERVER_CC_FLAGS = -std=gnu99 -I$(LIBTIRPC_PREFIX)/usr/include/tirpc -I$(CUDA_SRC)/include -L$(LIBTIRPC_PREFIX)/usr/lib
+SERVER_CC_FLAGS = -std=gnu99 -I$(LIBTIRPC_PREFIX)/include/tirpc -I$(CUDA_SRC)/include -L$(LIBTIRPC_PREFIX)/lib
 SERVER_LD_FLAGS = $(LIB_FLAGS) -ltirpc -lcudart -lbfd -ldl
 
 LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
