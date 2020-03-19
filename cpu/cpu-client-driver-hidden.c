@@ -3,6 +3,7 @@
 
 #include "cpu_rpc_prot.h"
 
+#include "cpu-common.h"
 #include "cpu-client-driver-hidden.h"
 
 #define EXPECT_CALL_CNT 4
@@ -57,7 +58,6 @@ static void* hidden_table[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3+EXPECT_CALL_CNT] =
 static void* orig_ptrs[EXPECT_CALL_CNT] = {0};
 
 static int call_cnt = 0;
-static CLIENT *clnt = NULL;
 
 void cd_client_hidden_init(void *new_clnt)
 {
@@ -146,6 +146,7 @@ int hidden_get_device_ctx(void** cu_ctx, int cu_device)
     return ret;*/
 	enum clnt_stat retval;
     ptr_result result;
+    printf("%s\n", __FUNCTION__);
     retval = rpc_hidden_get_device_ctx_1(cu_device, &result, clnt);
     printf("[rpc] %s = %d, result %p\n", __FUNCTION__, result.err,
                                         result.ptr_result_u.ptr);
