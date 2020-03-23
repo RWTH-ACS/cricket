@@ -416,7 +416,8 @@ int hidden_3_1(void* arg1, void* arg2)
 int hidden_3_2(void** arg1, int arg2, void** arg3)
 {
 	enum clnt_stat retval;
-    ptr_result result = {0};
+    mem_result result;
+    result.mem_result_u.data.mem_data_val = malloc(0x58);
     void *arg3_orig = cd_client_hidden_orig_ptr(*arg3);
     //printf("\tppre %s(%p->%p, %d, %p->%p->%p)\n", __FUNCTION__, arg1, *arg1, arg2, arg3, *arg3, **(void***)arg3);
     //printf("\tfaked arg3: %p\n", arg3_orig);
@@ -426,13 +427,14 @@ int hidden_3_2(void** arg1, int arg2, void** arg3)
     }
     retval = rpc_hidden_3_2_1(arg2, (uint64_t)arg3_orig, &result, clnt);
     printf("[rpc] %s = %d, result = %p\n", __FUNCTION__, result.err,
-           (void*)result.ptr_result_u.ptr);
+           (void*)result.mem_result_u.data.mem_data_val);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
         return 1;
 	}
-    *arg1 = cd_client_get_fake_ctx((void*)result.ptr_result_u.ptr);
-    printf("\tfaked result: %p\n", *arg1);
+    *arg1 = result.mem_result_u.data.mem_data_val;
+    //*arg1 = cd_client_get_fake_ctx((void*)result.ptr_result_u.ptr);
+    //printf("\tfaked result: %p\n", *arg1);
 
     if (*arg1 != 0)
         printf("\t%p, @0x30: %p, @0x40: %p\n", *arg1, (*(void***)arg1)[6], (*(void***)arg1)[8]);

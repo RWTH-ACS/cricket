@@ -130,7 +130,7 @@ program RPC_CD_PROG {
         ptr_result  rpc_hidden_1_5(void)                                = 1115;
         void        rpc_hidden_2_1(uint64_t)                            = 1121;
         int         rpc_hidden_3_0(int, uint64_t, uint64_t)             = 1130;
-        ptr_result  rpc_hidden_3_2(int, uint64_t)                       = 1132;
+        mem_result  rpc_hidden_3_2(int, uint64_t)                       = 1132;
         
     } = 1;
 } = 99;

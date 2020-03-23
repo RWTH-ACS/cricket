@@ -213,13 +213,13 @@ bool_t rpc_hidden_get_module_1_svc(uint64_t arg2, uint64_t arg3,
     printf("%s\n", __FUNCTION__);
     //TODO: make a parameter. Probably must be globally stored somehow
     //      thread-safety may be an issue
-    char str[] = "/home/eiling/projects/cricket/tests/test_api.1.sm_61.cubin";
-    result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, str);
+    //char str[] = "/home/eiling/projects/cricket/tests/test_api.1.sm_61.cubin";
+    //result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, str);
 
-/*    result->err = ((int(*)(void**,void*,uint64_t,uint64_t,int))
+    result->err = ((int(*)(void**,void*,uint64_t,uint64_t,int))
                    (cd_svc_hidden_get(0,5)))
                    ((void**)&result->ptr_result_u.ptr, &arg2, arg3,
-                    arg4, arg5);*/
+                    arg4, arg5);
     return 1;
 }
 
@@ -277,16 +277,17 @@ bool_t rpc_hidden_3_0_1_svc(int arg1, uint64_t arg2, uint64_t arg3,
     return 1;
 }
 
-bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, ptr_result *result,
+bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, mem_result *result,
                             struct svc_req *rqstp)
 {
-    result->ptr_result_u.ptr = 0;
+    result->mem_result_u.data.mem_data_val = NULL;
+    result->mem_result_u.data.mem_data_len = 0x58;
     printf("%s(%d, %p)\n", __FUNCTION__, arg2, arg3);
     //printf("\tppre %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
     void *fptr = cd_svc_hidden_get(3,2);
     result->err = ((int(*)(void**, int, void*))(fptr))
-                             ((void**)&result->ptr_result_u.ptr, arg2, &arg3);
-    void **res = ((void**)result->ptr_result_u.ptr);
+                             ((void**)&result->mem_result_u.data.mem_data_val, arg2, &arg3);
+    void **res = ((void**)result->mem_result_u.data.mem_data_val);
     if (res != 0)
         printf("\t%p, @0x30: %p, @0x40: %p->%p\n", res, res[6], res[8], *(void**)res[8]);
     //printf("\tppost %s(nh->%p, %d, nh->%p->%p)\n", __FUNCTION__, result->ptr_result_u.ptr, arg2, (void*)arg3, *(void**)arg3);
