@@ -7,8 +7,9 @@
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
+#include "log.h"
 
-enum socktype_t {UNIX, TCP, UDP} socktype = UNIX;
+INIT_SOCKTYPE
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
@@ -16,13 +17,13 @@ void int_handler(int signal) {
     if (socktype == UNIX) {
         unlink(CD_SOCKET_PATH);
     }
-    printf("have a nice day!\n");
+    LOG(LOG_INFO, "have a nice day!\n");
     exit(0);
 }
 
 bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 {
-    printf("string: \"%s\"\n", argp);
+    LOG(LOG_INFO, "string: \"%s\"\n", argp);
     *result = 42;
     return 1;
 }
@@ -33,30 +34,31 @@ void __attribute__ ((constructor)) cricketd_main(void)
 {
     register SVCXPRT *transp;
 
+    int protocol = 0;
     struct sigaction act;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
-    int protocol = 0;
+    init_log(LOG_DEBUG, __FILE__);
 
     switch (socktype) {
     case UNIX:
-        printf("using UNIX...\n");
+        LOG(LOG_INFO, "using UNIX...\n");
         transp = svcunix_create(RPC_ANYSOCK, 0, 0, CD_SOCKET_PATH);
         if (transp == NULL) {
-            fprintf (stderr, "%s", "cannot create service.");
+            LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         } 
         break;
     case TCP:
-        printf("using TCP...\n");
+        LOG(LOG_INFO, "using TCP...\n");
         transp = svctcp_create(RPC_ANYSOCK, 0, 0);
         if (transp == NULL) {
-            fprintf (stderr, "%s", "cannot create service.");
+            LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         } 
         pmap_unset(RPC_CD_PROG, RPC_CD_VERS); 
-        printf("listening on port %d\n", transp->xp_port);
+        LOG(LOG_INFO, "listening on port %d\n", transp->xp_port);
         protocol = IPPROTO_TCP;
         break;
     case UDP:
@@ -67,7 +69,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
          * -> Sounds like UDP does not make sense for CUDA, because we need to
          *    be able to copy large memory chunks
          **/
-        printf("UDP is not supported...\n");
+        LOG(LOG_INFO, "UDP is not supported...\n");
         break;
     }
 
@@ -81,14 +83,14 @@ void __attribute__ ((constructor)) cricketd_main(void)
      */
     void (*cudaRegisterAllv)(void) =
         (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
-    printf("found CUDA initialization function at %p\n", cudaRegisterAllv);
+    LOG(LOG_INFO, "found CUDA initialization function at %p\n", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
-        fprintf(stderr, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. I cannot operate without it.\n");
+        LOGE(LOG_ERROR, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. I cannot operate without it.\n");
         exit(1);
     }
     cudaRegisterAllv();
 
-    printf("waiting for RPC requests...\n");
+    LOG(LOG_INFO, "waiting for RPC requests...\n");
 
     svc_run ();
     fprintf (stderr, "%s", "svc_run returned");

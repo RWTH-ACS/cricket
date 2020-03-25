@@ -19,8 +19,8 @@ RPC_DEF = cpu_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) test-client.c
-SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cpu-server.c cpu-utils.c cpu-server-runtime.c cpu-server-driver.c cpu-server-driver-hidden.c
-SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cpu-client.c cpu-utils.c cpu-client-runtime.c cpu-client-driver.c cpu-client-driver-hidden.c
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cpu-server.c cpu-utils.c cpu-server-runtime.c cpu-server-driver.c cpu-server-driver-hidden.c log.c cpu-libwrap.c
+SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cpu-client.c cpu-utils.c cpu-client-runtime.c cpu-client-driver.c cpu-client-driver-hidden.c log.c cpu-libwrap.c
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)

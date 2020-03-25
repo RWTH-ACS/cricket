@@ -15,6 +15,9 @@ typedef struct kernel_info {
     void *host_fun;
 } kernel_info_t;
 
+enum socktype_t {UNIX, TCP, UDP} socktype;
+#define INIT_SOCKTYPE enum socktype_t socktype = UNIX;
+
 
 CLIENT *clnt;
 

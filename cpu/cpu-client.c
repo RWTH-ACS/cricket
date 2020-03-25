@@ -23,7 +23,8 @@ CLIENT *clnt = NULL;
 size_t kernelnum = 0;
 kernel_info_t *infos = NULL;
 
-enum socktype_t {UNIX, TCP, UDP} socktype = UNIX;
+INIT_SOCKTYPE
+
 void __attribute__ ((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;

@@ -18,6 +18,7 @@
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
+#include "log.h"
 
 
 
@@ -85,7 +86,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
         return result.err;
     }
     if (result.mem_result_u.data.mem_data_len != sizeof(struct cudaDeviceProp)) {
-        fprintf(stderr, "error: expected size != retrieved size\n");
+        LOGE(LOG_ERROR, "error: expected size != retrieved size\n");
         return result.err;
     }
     return result.err;
@@ -107,7 +108,21 @@ cudaError_t cudaSetDevice(int device)
 }
 DEF_FN(cudaError_t, cudaSetDeviceFlags, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaSetValidDevices, int*, device_arr, int,  len)
-DEF_FN(const char*, cudaGetErrorName, cudaError_t, error)
+//DEF_FN(const char*, cudaGetErrorName, cudaError_t, error)
+const char* cudaGetErrorName(cudaError_t error)
+{
+    str_result result;
+    enum clnt_stat retval_1;
+    result.str_result_u.str = malloc(128);
+    retval_1 = cuda_get_error_name_1(error, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        LOGE(LOG_ERROR, "something went wrong");
+    }
+    return result.str_result_u.str;
+}
 DEF_FN(const char*, cudaGetErrorString, cudaError_t, error)
 DEF_FN(cudaError_t, cudaGetLastError, void)
 DEF_FN(cudaError_t, cudaPeekAtLastError, void)
@@ -125,7 +140,7 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
     }
     if (result.err == 0) {
         *pStream = (void*)result.ptr_result_u.ptr;
-        printf("%p\n", result.ptr_result_u.ptr);
+        LOGE(LOG_ERROR, "%p", result.ptr_result_u.ptr);
     }
     return result.err;
 }
@@ -238,7 +253,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 
     for (i=0; i < kernelnum; ++i) {
         if (func != NULL && infos[i].host_fun == func) {
-            printf("param_size: %zd, param_num: %zd\n", infos[i].param_size, infos[i].param_num);
+            LOG(LOG_DEBUG, "param_size: %zd, param_num: %zd\n", infos[i].param_size, infos[i].param_num);
             break;
         }
     }
@@ -376,11 +391,11 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             goto cleanup;
         }
         if (result.mem_result_u.data.mem_data_len != count) {
-            fprintf(stderr, "error\n");
+            LOGE(LOG_ERROR, "error");
             goto cleanup;
         }
     } else {
-        fprintf(stderr, "error\n");
+        LOGE(LOG_ERROR, "error");
     }
 cleanup:
     return ret;

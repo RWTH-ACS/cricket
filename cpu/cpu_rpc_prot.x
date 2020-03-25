@@ -99,6 +99,7 @@ program RPC_CD_PROG {
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
         mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                      = 18;
+        str_result   CUDA_GET_ERROR_NAME(int)                             = 19;
 /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;
