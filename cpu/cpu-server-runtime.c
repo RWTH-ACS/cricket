@@ -1,6 +1,12 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
+//For SHM
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
@@ -162,6 +168,46 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
     strncpy(result->str_result_u.str, str, 128);
     result->err = 0;
     return 1;
+}
+
+bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, int *result, struct svc_req *rqstp)
+{
+    int ret = cudaErrorMemoryAllocation;
+    int fd_shm;
+    char shm_name[128];
+    void *shm_addr;
+
+    LOGE(LOG_DEBUG, "cudaHostAlloc");
+
+    //Should only be supported for UNIX transport (using shm).
+    //I don't see how TCP can profit from HostAlloc
+    //TODO: Test the below
+    if (socktype != UNIX) {
+        LOGE(LOG_ERROR, "cudaHostAlloc is not supported for other transports than UNIX. This error means cricket_server and cricket_client are not compiled correctly (different transports)");
+        goto out;
+    }
+
+    snprintf(shm_name, 128, "/crickethostalloc-%p", shm_cnt);
+    if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
+        LOGE(LOG_ERROR, "ERROR: could not open shared memory");
+        goto out;
+    }
+    if (ftruncate(fd_shm, size) == -1) {
+        LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
+        goto cleanup;
+    }
+    if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
+        LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", shm_addr);
+        goto cleanup;
+    }
+
+
+    ret = cudaSuccess;
+cleanup:
+    shm_unlink(shm_name);
+out:
+    return ret;
+
 }
 
 /*extern void** __cudaRegisterFatBinary(

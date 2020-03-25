@@ -9,10 +9,10 @@
 #include <cuda_runtime_api.h>
 
 //For SHM
-//#include <sys/mman.h>
-//#include <sys/stat.h>
-//#include <fcntl.h>
-//#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
@@ -297,41 +297,70 @@ cudaError_t cudaFree(void *devPtr)
     return result;
 }
 DEF_FN(cudaError_t, cudaFreeArray, cudaArray_t, array)
-DEF_FN(cudaError_t, cudaFreeHost, void*, ptr)
+cudaError_t cudaFreeHost(void* ptr)
+{
+    u64_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_free_host_1((uint64_t)ptr, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        LOGE(LOG_ERROR, "cudaFreeHost RPC failed.");
+        return cudaErrorUnknown;
+    }
+    munmap(ptr, result.u64_result_u.u64);
+    return cudaSuccess;
+}
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
 DEF_FN(cudaError_t, cudaGetMipmappedArrayLevel, cudaArray_t*, levelArray, cudaMipmappedArray_const_t, mipmappedArray, unsigned int,  level)
 DEF_FN(cudaError_t, cudaGetSymbolAddress, void**, devPtr, const void*, symbol)
 DEF_FN(cudaError_t, cudaGetSymbolSize, size_t*, size, const void*, symbol)
 cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 {
+    int ret = cudaErrorMemoryAllocation;
+    int fd_shm;
+    char shm_name[128];
+    static int shm_cnt = 0;
+    enum clnt_stat retval_1;
+
     //Should only be supported for UNIX transport (using shm).
     //I don't see how TCP can profit from HostAlloc
-    int ret = 1;
-//    int fd_shm;
-//    void *shm_addr = (void*)src;
-//    size_t shm_size = count;
-//    void *mmap_addr;
-//    //Make sure shm_addr is page-aligned (necessary for MAP_FIXED)
-//    if ((size_t)src % getpagesize() != 0) {
-//        shm_addr -= (size_t)src % getpagesize();
-//        shm_size += (size_t)src % getpagesize();
-//    }
-//printf("src: %p, srcsz: %x, shm_addr: %p, shmsz: %x\n", src, count, shm_addr, shm_size);
-//    if ((fd_shm = shm_open("/cudamemcpy", O_RDWR | O_CREAT, 600)) == -1) {
-//        fprintf(stderr, "ERROR: could not open shared memory\n");
-//        goto out;
-//    }
-//    if (ftruncate(fd_shm, shm_size) == -1) {
-//        fprintf(stderr, "ERROR: cannot reize shared memory\n");
-//        goto cleanup;
-//    }
-//    if ((mmap_addr = mmap(shm_addr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd_shm, 0)) != shm_addr) {
-//        fprintf(stderr, "ERROR: mmap returned unexpected pointer: %p\n", mmap_addr);
-//        goto cleanup;
-//    }
-//printf("%d\n", __LINE__);
-//cleanup:
-//    shm_unlink("/cudamemcpy");
+    //TODO: Test the below
+    if (socktype != UNIX) {
+        LOGE(LOG_WARNING, "cudaHostAlloc is not supported for other transports than UNIX. Using malloc instead...");
+        *pHost = malloc(size);
+        if (*pHost == NULL) {
+            goto out;
+        } else {
+            ret = cudaSuccess;
+            goto out;
+        }
+    }
+
+    snprintf(shm_name, 128, "/crickethostalloc-%p", shm_cnt++);
+    if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, 600)) == -1) {
+        LOGE(LOG_ERROR, "ERROR: could not open shared memory");
+        goto out;
+    }
+    if (ftruncate(fd_shm, size) == -1) {
+        LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
+        goto cleanup;
+    }
+    if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
+        LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
+        goto cleanup;
+    }
+
+    retval_1 = cuda_host_alloc_1(shm_cnt, size, (uint64_t)*pHost, &ret, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+
+    ret = cudaSuccess;
+cleanup:
+    shm_unlink(shm_name);
+out:
     return ret;
 }
 DEF_FN(cudaError_t, cudaHostGetDevicePointer, void**, pDevice, void*, pHost, unsigned int,  flags)
