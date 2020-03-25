@@ -28,11 +28,11 @@ static const int expect_elems_total = EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3+EXPECT
                                     
 static void* hidden_table[EXPECT_0+EXPECT_1+EXPECT_2+EXPECT_3+EXPECT_CALL_CNT] = {
     (void*)(EXPECT_0*sizeof(void*)),
-    hidden_0_0,
+    hidden_0_0, //CU_ETID_CudartInterface
     hidden_get_device_ctx,
-    hidden_0_2,
+    hidden_0_2, //CU_ETID_ToolsRuntimeCallbackHooks
     hidden_0_3,
-    hidden_0_4,
+    hidden_0_4, //CU_ETID_ContextLocalStorageInterface_v0301
     hidden_get_module,
     hidden_0_6,
     hidden_0_7,
