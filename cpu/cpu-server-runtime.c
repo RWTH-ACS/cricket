@@ -1,6 +1,10 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
+//for strerror
+#include <string.h>
+#include <errno.h>
+
 //For SHM
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -170,12 +174,37 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
     return 1;
 }
 
+typedef struct host_alloc_info {
+    int cnt;
+    size_t size;
+    void *client_ptr;
+    void *server_ptr;
+} host_alloc_info_t;
+static host_alloc_info_t hainfo[64];
+static size_t hainfo_cnt = 0;
+
+bool_t cuda_free_host_1_svc(ptr client_ptr, int *result, struct svc_req *rqstp)
+{
+    *result = cudaErrorInitializationError;
+    for (int i=0; i < hainfo_cnt; ++i) {
+        if (hainfo[i].client_ptr != NULL &&
+            hainfo[i].client_ptr == (void*)client_ptr) {
+
+            munmap(hainfo[i].server_ptr, hainfo[i].size);
+            memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
+            *result = cudaSuccess;
+            break;
+        }
+    }
+    return 1;
+}
+
 bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, int *result, struct svc_req *rqstp)
 {
-    int ret = cudaErrorMemoryAllocation;
     int fd_shm;
     char shm_name[128];
     void *shm_addr;
+    *result = cudaErrorMemoryAllocation;
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
 
@@ -186,27 +215,35 @@ bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, int *resu
         LOGE(LOG_ERROR, "cudaHostAlloc is not supported for other transports than UNIX. This error means cricket_server and cricket_client are not compiled correctly (different transports)");
         goto out;
     }
-
-    snprintf(shm_name, 128, "/crickethostalloc-%p", shm_cnt);
+LOGE(LOG_DEBUG, "");
+    snprintf(shm_name, 128, "/crickethostalloc-%d", shm_cnt);
     if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
-        LOGE(LOG_ERROR, "ERROR: could not open shared memory");
+        LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
         goto out;
     }
-    if (ftruncate(fd_shm, size) == -1) {
+LOGE(LOG_DEBUG, "");
+    /*if (ftruncate(fd_shm, size) == -1) {
         LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
         goto cleanup;
-    }
+    }*/
     if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
         LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", shm_addr);
         goto cleanup;
     }
+LOGE(LOG_DEBUG, "");
 
+    hainfo[hainfo_cnt].cnt = shm_cnt;
+    hainfo[hainfo_cnt].size = size;
+    hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
+    hainfo[hainfo_cnt].server_ptr = shm_addr;
+    hainfo_cnt++;
+LOGE(LOG_DEBUG, "");
 
-    ret = cudaSuccess;
+    *result = cudaSuccess;
 cleanup:
     shm_unlink(shm_name);
 out:
-    return ret;
+    return 1;
 
 }
 

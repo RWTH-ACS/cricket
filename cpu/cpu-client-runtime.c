@@ -8,6 +8,10 @@
 #include <texture_types.h>
 #include <cuda_runtime_api.h>
 
+//for strerror
+#include <string.h>
+#include <errno.h>
+
 //For SHM
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -299,17 +303,17 @@ cudaError_t cudaFree(void *devPtr)
 DEF_FN(cudaError_t, cudaFreeArray, cudaArray_t, array)
 cudaError_t cudaFreeHost(void* ptr)
 {
-    u64_result result;
+    int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_free_host_1((uint64_t)ptr, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (result.err != 0) {
-        LOGE(LOG_ERROR, "cudaFreeHost RPC failed.");
+    if (result != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaFreeHost failed on server-side.");
         return cudaErrorUnknown;
     }
-    munmap(ptr, result.u64_result_u.u64);
+    munmap(ptr, 0);
     return cudaSuccess;
 }
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
@@ -338,15 +342,16 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         }
     }
 
-    snprintf(shm_name, 128, "/crickethostalloc-%p", shm_cnt++);
-    if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, 600)) == -1) {
-        LOGE(LOG_ERROR, "ERROR: could not open shared memory");
+    snprintf(shm_name, 128, "/crickethostalloc-%d", shm_cnt);
+    if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
+        LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
         goto out;
     }
     if (ftruncate(fd_shm, size) == -1) {
         LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
         goto cleanup;
     }
+    LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
     if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
         LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
         goto cleanup;
@@ -356,7 +361,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-
+    shm_cnt++;
     ret = cudaSuccess;
 cleanup:
     shm_unlink(shm_name);
