@@ -301,31 +301,60 @@ cudaError_t cudaFree(void *devPtr)
     return result;
 }
 DEF_FN(cudaError_t, cudaFreeArray, cudaArray_t, array)
+
+typedef struct host_alloc_info {
+    int cnt;
+    size_t size;
+    void *client_ptr;
+} host_alloc_info_t;
+static host_alloc_info_t hainfo[64];
+static size_t hainfo_cnt = 1;
+static int hainfo_getindex(void *client_ptr)
+{
+    int i;
+    for (i=0; i < hainfo_cnt; ++i) {
+        if (hainfo[i].client_ptr != 0 &&
+            hainfo[i].client_ptr == client_ptr) {
+
+            return i;
+        }
+    }
+    return -1;
+}
 cudaError_t cudaFreeHost(void* ptr)
 {
-    int result;
+    int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
-    retval_1 = cuda_free_host_1((uint64_t)ptr, &result, clnt);
+    int i = hainfo_getindex(ptr);
+    if (i == -1) {
+        goto out;
+    }
+    munmap(hainfo[i].client_ptr, hainfo[i].size);
+    memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
+
+    retval_1 = cuda_free_host_1(i, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
     if (result != cudaSuccess) {
         LOGE(LOG_ERROR, "cudaFreeHost failed on server-side.");
-        return cudaErrorUnknown;
+        goto out;
     }
-    munmap(ptr, 0);
-    return cudaSuccess;
+    result = cudaSuccess;
+ out:
+    return result;
 }
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
 DEF_FN(cudaError_t, cudaGetMipmappedArrayLevel, cudaArray_t*, levelArray, cudaMipmappedArray_const_t, mipmappedArray, unsigned int,  level)
 DEF_FN(cudaError_t, cudaGetSymbolAddress, void**, devPtr, const void*, symbol)
 DEF_FN(cudaError_t, cudaGetSymbolSize, size_t*, size, const void*, symbol)
+
+
 cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 {
     int ret = cudaErrorMemoryAllocation;
     int fd_shm;
     char shm_name[128];
-    static int shm_cnt = 0;
     enum clnt_stat retval_1;
 
     //Should only be supported for UNIX transport (using shm).
@@ -342,7 +371,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         }
     }
 
-    snprintf(shm_name, 128, "/crickethostalloc-%d", shm_cnt);
+    snprintf(shm_name, 128, "/crickethostalloc-%d", hainfo_cnt);
     if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
         LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
         goto out;
@@ -357,12 +386,20 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         goto cleanup;
     }
 
-    retval_1 = cuda_host_alloc_1(shm_cnt, size, (uint64_t)*pHost, &ret, clnt);
+    hainfo[hainfo_cnt].cnt = hainfo_cnt;
+    hainfo[hainfo_cnt].size = size;
+    hainfo[hainfo_cnt].client_ptr = *pHost;
+
+    retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    shm_cnt++;
-    ret = cudaSuccess;
+    if (ret == cudaSuccess) {
+        hainfo_cnt++;
+    } else {
+        munmap(*pHost, size);
+        *pHost = NULL;
+    }
 cleanup:
     shm_unlink(shm_name);
 out:
@@ -401,35 +438,51 @@ DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes,
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
     int ret = 1;
-    if (kind == cudaMemcpyHostToDevice) {
         enum clnt_stat retval;
-        mem_data src_mem;
-        src_mem.mem_data_len = count;
-        src_mem.mem_data_val = (void*)src;
-        retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
+    if (kind == cudaMemcpyHostToDevice) {
+        int index = hainfo_getindex((void*)src);
+        /* not a cudaHostAlloc'ed memory */
+        if (index == -1) {
+            mem_data src_mem;
+            src_mem.mem_data_len = count;
+            src_mem.mem_data_val = (void*)src;
+            retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
+        } else {
+            retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+        }
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
     } else if (kind == cudaMemcpyDeviceToHost) {
-        mem_result result;
-        result.mem_result_u.data.mem_data_len = count;
-        result.mem_result_u.data.mem_data_val = dst;
-        enum clnt_stat retval;
-        //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
-        retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
+        int index = hainfo_getindex(dst);
+        /* not a cudaHostAlloc'ed memory */
+        if (index == -1) {
+            mem_result result;
+            result.mem_result_u.data.mem_data_len = count;
+            result.mem_result_u.data.mem_data_val = dst;
+            //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
+            retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
+            ret = result.err;
+            if (result.err != 0) {
+                goto cleanup;
+            }
+            if (result.mem_result_u.data.mem_data_len != count) {
+                LOGE(LOG_ERROR, "error");
+                goto cleanup;
+            }
+        } else {
+            retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+        }
         if (retval != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
-        ret = result.err;
-        if (result.err != 0) {
-            goto cleanup;
-        }
-        if (result.mem_result_u.data.mem_data_len != count) {
-            LOGE(LOG_ERROR, "error");
-            goto cleanup;
+    } else if (kind == cudaMemcpyDeviceToDevice) {
+        retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
+        if (retval != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
         }
     } else {
-        LOGE(LOG_ERROR, "error");
+        LOGE(LOG_ERROR, "unknown kind");
     }
 cleanup:
     return ret;

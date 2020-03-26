@@ -16,6 +16,14 @@
 #include "cpu-utils.h"
 #include "log.h"
 
+typedef struct host_alloc_info {
+    int cnt;
+    size_t size;
+    void *client_ptr;
+    void *server_ptr;
+} host_alloc_info_t;
+static host_alloc_info_t hainfo[64];
+static size_t hainfo_cnt = 1;
 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
@@ -49,6 +57,13 @@ bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct s
     return 1;
 }
 
+bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoD\n");
+    *result = cudaMemcpy((void*)dst, (void*)src, size, cudaMemcpyDeviceToDevice);
+    return 1;
+}
+
 bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD\n");
@@ -57,6 +72,30 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
         return 0;
     }
     *result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
+    return 1;
+}
+
+bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaMemcpyShm\n");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        *result = cudaMemcpy((void*)device_ptr, hainfo[index].server_ptr, size, kind);
+    } else if (kind == cudaMemcpyDeviceToHost) {
+        *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
+    }
+out:
     return 1;
 }
 
@@ -174,39 +213,37 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
     return 1;
 }
 
-typedef struct host_alloc_info {
-    int cnt;
-    size_t size;
-    void *client_ptr;
-    void *server_ptr;
-} host_alloc_info_t;
-static host_alloc_info_t hainfo[64];
-static size_t hainfo_cnt = 0;
 
-bool_t cuda_free_host_1_svc(ptr client_ptr, int *result, struct svc_req *rqstp)
+bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
 {
     *result = cudaErrorInitializationError;
-    for (int i=0; i < hainfo_cnt; ++i) {
-        if (hainfo[i].client_ptr != NULL &&
-            hainfo[i].client_ptr == (void*)client_ptr) {
+    if (hainfo[index].cnt != 0 &&
+        hainfo[index].cnt == index) {
 
-            munmap(hainfo[i].server_ptr, hainfo[i].size);
-            memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
+        *result = cudaHostUnregister(hainfo[index].server_ptr);
+        munmap(hainfo[index].server_ptr, hainfo[index].size);
+        memset(&hainfo[index], 0, sizeof(host_alloc_info_t));
+        if (*result == cudaErrorHostMemoryNotRegistered) {
             *result = cudaSuccess;
-            break;
         }
     }
     return 1;
 }
 
-bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, int *result, struct svc_req *rqstp)
+bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, unsigned int flags, int *result, struct svc_req *rqstp)
 {
     int fd_shm;
     char shm_name[128];
     void *shm_addr;
+    unsigned int register_flags = 0;
     *result = cudaErrorMemoryAllocation;
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
+
+    if (shm_cnt != hainfo_cnt) {
+        LOGE(LOG_ERROR, "number of shm segments on client and server do not agree (client: %d, host: %d)", shm_cnt, hainfo_cnt);
+        return 1;
+    }
 
     //Should only be supported for UNIX transport (using shm).
     //I don't see how TCP can profit from HostAlloc
@@ -215,29 +252,37 @@ bool_t cuda_host_alloc_1_svc(int shm_cnt, size_t size, ptr client_ptr, int *resu
         LOGE(LOG_ERROR, "cudaHostAlloc is not supported for other transports than UNIX. This error means cricket_server and cricket_client are not compiled correctly (different transports)");
         goto out;
     }
-LOGE(LOG_DEBUG, "");
     snprintf(shm_name, 128, "/crickethostalloc-%d", shm_cnt);
     if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
-        LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
+        LOGE(LOG_ERROR, "could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
         goto out;
     }
-LOGE(LOG_DEBUG, "");
-    /*if (ftruncate(fd_shm, size) == -1) {
-        LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
-        goto cleanup;
-    }*/
     if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
-        LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", shm_addr);
+        LOGE(LOG_ERROR, "mmap returned unexpected pointer: %p", shm_addr);
         goto cleanup;
     }
-LOGE(LOG_DEBUG, "");
+
+    if (flags & cudaHostAllocPortable) {
+        register_flags |= cudaHostRegisterPortable;
+    }
+    if (flags & cudaHostAllocMapped) {
+        register_flags |= cudaHostRegisterMapped;
+    }
+    if (flags & cudaHostAllocWriteCombined) {
+        register_flags |= cudaHostRegisterMapped;
+    }
+
+    if ((*result = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed.");
+        munmap(shm_addr, size);
+        goto cleanup;
+    }
 
     hainfo[hainfo_cnt].cnt = shm_cnt;
     hainfo[hainfo_cnt].size = size;
     hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
     hainfo[hainfo_cnt].server_ptr = shm_addr;
     hainfo_cnt++;
-LOGE(LOG_DEBUG, "");
 
     *result = cudaSuccess;
 cleanup:

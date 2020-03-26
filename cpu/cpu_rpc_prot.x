@@ -100,8 +100,10 @@ program RPC_CD_PROG {
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
         mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                      = 18;
         str_result   CUDA_GET_ERROR_NAME(int)                             = 19;
-        int          CUDA_HOST_ALLOC(int, size_t, ptr)                    = 20;
-        int          CUDA_FREE_HOST(ptr)                                  = 21;   
+        int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)      = 20;
+        int          CUDA_FREE_HOST(int)                                  = 21;   
+        int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
+        int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                   = 23;
 /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;
