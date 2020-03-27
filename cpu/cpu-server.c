@@ -39,7 +39,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
-    init_log(LOG_DEBUG, __FILE__);
+    init_log(LOG_ERROR, __FILE__);
 
     switch (socktype) {
     case UNIX:
@@ -48,7 +48,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
         if (transp == NULL) {
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
-        } 
+        }
         break;
     case TCP:
         LOG(LOG_INFO, "using TCP...\n");
@@ -56,16 +56,16 @@ void __attribute__ ((constructor)) cricketd_main(void)
         if (transp == NULL) {
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
-        } 
-        pmap_unset(RPC_CD_PROG, RPC_CD_VERS); 
+        }
+        pmap_unset(RPC_CD_PROG, RPC_CD_VERS);
         LOG(LOG_INFO, "listening on port %d\n", transp->xp_port);
         protocol = IPPROTO_TCP;
         break;
     case UDP:
-        /* From RPCEGEN documentation: 
+        /* From RPCEGEN documentation:
          * Warning: since UDP-based RPC messages can only hold up to 8 Kbytes
-         * of encoded data, this transport cannot be used for procedures that 
-         * take large arguments or return huge results. 
+         * of encoded data, this transport cannot be used for procedures that
+         * take large arguments or return huge results.
          * -> Sounds like UDP does not make sense for CUDA, because we need to
          *    be able to copy large memory chunks
          **/

@@ -69,9 +69,19 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD\n");
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch\n");
-        return 0;
+        *result = cudaErrorUnknown;
+        return 1;
     }
+#ifdef WITH_MEMCPY_REGISTER
+    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        return 1;
+    }
+#endif
     *result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(mem.mem_data_val);
+#endif
     return 1;
 }
 
@@ -104,7 +114,17 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)\n", ptr, size);
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
+#ifdef WITH_MEMCPY_REGISTER
+    if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
+                                        size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed.");
+        return 1;
+    }
+#endif
     result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(result->mem_result_u.data.mem_data_val);
+#endif
     return 1;
 }
 
