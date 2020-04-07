@@ -175,6 +175,7 @@ int main()
     uint16_t *dev_A, *dev_x, *dev_res;
     uint16_t *dev_ptr;
     struct timeval begin, end;
+    struct timeval messb, messe;
     const int A_size = N*N*sizeof(uint16_t);
     const int x_size = N*sizeof(uint16_t);
 
@@ -238,6 +239,14 @@ int main()
     printf("continuing...\n");
 #endif //TEST_API
 
+    int a = 0;
+    gettimeofday(&messb, NULL);
+    for (int i=0; i != 100; i++)
+        cudaGetDeviceCount(&a);
+    gettimeofday(&messe, NULL);
+    printf("elapsed time: %0u.%06u\n", (messe.tv_sec - messb.tv_sec),
+                                       (messe.tv_usec - messb.tv_usec));
+   
     cudaMalloc( (void**)&dev_x, x_size );
     cudaMalloc( (void**)&dev_res, x_size );
     cudaMalloc( (void**)&dev_ptr, A_size );
@@ -251,7 +260,7 @@ int main()
 
     dim3 dimBlock( blocksize, 1 );
     dim3 dimGrid( 1, 1);
-    kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
+    //kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
     //kernel_no_param<<<dimGrid, dimBlock>>>();
     //void *args = NULL;
     //int result = cudaLaunchKernel((void*)kernel_no_param, dimGrid, dimBlock, &args, 0LL, NULL);

@@ -35,7 +35,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     struct sockaddr_un sock_un = {0};
     struct sockaddr_in sock_in = {0};
 
-    init_log(LOG_DEBUG, __FILE__);
+    init_log(LOG_INFO, __FILE__);
 
     switch (socktype) {
     case UNIX:
@@ -50,6 +50,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         isock = RPC_ANYSOCK;
         sock_in.sin_family = AF_INET;
         sock_in.sin_port = 0;
+        //inet_aton("137.226.133.199", &sock_in.sin_addr);
         inet_aton("127.0.0.1", &sock_in.sin_addr);
 
         clnt = clnttcp_create(&sock_in, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);

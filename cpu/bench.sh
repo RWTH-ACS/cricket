@@ -22,12 +22,12 @@ until [ $counter -eq $iterations ]; do
 
     sleep 1
 
-    #LD_PRELOAD=/home/eiling/projects/libtirpc/install/usr/lib/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-client.so /home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pageable | tee -a $1
-    LD_PRELOAD=/home/eiling/projects/libtirpc/install/usr/lib/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-client.so /home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pageable | tee -a $1
+    ssh eiling@epyc4 "LD_PRELOAD=/home/eiling/projects/libtirpc/install/usr/lib/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-client.so /home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pageable | tee -a $1"
+    #LD_PRELOAD=/home/eiling/projects/libtirpc/install/usr/lib/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-client.so /home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pinned | tee -a $1
 
     kill -2 $(pgrep bandwidthTest)
-    #/home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pinned | tee -a $1
-    #/home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pageable | tee -a $1
+#/home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pinned | tee -a $1
+#/home/eiling/gpu-benchmark/10.2/1_Utilities/bandwidthTest/bandwidthTest --memory=pageable | tee -a $1
     if [ $? -ne 0 ]; then
         echo "proccess encountered error";
         exit 1;
