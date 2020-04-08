@@ -18,7 +18,7 @@ void int_handler(int signal) {
         unlink(CD_SOCKET_PATH);
     }
     LOG(LOG_INFO, "have a nice day!\n");
-    exit(0);
+    svc_exit();
 }
 
 bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
@@ -81,7 +81,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
     }
 
     if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, protocol)) {
-        fprintf (stderr, "%s", "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
+        LOGE(LOG_ERROR, "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
     }
 

@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
@@ -34,8 +35,11 @@ void __attribute__ ((constructor)) init_rpc(void)
     int isock;
     struct sockaddr_un sock_un = {0};
     struct sockaddr_in sock_in = {0};
+    struct hostent *hp;
 
     init_log(LOG_DEBUG, __FILE__);
+    char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
+    LOG(LOG_INFO, "connection to host \"%s\"", server);
 
     switch (socktype) {
     case UNIX:
@@ -50,8 +54,12 @@ void __attribute__ ((constructor)) init_rpc(void)
         isock = RPC_ANYSOCK;
         sock_in.sin_family = AF_INET;
         sock_in.sin_port = 0;
+        if ((hp = gethostbyname(server)) == 0) {
+            LOGE(LOG_ERROR, "error resolving hostname: %s", server);
+            exit(1);
+        }
+        sock_in.sin_addr = *(struct in_addr*)hp->h_addr;
         //inet_aton("137.226.133.199", &sock_in.sin_addr);
-        inet_aton("ghost.acs-lab.eonerc.rwth-aachen.de", &sock_in.sin_addr);
 
         clnt = clnttcp_create(&sock_in, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
         break;
@@ -68,7 +76,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     }
 
     if (clnt == NULL) {
-        printf("error\n");
+        clnt_pcreateerror("[rpc] Error");
         exit (1);
     }
 
