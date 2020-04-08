@@ -28,6 +28,13 @@ bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
     return 1;
 }
 
+bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
+{
+    LOG(LOG_INFO, "RPC deinit requested.");
+    svc_exit();
+    return 1;
+}
+
 
 /* shared object constructor; executes before main and thus hijacks main program */
 void __attribute__ ((constructor)) cricketd_main(void)
@@ -93,7 +100,9 @@ void __attribute__ ((constructor)) cricketd_main(void)
     LOG(LOG_INFO, "waiting for RPC requests...\n");
 
     svc_run ();
-    fprintf (stderr, "%s", "svc_run returned");
+    fprintf (stderr, "%s", "svc_run returned\n");
+    pmap_unset(RPC_CD_PROG, RPC_CD_VERS);
+    svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
     exit(0);
 }

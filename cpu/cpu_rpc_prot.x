@@ -80,6 +80,7 @@ struct rpc_fatCubin {
 
 program RPC_CD_PROG {
     version RPC_CD_VERS {
+        int          rpc_deinit(void)                                     = 0;
         int          PRINTMESSAGE(string)                                 = 1;
 /* RUNTIME API */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;

@@ -51,7 +51,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         sock_in.sin_family = AF_INET;
         sock_in.sin_port = 0;
         //inet_aton("137.226.133.199", &sock_in.sin_addr);
-        inet_aton("127.0.0.1", &sock_in.sin_addr);
+        inet_aton("ghost.acs-lab.eonerc.rwth-aachen.de", &sock_in.sin_addr);
 
         clnt = clnttcp_create(&sock_in, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
         break;
@@ -82,13 +82,17 @@ void __attribute__ ((constructor)) init_rpc(void)
         exit(0);
     }
 }
-
-static void deinit_rpc(void)
+void __attribute__ ((destructor)) deinit_rpc(void)
 {
+    enum clnt_stat retval_1;
+    int result;
+    retval_1 = rpc_deinit_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+
     clnt_destroy (clnt);
 }
-
-
 
 void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,
                             const char *deviceName, int thread_limit, uint3 *tid,
