@@ -6,8 +6,7 @@ RUN yum install -y ncurses-devel zlib-devel binutils-devel mesa-libGL-devel libv
 
 ENV LD_LIBRARY_PATH /usr/local/lib:/usr/local/lib64
 
-RUN curl https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-10.0.130-1.x86_64.rpm > cuda.rpm
-RUN rpm -i cuda.rpm
+RUN yum install -y https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-10.2.89-1.x86_64.rpm
 RUN yum install -y cuda-compiler-10-2.x86_64 cuda-libraries-dev-10-2.x86_64 --nogpgcheck
 RUN ln -s cuda-10.2 /usr/local/cuda
 

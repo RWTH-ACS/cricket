@@ -1,11 +1,16 @@
 variables:
   GIT_STRATEGY: fetch
   GIT_SUBMODULE_STRATEGY: recursive
-  PREFIX: /usr/
+# PREFIX: /usr/
   DOCKER_FILE: utils/Dockerfile
-  DOCKER_TAG: ${CI_COMMIT_REF_SLUG}
+  DOCKER_TAG: ${CI_COMMIT_REF_NAME}
   DOCKER_IMAGE_DEV: cricket
   # MAKE_OPTS: -j 16
+
+before_script:
+  - git config --local core.longpaths true
+  - git submodule sync --recursive
+  - git submodule update --init --recursive
 
 stages:
   - prepare
@@ -14,7 +19,7 @@ stages:
 
 # For some reason, GitLab CI prunes the contents of the submodules so we need to restore them.
 before_script:
-   - git submodule foreach git checkout .
+#   - git submodule foreach git checkout .
 
 # Stage: prepare
 ##############################################################################
@@ -25,7 +30,8 @@ prepare:centos7:docker-dev:
   script:
     - docker build
         --file ${DOCKER_FILE}
-        --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG} .
+        --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+        --tag ${DOCKER_IMAGE_DEV}:latest .
   tags:
     - shell
     - linux
@@ -46,18 +52,38 @@ prepare:centos7:docker-dev:
 
 build:
   stage: build
-
   script:
-   - make
+   - make -j 32
   artifacts:
     expire_in: 1 week
     paths:
-      - gpu/build/
-      - cricket
+      - cpu/cricket-client.so
+      - cpu/cricket-server.so
+      - gpu/cricket
+      - submodules/libtirpc/install/lib/libtirpc.so*
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+  cache:
+    paths:
+      - gpu/build
+      - cpu/*.o
+      - tests/*.o
+      - submodules/libtirpc/install
+    key: build
   tags:
     - docker
-  # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
-  # cache:
-  #   paths:
-  #     - "*.o"
+
+
+test:
+  stage: test
+  script:
+    - scp cpu/cricket-server.so ghost:~/artifacts/
+    - scp submodules/libtirpc/install/lib/libtirpc.so* ghost:~/artifacts/
+    - scp tests/test_kernel ghost:~/artifacts/
+    - ssh ghost "LD_PRELOAD=/local-home/gitlab-runner/artifacts/libtirpc.so.3:/local-home/gitlab-runner/artifacts/cricket-server.so /local-home/gitlab-runner/artifacts/test_kernel" &
+    - LD_PRELOAD=/cricket/submodule/libtirpc/install/lib/libtirpc.so.3:/cricket/cpu/cricket-client.so /cricket/tests/test_kernel
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+  dependencies:
+    - build
+  tags:
+    - docker
+
