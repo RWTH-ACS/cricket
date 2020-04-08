@@ -114,6 +114,7 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     kernel_info_t *info = cricketd_utils_search_info(infos, kernelnum, (char*)deviceName);
     if (info == NULL) {
         fprintf(stderr, "error: request to register unknown function\n");
+        return;
     }
     info->host_fun = (void*)hostFun;
 
