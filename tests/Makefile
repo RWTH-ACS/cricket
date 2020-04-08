@@ -9,7 +9,7 @@ ARCH = sm_61
 CFLAGS = -arch=$(ARCH) -cudart shared
 #CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
-LDFLAGS = -lcuda -arch=$(ARCH) -cudart shared
+LDFLAGS = -arch=$(ARCH) -cudart shared
 #LDFLAGS = -lcuda -arch=$(ARCH)
 TEST_CPU_BIN = test_cpu
 TEST_CPU_O = test_cpu.o
