@@ -39,7 +39,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
-    init_log(LOG_INFO, __FILE__);
+    init_log(LOG_DEBUG, __FILE__);
 
     switch (socktype) {
     case UNIX:
@@ -85,10 +85,10 @@ void __attribute__ ((constructor)) cricketd_main(void)
         (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
     LOG(LOG_INFO, "found CUDA initialization function at %p\n", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_ERROR, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. I cannot operate without it.\n");
-        exit(1);
+        LOGE(LOG_WARNING, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!\n");
+    } else {
+        cudaRegisterAllv();
     }
-    cudaRegisterAllv();
 
     LOG(LOG_INFO, "waiting for RPC requests...\n");
 

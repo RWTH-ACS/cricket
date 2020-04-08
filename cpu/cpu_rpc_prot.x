@@ -104,7 +104,9 @@ program RPC_CD_PROG {
         int          CUDA_FREE_HOST(int)                                  = 21;   
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
         int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                   = 23;
-/* DRIVER API */
+        int          CUDA_STREAM_DESTROY(ptr)                             = 24;
+        int          CUDA_DEVICE_RESET(void)                              = 25;
+        /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;
         int_result  rpc_cuDriverGetVersion(void)                        = 1004;
@@ -136,6 +138,16 @@ program RPC_CD_PROG {
         void        rpc_hidden_2_1(uint64_t)                            = 1121;
         int         rpc_hidden_3_0(int, uint64_t, uint64_t)             = 1130;
         mem_result  rpc_hidden_3_2(int, uint64_t)                       = 1132;
+        /* CUSOLVER API */
+        ptr_result  rpc_cusolverDnCreate(void)                          = 2001;
+        int         rpc_cusolverDnSetStream(ptr, ptr)                   = 2002;
+        int_result  rpc_cusolverDnDgetrf_bufferSize(ptr, int, int, 
+                                                    ptr, int)           = 2003;
+        int         rpc_cusolverDnDgetrf(ptr, int, int, ptr, int,
+                                         ptr, ptr, ptr)                 = 2004;
+        int         rpc_cusolverDnDgetrs(ptr, int, int, int, ptr,
+                                         int, ptr, ptr, int, ptr)       = 2005;
+        int         rpc_cusolverDnDestroy(ptr)                          = 2006;
         
     } = 1;
 } = 99;

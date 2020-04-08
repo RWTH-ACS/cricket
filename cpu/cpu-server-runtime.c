@@ -312,6 +312,20 @@ out:
 
 }
 
+bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamDestroy\n");
+    *result = cudaStreamDestroy((cudaStream_t) stream);
+    return 1;
+}
+
+bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceReset\n");
+    *result = cudaDeviceReset();
+    return 1;
+}
+
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
 );

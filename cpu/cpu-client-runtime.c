@@ -47,7 +47,16 @@ DEF_FN(cudaError_t, cudaDeviceGetP2PAttribute, int*, value, enum cudaDeviceP2PAt
 DEF_FN(cudaError_t, cudaDeviceGetPCIBusId, char*, pciBusId, int, len, int, device)
 DEF_FN(cudaError_t, cudaDeviceGetSharedMemConfig, enum cudaSharedMemConfig*, pConfig)
 DEF_FN(cudaError_t, cudaDeviceGetStreamPriorityRange, int*, leastPriority, int*, greatestPriority)
-DEF_FN(cudaError_t, cudaDeviceReset, void)
+cudaError_t cudaDeviceReset(void)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_reset_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaDeviceSetCacheConfig, enum cudaFuncCache, cacheConfig)
 DEF_FN(cudaError_t, cudaDeviceSetLimit, enum cudaLimit, limit, size_t, value)
 DEF_FN(cudaError_t, cudaDeviceSetSharedMemConfig, enum cudaSharedMemConfig, config)
@@ -144,12 +153,21 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
     }
     if (result.err == 0) {
         *pStream = (void*)result.ptr_result_u.ptr;
-        LOGE(LOG_ERROR, "%p", result.ptr_result_u.ptr);
     }
     return result.err;
 }
 DEF_FN(cudaError_t, cudaStreamCreateWithPriority, cudaStream_t*, pStream, unsigned int,  flags, int,  priority)
-DEF_FN(cudaError_t, cudaStreamDestroy, cudaStream_t, stream)
+cudaError_t cudaStreamDestroy(cudaStream_t stream)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_destroy_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaStreamEndCapture, cudaStream_t, stream, cudaGraph_t*, pGraph)
 DEF_FN(cudaError_t, cudaStreamGetCaptureInfo, cudaStream_t, stream, cudaStreamCaptureStatus**, pCaptureStatus, unsigned long, long*, pId)
 DEF_FN(cudaError_t, cudaStreamGetFlags, cudaStream_t, hStream, unsigned int*, flags)

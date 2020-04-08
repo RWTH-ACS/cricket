@@ -35,7 +35,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     struct sockaddr_un sock_un = {0};
     struct sockaddr_in sock_in = {0};
 
-    init_log(LOG_INFO, __FILE__);
+    init_log(LOG_DEBUG, __FILE__);
 
     switch (socktype) {
     case UNIX:
