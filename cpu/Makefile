@@ -44,6 +44,11 @@ LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
 SERVER_CC_FLAGS = -std=gnu99 -I$(LIBTIRPC_PREFIX)/include/tirpc -I$(CUDA_SRC)/include -L$(LIBTIRPC_PREFIX)/lib
 SERVER_LD_FLAGS = $(LIB_FLAGS) -ltirpc -lcudart -lcusolver -lbfd -ldl
 
+ifdef LOG
+CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
+SERVER_CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
+endif
+
 LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl
 
 RPCGEN_FLAGS = -C -M -N

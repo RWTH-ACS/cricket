@@ -4,7 +4,10 @@
 #include <rpc/rpc.h>
 
 #define CD_SOCKET_PATH "/tmp/cricketd_sock"
-#define CRICKET_PATH "/home/eiling/projects/cricket/gpu/cricket"
+#define CRICKET_PATH "cricket"
+#ifndef LOG_LEVEL
+    #define LOG_LEVEL LOG_DEBUG
+#endif //LOG_LEVEL
 
 typedef struct kernel_info {
     char *name;

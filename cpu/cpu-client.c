@@ -37,7 +37,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     struct sockaddr_in sock_in = {0};
     struct hostent *hp;
 
-    init_log(LOG_DEBUG, __FILE__);
+    init_log(LOG_LEVEL, __FILE__);
     char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 

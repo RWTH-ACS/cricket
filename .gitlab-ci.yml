@@ -54,7 +54,7 @@ prepare:centos7:docker-dev:
 build:
   stage: build
   script:
-   - make -j 32
+   - make -j 32 LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:
@@ -77,15 +77,14 @@ test:
   variables:
     RDIR: '/tmp/gitlab-jobs/$CI_PROJECT_NAME/$CI_JOB_ID'
   script:
-    - ls /
-    - ls /cricket
     - ssh gitlab-runner@ghost mkdir -p $RDIR
     - scp -r bin/* gitlab-runner@ghost:$RDIR/
     - ssh gitlab-runner@ghost "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/test_kernel" &
     - sleep 2
-    - LD_PRELOAD=$PWD/bin/libtirpc.so.3:$PWD/bin/cricket-client.so bin/test_kernel
+    - PATH=$PWD/bin:$PATH LD_PRELOAD=$PWD/bin/libtirpc.so.3:$PWD/bin/cricket-client.so bin/test_kernel
   after_script:
     - ssh gitlab-runner@ghost rm -rf $RDIR
+    - ssh gitlab-runner@ghost pkill -fe -2 $RDIR/test_kernel
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   dependencies:
     - build

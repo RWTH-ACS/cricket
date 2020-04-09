@@ -46,7 +46,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
-    init_log(LOG_DEBUG, __FILE__);
+    init_log(LOG_LEVEL, __FILE__);
 
     switch (socktype) {
     case UNIX:
