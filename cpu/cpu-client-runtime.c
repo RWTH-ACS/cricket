@@ -343,7 +343,12 @@ cudaError_t cudaFreeHost(void* ptr)
 {
     int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
-    int i = hainfo_getindex(ptr);
+    int i = -1;
+    if (socktype != UNIX) {
+        free(ptr);
+        return cudaSuccess;
+    }
+    i = hainfo_getindex(ptr);
     if (i == -1) {
         goto out;
     }

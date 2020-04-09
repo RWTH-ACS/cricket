@@ -237,6 +237,10 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
 bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
 {
     *result = cudaErrorInitializationError;
+    if (socktype != UNIX) {
+        *result = cudaSuccess;
+        return 1;
+    }
     if (hainfo[index].cnt != 0 &&
         hainfo[index].cnt == index) {
 
