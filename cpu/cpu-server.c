@@ -48,6 +48,12 @@ void __attribute__ ((constructor)) cricketd_main(void)
 
     init_log(LOG_LEVEL, __FILE__);
 
+    unsigned long prog=0, vers=0;
+    if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+        LOGE(LOG_ERROR, "error while creating binary checksum\n");
+        exit(0);
+    }
+
     switch (socktype) {
     case UNIX:
         LOG(LOG_INFO, "using UNIX...\n");
@@ -64,7 +70,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         }
-        pmap_unset(RPC_CD_PROG, RPC_CD_VERS);
+        pmap_unset(prog, vers);
         LOG(LOG_INFO, "listening on port %d\n", transp->xp_port);
         protocol = IPPROTO_TCP;
         break;
@@ -80,7 +86,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
         break;
     }
 
-    if (!svc_register(transp, RPC_CD_PROG, RPC_CD_VERS, rpc_cd_prog_1, protocol)) {
+    if (!svc_register(transp, prog, vers, rpc_cd_prog_1, protocol)) {
         LOGE(LOG_ERROR, "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
     }
@@ -101,7 +107,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
 
     svc_run ();
     fprintf (stderr, "%s", "svc_run returned\n");
-    pmap_unset(RPC_CD_PROG, RPC_CD_VERS);
+    pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
     exit(0);

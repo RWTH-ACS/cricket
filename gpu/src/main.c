@@ -173,7 +173,7 @@ int cricket_info(int argc, char *argv[])
     FILE *hostbfd_fd = NULL;
     FILE *cudabfd_fd = NULL;
     void *fatbin = NULL;
-    bool ret = false;
+    int ret = -1;
     size_t prefixlen = strlen(CRICKET_ELF_NV_INFO_PREFIX);
     char *filename = NULL;
 
@@ -196,14 +196,14 @@ int cricket_info(int argc, char *argv[])
     
     if (filename == NULL) {
         fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
-        return false;
+        return -1;
     }
 
     bfd_init();
 
     if ((hostbfd_fd = fopen(filename, "rb")) == NULL) {
         fprintf(stderr, "cricket (%d): fopen failed\n", __LINE__);
-        return false;
+        return -1;
     }
 
     if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
@@ -385,7 +385,7 @@ int cricket_info(int argc, char *argv[])
         }
     }
 
-    ret = true;
+    ret = 0;
 cleanup:
     free(fatbin);
     if (cudabfd != NULL)

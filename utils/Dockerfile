@@ -2,7 +2,7 @@ FROM centos:7
 
 RUN yum install -y centos-release-scl
 RUN yum install -y clang make bash git gcc autoconf libtool automake
-RUN yum install -y ncurses-devel zlib-devel binutils-devel mesa-libGL-devel libvdpau-devel mesa-libEGL-devel rpcbind
+RUN yum install -y ncurses-devel zlib-devel binutils-devel mesa-libGL-devel libvdpau-devel mesa-libEGL-devel openssl-devel rpcbind
 
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 

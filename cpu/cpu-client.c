@@ -41,13 +41,19 @@ void __attribute__ ((constructor)) init_rpc(void)
     char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
+    unsigned long prog=0, vers=0;
+    if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+        LOGE(LOG_ERROR, "error while creating binary checksum\n");
+        exit(0);
+    }
+
     switch (socktype) {
     case UNIX:
         printf("connecting via UNIX...\n");
         isock = RPC_ANYSOCK;
         sock_un.sun_family = AF_UNIX;
         strcpy(sock_un.sun_path, CD_SOCKET_PATH);
-        clnt = clntunix_create(&sock_un, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+        clnt = clntunix_create(&sock_un, prog, vers, &isock, 0, 0);
         break;
     case TCP:
         printf("connecting via TCP...\n");
@@ -61,7 +67,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         sock_in.sin_addr = *(struct in_addr*)hp->h_addr;
         //inet_aton("137.226.133.199", &sock_in.sin_addr);
 
-        clnt = clnttcp_create(&sock_in, RPC_CD_PROG, RPC_CD_VERS, &isock, 0, 0);
+        clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
         break;
     case UDP:
         /* From RPCEGEN documentation: 
@@ -85,8 +91,8 @@ void __attribute__ ((constructor)) init_rpc(void)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (!cricketd_utils_parameter_size(&infos, &kernelnum)) {
-        fprintf(stderr, "error while getting parameter sizes\n");
+    if (cricketd_utils_parameter_size(&infos, &kernelnum) != 0) {
+        LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH!\n");
         exit(0);
     }
 }

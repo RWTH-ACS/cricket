@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <openssl/md5.h>
 
 #include <bfd.h>
 
@@ -18,6 +19,33 @@
 
 #define CRICKET_ELF_FATBIN ".nv_fatbin"
 #define CRICKET_ELF_REGFUN "_ZL24__sti____cudaRegisterAllv"
+
+int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
+{
+    unsigned char c[MD5_DIGEST_LENGTH];
+    FILE *fd;
+    MD5_CTX mdContext;
+    int bytes;
+    unsigned char data[1024];
+
+    if (filename == NULL || high == NULL || low == NULL) {
+        return -1;
+    }
+
+    if ((fd = fopen(filename, "rb")) == NULL) {
+        printf ("%s can't be opened.\n", filename);
+        return -1;
+    }
+
+    MD5_Init (&mdContext);
+    while ((bytes = fread(data, 1, 1024, fd)) != 0)
+        MD5_Update(&mdContext, data, bytes);
+    MD5_Final(c, &mdContext);
+    fclose (fd);
+    *high = *((unsigned long*)c);
+    *low  = *((unsigned long*)(c+8));
+    return 0;
+}
 
 void* cricketd_utils_symbol_address(char *symbol)
 {
@@ -87,6 +115,8 @@ cleanup:
 int cricketd_utils_launch_child(const char *file, char **args)
 {
     int filedes[2];
+    FILE *fd = NULL;
+
     if (pipe(filedes) == -1) {
         fprintf(stderr, "error while creating pipe\n");
         return -1;
@@ -135,27 +165,30 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
     int output;
     FILE *fdesc;
     kernel_info_t *buf = NULL;
+    int ret = -1;
+    int child_exit = 0;
 
     if (infos == NULL || kernelnum == NULL) {
         fprintf(stderr, "error: wrong parameters at %d\n", __LINE__);
-        return 0;
+        goto out;
     }
     *kernelnum = 0;
     *infos = NULL;
 
     if (readlink("/proc/self/exe", linktarget, 1024) == 1024) {
         fprintf(stderr, "error: executable path too long\n");
-        return 0;
+        goto out;
     }
     args[2] = linktarget;
 
     if ( (output = cricketd_utils_launch_child(CRICKET_PATH, args)) == -1) {
         fprintf(stderr, "error while launching child\n");
-        return 0;
+        goto out;
     }
     if ( (fdesc = fdopen(output, "r")) == NULL) {
         fprintf(stderr, "error while opening stream\n");
-        return 0;
+        close(output);
+        goto out;
     }
     while (1) {
         if ( (res = fscanf(fdesc, "%128s %64s %1024s\n", knamebuf, type, valuebuf)) != 3) {
@@ -163,7 +196,7 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                 break;
             } else if (ferror(fdesc)) {
                 fprintf(stderr, "error while reading from pipe\n");
-                return 0;
+                goto cleanup;
             }
         } else {
             if (knamebuf == NULL) {
@@ -174,26 +207,26 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
             if (buf == NULL) {
                 if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
                     fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
-                    return 0;
+                    goto cleanup;
                 }
                 buf = &((*infos)[(*kernelnum)-1]);
                 memset(buf, 0, sizeof(kernel_info_t));
                 if ((buf->name = malloc(strlen(knamebuf))) == NULL) {
                     fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
-                    return 0;
+                    goto cleanup;
                 }
                 strcpy(buf->name, knamebuf);
             }
             if (strcmp("param_size", type) == 0) {
                 if (sscanf(valuebuf, "%zu", &value) != 1) {
                     fprintf(stderr, "error (%d)\n", __LINE__);
-                    return 0;
+                    goto cleanup;
                 }
                 buf->param_size = value;
             } else if (strcmp("param_num", type) == 0) {
                 if (sscanf(valuebuf, "%zu", &value) != 1) {
                     fprintf(stderr, "error (%d)\n", __LINE__);
-                    return 0;
+                    goto cleanup;
                 }
                 buf->param_num = value;
             } else if (strcmp("param_offsets", type) == 0) {
@@ -201,7 +234,7 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                 for (int i=0; i < buf->param_num; ++i) {
                     if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
                         fprintf(stderr, "error (%d)\n", __LINE__);
-                        return 0;
+                        goto cleanup;
                     }
                     buf->param_offsets[i] = value;
                 }
@@ -210,18 +243,21 @@ int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
                 for (int i=0; i < buf->param_num; ++i) {
                     if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
                         fprintf(stderr, "error (%d)\n", __LINE__);
-                        return 0;
+                        goto cleanup;
                     }
                     buf->param_sizes[i] = value;
                 }
             }
         }
     }
+    ret = 0;
+ cleanup:
     fclose(fdesc);
     close(output);
-    wait(0);
-
-    return 1;
+    wait(&child_exit);
+    printf("child_exit:%d\n", child_exit);
+ out:
+    return (ret != 0 ? ret : child_exit);
 }
 
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum)
