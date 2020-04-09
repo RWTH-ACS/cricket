@@ -15,6 +15,7 @@ build/
 *.txt
 *.cubin
 cricket
+bin
 
 # YouCompleteMe
 .ycm_extra_conf.py

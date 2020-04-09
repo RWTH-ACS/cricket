@@ -28,8 +28,7 @@ before_script:
 prepare:centos7:docker-dev:
   stage: prepare
   script:
-    - mkdir .ssh
-    - cp -r ~/.ssh .ssh
+    - cp -r ~/.ssh .
     - docker build
         --file ${DOCKER_FILE}
         --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
@@ -59,11 +58,7 @@ build:
   artifacts:
     expire_in: 1 week
     paths:
-      - cpu/cricket-client.so
-      - cpu/cricket-server.so
-      - gpu/cricket
-      - tests/test_kernel
-      - submodules/libtirpc/install/lib/libtirpc.so*
+      - bin
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   cache:
     paths:
@@ -71,6 +66,7 @@ build:
       - cpu/*.o
       - tests/*.o
       - submodules/libtirpc/install
+      - bin
     key: build
   tags:
     - docker
@@ -81,13 +77,13 @@ test:
   variables:
     RDIR: '/tmp/gitlab-jobs/$CI_PROJECT_NAME/$CI_JOB_ID'
   script:
+    - ls /
+    - ls /cricket
     - ssh gitlab-runner@ghost mkdir -p $RDIR
-    - scp cpu/cricket-server.so gitlab-runner@ghost:$RDIR/
-    - scp submodules/libtirpc/install/lib/libtirpc.so* gitlab-runner@ghost:$RDIR/
-    - scp tests/test_kernel gitlab-runner@ghost:$RDIR/
+    - scp -r bin/* gitlab-runner@ghost:$RDIR/
     - ssh gitlab-runner@ghost "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/test_kernel" &
-    - sleep 5
-    - LD_PRELOAD=$PWD/submodules/libtirpc/install/lib/libtirpc.so.3:$PWD/cpu/cricket-client.so tests/test_kernel
+    - sleep 2
+    - LD_PRELOAD=$PWD/bin/libtirpc.so.3:$PWD/bin/cricket-client.so bin/test_kernel
   after_script:
     - ssh gitlab-runner@ghost rm -rf $RDIR
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
