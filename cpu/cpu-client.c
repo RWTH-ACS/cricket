@@ -92,8 +92,8 @@ void __attribute__ ((constructor)) init_rpc(void)
         clnt_perror (clnt, "call failed");
     }
     if (cricketd_utils_parameter_size(&infos, &kernelnum) != 0) {
-        LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH!\n");
-        exit(0);
+        LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
+        //exit(1);
     }
 }
 void __attribute__ ((destructor)) deinit_rpc(void)
