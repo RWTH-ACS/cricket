@@ -21,7 +21,7 @@ stages:
 ##############################################################################
 
 # Build docker image
-prepare:centos7:docker-dev:
+prepare:centos8:docker-dev:
   stage: prepare
   script:
     - cp -r ~/.ssh .
@@ -108,6 +108,8 @@ test:samples:bandwidthTest:
     variables:
       TEST_BINARY: 'bandwidthTest'
     before_script:
+      - ls $SAMPLES_PATH
+      - ls $SAMPLES_PATH/1_Utilities
       - make -C $SAMPLES_PATH/1_Utilities/bandwidthTest NVCCFLAGS="-m64 -cudart shared"
       - cp $SAMPLES_PATH/1_Utilities/bandwidthTest/bandwidthTest $LDIR
 
