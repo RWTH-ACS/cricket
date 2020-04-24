@@ -15,7 +15,7 @@ submodules:
 	@echo -e "\033[36m----> Building submodules\033[0m"
 	$(MAKE) -C submodules
 
-gpu:
+gpu: submodules
 	@echo -e "\033[36m----> Building gpu\033[0m"
 	$(MAKE) -C gpu
 

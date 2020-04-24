@@ -51,7 +51,6 @@ build:
   stage: build
   script:
    - make -j 32 LOG=INFO
-   - make -c submodules/cuda-gdb/build
   artifacts:
     expire_in: 1 week
     paths:
@@ -95,13 +94,16 @@ test:test_kernel:
     extends: .remote-gpu
     variables:
       TEST_BINARY: 'test_kernel'
+    before_script:
+      - source /global/modules_init.bash && module load gcc/4.9.4
 
 test:samples:matrixMul:
     extends: .remote-gpu
     variables:
       TEST_BINARY: 'matrixMul'
     before_script:
-      - make -C $SAMPLES_PATH/0_Simple/matrixMul NVCCFLAGS="-m64 -cudart shared"
+      - source /global/modules_init.bash && module load gcc/4.9.4
+      - make -C $SAMPLES_PATH/0_Simple/matrixMul NVCCFLAGS="-m64 -cudart shared" GENCODE_FLAGS="-arch=sm_61" HOST_COMPILER=$(which g++)
       - cp $SAMPLES_PATH/0_Simple/matrixMul/matrixMul $LDIR
 
 test:samples:bandwidthTest:
@@ -109,8 +111,7 @@ test:samples:bandwidthTest:
     variables:
       TEST_BINARY: 'bandwidthTest'
     before_script:
-      - ls $SAMPLES_PATH
-      - ls $SAMPLES_PATH/1_Utilities
-      - make -C $SAMPLES_PATH/1_Utilities/bandwidthTest NVCCFLAGS="-m64 -cudart shared"
+      - source /global/modules_init.bash && module load gcc/4.9.4
+      - make -C $SAMPLES_PATH/1_Utilities/bandwidthTest NVCCFLAGS="-m64 -cudart shared" GENCODE_FLAGS="-arch=sm_61" HOST_COMPILER=$(which g++)
       - cp $SAMPLES_PATH/1_Utilities/bandwidthTest/bandwidthTest $LDIR
 
