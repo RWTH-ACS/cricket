@@ -20,4 +20,3 @@ match ErrorMsg /\s\+$\| \+\ze\t/
 ```
 
 This project adheres to the [Linux Kernel Coding Style](https://www.kernel.org/doc/html/v4.10/process/coding-style.html), except when it doesn't.
-Run refer to `.clang-format` and run `clang-format` over your source before you commit!
