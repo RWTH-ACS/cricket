@@ -51,6 +51,7 @@ build:
   stage: build
   script:
    - make -j 32 LOG=INFO
+   - make -c submodules/cuda-gdb/build
   artifacts:
     expire_in: 1 week
     paths:
