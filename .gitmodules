@@ -4,3 +4,6 @@
 [submodule "submodules/libtirpc"]
 	path = submodules/libtirpc
 	url = git://git.linux-nfs.org/projects/steved/libtirpc.git
+[submodule "submodules/cuda-gdb"]
+	path = submodules/cuda-gdb
+	url = https://github.com/NVIDIA/cuda-gdb.git

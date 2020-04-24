@@ -8,7 +8,7 @@ LD = gcc
 
 SRC_DIR := src
 INC_DIRS := -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common -Iinclude
-LIB_DIR := lib
+LIB_DIR := ../submodules/lib
 BUILD_DIR := build
 
 DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=utils/proc-service.list

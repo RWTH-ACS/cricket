@@ -1,0 +1,48 @@
+diff --git a/gdb/amd64-linux-nat.c b/gdb/amd64-linux-nat.c
+index 8dfe7c5a0e..86658bc8a5 100644
+--- a/gdb/amd64-linux-nat.c
++++ b/gdb/amd64-linux-nat.c
+@@ -482,7 +482,7 @@ amd64_linux_new_fork (struct lwp_info *parent, pid_t child_pid)
+    a request for a thread's local storage address.  */
+ 
+ ps_err_e
+-ps_get_thread_area (const struct ps_prochandle *ph,
++ps_get_thread_area (struct ps_prochandle *ph,
+                     lwpid_t lwpid, int idx, void **base)
+ {
+   if (gdbarch_bfd_arch_info (target_gdbarch ())->bits_per_word == 32)
+diff --git a/gdb/gdbserver/linux-x86-low.c b/gdb/gdbserver/linux-x86-low.c
+index e7e73246eb..7282701eea 100644
+--- a/gdb/gdbserver/linux-x86-low.c
++++ b/gdb/gdbserver/linux-x86-low.c
+@@ -164,7 +164,7 @@ static /*const*/ int i386_regmap[] =
+ /* Called by libthread_db.  */
+ 
+ ps_err_e
+-ps_get_thread_area (const struct ps_prochandle *ph,
++ps_get_thread_area (struct ps_prochandle *ph,
+ 		    lwpid_t lwpid, int idx, void **base)
+ {
+ #ifdef __x86_64__
+diff --git a/gdb/gdbserver/proc-service.c b/gdb/gdbserver/proc-service.c
+index 235bab7844..3cfd6e68e1 100644
+--- a/gdb/gdbserver/proc-service.c
++++ b/gdb/gdbserver/proc-service.c
+@@ -133,7 +133,7 @@ ps_lsetregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, const prgregset_t gregset)
+    process PH and store them in FPREGSET.  */
+ 
+ ps_err_e
+-ps_lgetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, void *fpregset)
++ps_lgetfpregs (struct ps_prochandle *ph, lwpid_t lwpid, prfpregset_t *fpregset)
+ {
+   /* Unneeded.  */
+   return PS_ERR;
+@@ -143,7 +143,7 @@ ps_lgetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, void *fpregset)
+    process PH from FPREGSET.  */
+ 
+ ps_err_e
+-ps_lsetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, void *fpregset)
++ps_lsetfpregs (struct ps_prochandle *ph, lwpid_t lwpid, const prfpregset_t *fpregset)
+ {
+   /* Unneeded.  */
+   return PS_ERR;
