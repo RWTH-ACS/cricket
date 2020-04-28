@@ -1,5 +1,14 @@
 FROM centos:8
 
+LABEL \
+	org.label-schema.schema-version = "1.0" \
+	org.label-schema.name = "cricket" \
+	org.label-schema.license = "MIT" \
+	org.label-schema.vendor = "Institute for Automation of Complex Power Systems, RWTH Aachen University" \
+	org.label-schema.author.name = "Niklas Eiling" \
+	org.label-schema.author.email = "niklas.eiling@eonerc.rwth-aachen.de" \
+	org.label-schema.vcs-url = "https://git.rwth-aachen.de/niklas.eiling/cricket"
+
 RUN dnf -y update && \
     dnf install -y epel-release dnf-plugins-core && \
     dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm && \
@@ -20,7 +29,7 @@ RUN dnf -y install https://developer.download.nvidia.com/compute/cuda/repos/rhel
 ENV PATH="/usr/local/cuda/bin:${PATH}"
 ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 
-COPY --chown=root .ssh /root/.ssh
+#COPY --chown=root .ssh /root/.ssh
 
 WORKDIR /cricket
 

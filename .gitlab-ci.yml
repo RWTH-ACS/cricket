@@ -24,7 +24,6 @@ stages:
 prepare:centos8:docker-dev:
   stage: prepare
   script:
-    - cp -r ~/.ssh .
     - docker build
         --file ${DOCKER_FILE}
         --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
@@ -76,6 +75,12 @@ build:
     LDIR: '$CI_BUILDS_DIR/$CI_PROJECT_PATH/bin'
     SAMPLES_PATH: '/usr/local/cuda/samples'
   script:
+    - mkdir ~/.ssh &&
+      echo "-----BEGIN OPENSSH PRIVATE KEY-----" > ~/.ssh/id_rsa &&
+      echo $SSH_PRIVATE | sed "s/\S\{64\}/&\n/g" >> ~/.ssh/id_rsa &&
+      echo "-----END OPENSSH PRIVATE KEY-----" >> ~/.ssh/id_rsa &&
+      echo $SSH_PUBLIC > ~/.ssh/id_rsa.pub &&
+      echo $KNOWN_HOSTS > ~/.ssh/known_hosts && chmod 600 ~/.ssh/id_rsa
     - ssh $GPU_TARGET mkdir -p $RDIR
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
     - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/$TEST_BINARY" &
