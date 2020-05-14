@@ -2,10 +2,21 @@
 
 [![pipeline status](https://git.rwth-aachen.de/niklas.eiling/cricket/badges/master/pipeline.svg)](https://git.rwth-aachen.de/niklas.eiling/cricket/commits/master)
 
-The Checkpoint Restart In Cuda KErnels Tool (cricket)  can save the application
-state of CUDA applications in a checkpoint file and restore it later.
+Cricket consists of two parts: A virtualization layer for CUDA applications that allows the isolation of CPU and CPU parts by using Remote Procedure Calls and a checkpoint/restart tool for GPU kernels.
 
-Icon made by Freepik from www.flaticon.com. CC 3.0 BY
+Because of the interdependence of both tools, a separation of both parts is currently not possible.
+
+# File structue
+* **cpu:** The virtualization layer
+* **gpu:** The checkpoint/restart tool
+* **submodules:** Submodules are located here.
+    * **cuda-gdb:** modified GDB for use with CUDA. We mostly need the modified libbfd for gathering information from the CUDA ELF.
+    * **libtirpc:** Transport Indepentend Remote Procedure Calls is requried for the virtualization layer-
+* **tests:** some synthetic CUDA applications to test cricket.
+* **utils:** A Dockerfile for repoducibility and for our CI.
+
+
+Etymology: Cricket is an abbreviation for Checkpoint Restart In Cuda KErnels Tool
 
 # Contributing
 
