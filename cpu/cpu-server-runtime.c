@@ -85,6 +85,51 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     return 1;
 }
 
+bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol\n");
+    if (size != mem.mem_data_len) {
+        LOGE(LOG_ERROR, "data size mismatch\n");
+        *result = cudaErrorUnknown;
+        return 1;
+    }
+#ifdef WITH_MEMCPY_REGISTER
+    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        return 1;
+    }
+#endif
+    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(mem.mem_data_val);
+#endif
+    return 1;
+}
+
+bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm\n");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
+    } else {
+        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
+    }
+out:
+    return 1;
+}
+
 bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaMemcpyShm\n");
@@ -157,6 +202,12 @@ bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
     result->err = cudaGetDeviceCount(&result->int_result_u.data);
     return 1;
 }
+bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetDevice\n");
+    result->err = cudaGetDevice(&result->int_result_u.data);
+    return 1;
+}
 
 bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result, struct svc_req *rqstp)
 {
@@ -222,6 +273,12 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
     return 1;
 }
 
+bool_t cuda_get_last_error_1_svc(int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetLastError\n");
+    *result = cudaGetLastError();
+    return 1;
+}
 bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *rqstp)
 {
     const char* str;
@@ -229,6 +286,17 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
     LOGE(LOG_DEBUG, "cudaGetErrorName\n");
     str = cudaGetErrorName((cudaError_t)error);
     strncpy(result->str_result_u.str, str, 128);
+    result->err = 0;
+    return 1;
+}
+
+bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req *rqstp)
+{
+    const char* str;
+    result->str_result_u.str = malloc(256);
+    LOGE(LOG_DEBUG, "cudaGetErrorString\n");
+    str = cudaGetErrorString((cudaError_t)error);
+    strncpy(result->str_result_u.str, str, 256);
     result->err = 0;
     return 1;
 }

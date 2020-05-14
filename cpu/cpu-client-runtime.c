@@ -70,7 +70,19 @@ cudaError_t cudaDeviceSynchronize(void)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaGetDevice, int*, device)
+cudaError_t cudaGetDevice(int* device)
+{
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_device_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *device = result.int_result_u.data;
+    }
+    return result.err;
+}
 cudaError_t cudaGetDeviceCount(int* count)
 {
     int_result result;
@@ -136,8 +148,30 @@ const char* cudaGetErrorName(cudaError_t error)
     }
     return result.str_result_u.str;
 }
-DEF_FN(const char*, cudaGetErrorString, cudaError_t, error)
-DEF_FN(cudaError_t, cudaGetLastError, void)
+const char* cudaGetErrorString(cudaError_t error)
+{
+    str_result result;
+    enum clnt_stat retval_1;
+    result.str_result_u.str = malloc(256);
+    retval_1 = cuda_get_error_string_1(error, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        LOGE(LOG_ERROR, "something went wrong");
+    }
+    return result.str_result_u.str;
+}
+cudaError_t cudaGetLastError(void)
+{
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_last_error_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 DEF_FN(cudaError_t, cudaPeekAtLastError, void)
 DEF_FN(cudaError_t, cudaStreamAddCallback, cudaStream_t, stream, cudaStreamCallback_t, callback, void*, userData, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamAttachMemAsync, cudaStream_t, stream, void*, devPtr, size_t, length, unsigned int,  flags)
@@ -529,7 +563,31 @@ DEF_FN(cudaError_t, cudaMemcpyFromSymbol, void*, dst, const void*, symbol, size_
 DEF_FN(cudaError_t, cudaMemcpyFromSymbolAsync, void*, dst, const void*, symbol, size_t, count, size_t, offset, enum cudaMemcpyKind, kind, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemcpyPeer, void*, dst, int,  dstDevice, const void*, src, int,  srcDevice, size_t, count)
 DEF_FN(cudaError_t, cudaMemcpyPeerAsync, void*, dst, int,  dstDevice, const void*, src, int,  srcDevice, size_t, count, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemcpyToSymbol, const void*, symbol, const void*, src, size_t, count, size_t, offset, enum cudaMemcpyKind, kind)
+cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count, size_t offset, enum cudaMemcpyKind kind)
+{
+    int ret = 1;
+    enum clnt_stat retval;
+    if (kind == cudaMemcpyHostToDevice) {
+        int index = hainfo_getindex((void*)src);
+        /* not a cudaHostAlloc'ed memory */
+        if (index == -1) {
+            mem_data src_mem;
+            src_mem.mem_data_len = count;
+            src_mem.mem_data_val = (void*)src;
+            retval = cuda_memcpy_to_symbol_1((ptr)symbol, src_mem, count, offset, &ret, clnt);
+        } else {
+            retval = cuda_memcpy_to_symbol_shm_1(index, (ptr)symbol, count, offset, kind, &ret, clnt);
+        }
+        if (retval != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+    } else {
+        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
+    }
+cleanup:
+    return ret;
+
+}
 DEF_FN(cudaError_t, cudaMemcpyToSymbolAsync, const void*, symbol, const void*, src, size_t, count, size_t, offset, enum cudaMemcpyKind, kind, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemset, void*, devPtr, int,  value, size_t, count)
 DEF_FN(cudaError_t, cudaMemset2D, void*, devPtr, size_t, pitch, int,  value, size_t, width, size_t, height)

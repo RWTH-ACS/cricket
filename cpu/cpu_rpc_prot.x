@@ -107,6 +107,11 @@ program RPC_CD_PROG {
         int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                   = 23;
         int          CUDA_STREAM_DESTROY(ptr)                             = 24;
         int          CUDA_DEVICE_RESET(void)                              = 25;
+        int_result   CUDA_GET_DEVICE(void)                                = 26;
+        int          CUDA_MEMCPY_TO_SYMBOL(ptr, mem_data, size_t, size_t) = 27;
+        int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int) = 28;
+        str_result   CUDA_GET_ERROR_STRING(int)                           = 29;
+        int          CUDA_GET_LAST_ERROR(void)                            = 30;
         /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;

@@ -189,11 +189,11 @@ int cricket_info(int argc, char *argv[])
     size_t i;
 
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        fprintf(stderr, "wrong number of arguments, use: %s <executable>\n", argv[0]);
         return -1;
     }
     filename = argv[2];
-    
+
     if (filename == NULL) {
         fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
         return -1;
@@ -359,7 +359,7 @@ int cricket_info(int argc, char *argv[])
                                     "could not find EIATTR_PARAM_CBANK attribute. "
                                     "Maybe the kernel has no parameters?\n",
                             cudasection->name);
-                   memset(data, 0, 8); 
+                   memset(data, 0, 8);
                 }
                 info.param_size = *(uint16_t *)(data + 6);
                 info.param_addr = *(uint16_t *)(data + 4);
@@ -372,7 +372,7 @@ int cricket_info(int argc, char *argv[])
 
                 if (!cricket_elf_extract_shared_size(cudasection,
                                                      &info.shared_size)) {
-                    fprintf(stderr, "error while reading shared memory size\n");
+                    fprintf(stderr, "warning: could not read shared memory size\n");
                 }
                 printf("%s shared %d\n", cudasection->name+strlen(CRICKET_ELF_NV_SHARED_PREFIX),
                        info.shared_size);
