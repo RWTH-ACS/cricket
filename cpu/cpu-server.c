@@ -8,6 +8,9 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 #include "log.h"
+#ifdef WITH_IB
+#include "cpu-ib.h"
+#endif //WITH_IB
 
 INIT_SOCKTYPE
 
@@ -102,6 +105,11 @@ void __attribute__ ((constructor)) cricketd_main(void)
     } else {
         cudaRegisterAllv();
     }
+#ifdef WITH_IB
+    if (ib_init(1) != 0) {
+        LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
+    }
+#endif //WITH_IB
 
     LOG(LOG_INFO, "waiting for RPC requests...\n");
 

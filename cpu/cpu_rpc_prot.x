@@ -112,6 +112,7 @@ program RPC_CD_PROG {
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int) = 28;
         str_result   CUDA_GET_ERROR_STRING(int)                           = 29;
         int          CUDA_GET_LAST_ERROR(void)                            = 30;
+        int          CUDA_MEMCPY_IB(int, ptr, size_t, int)                = 31;
         /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;

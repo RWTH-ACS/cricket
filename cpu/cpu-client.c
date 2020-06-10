@@ -14,6 +14,9 @@
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
+#ifdef WITH_IB
+#include "cpu-ib.h"
+#endif //WITH_IB
 
 //static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 const char* LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
@@ -39,6 +42,7 @@ void __attribute__ ((constructor)) init_rpc(void)
 
     init_log(LOG_LEVEL, __FILE__);
     char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
+    //char server[] = "172.111.0.2";
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
     unsigned long prog=0, vers=0;
@@ -95,6 +99,12 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
         //exit(1);
     }
+#ifdef WITH_IB
+    if (ib_init(1) != 0) {
+        LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
+    }
+#endif //WITH_IB
+
 }
 void __attribute__ ((destructor)) deinit_rpc(void)
 {

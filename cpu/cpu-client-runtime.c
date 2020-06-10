@@ -23,6 +23,9 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 #include "log.h"
+#ifdef WITH_IB
+#include "cpu-ib.h"
+#endif //WITH_IB
 
 
 
@@ -359,7 +362,7 @@ typedef struct host_alloc_info {
     size_t size;
     void *client_ptr;
 } host_alloc_info_t;
-static host_alloc_info_t hainfo[64];
+static host_alloc_info_t hainfo[64] = {0};
 static size_t hainfo_cnt = 1;
 static int hainfo_getindex(void *client_ptr)
 {
@@ -378,24 +381,33 @@ cudaError_t cudaFreeHost(void* ptr)
     int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
     int i = -1;
-    if (socktype != UNIX) {
+    if (socktype == TCP) { //Use infiniband
+        i = hainfo_getindex(ptr);
+        if (i == -1) {
+            goto out;
+        }
+        //ib_free_memreg(ptr, i);
+        //TODO: Free on Serverside
+
+    } else if (socktype == UNIX) { //Use local shared memory
+        i = hainfo_getindex(ptr);
+        if (i == -1) {
+            goto out;
+        }
+        munmap(hainfo[i].client_ptr, hainfo[i].size);
+        memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
+
+        retval_1 = cuda_free_host_1(i, &result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        if (result != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaFreeHost failed on server-side.");
+            goto out;
+        }
+    } else {
         free(ptr);
         return cudaSuccess;
-    }
-    i = hainfo_getindex(ptr);
-    if (i == -1) {
-        goto out;
-    }
-    munmap(hainfo[i].client_ptr, hainfo[i].size);
-    memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
-
-    retval_1 = cuda_free_host_1(i, &result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-    if (result != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaFreeHost failed on server-side.");
-        goto out;
     }
     result = cudaSuccess;
  out:
@@ -413,12 +425,63 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
     int fd_shm;
     char shm_name[128];
     enum clnt_stat retval_1;
+    
+    if (socktype == TCP) { //Use infiniband
 
-    //Should only be supported for UNIX transport (using shm).
-    //I don't see how TCP can profit from HostAlloc
-    //TODO: Test the below
-    if (socktype != UNIX) {
-        LOGE(LOG_WARNING, "cudaHostAlloc is not supported for other transports than UNIX. Using malloc instead...");
+        if (ib_allocate_memreg(pHost, size, hainfo_cnt) != 0) {
+            LOGE(LOG_ERROR, "failed to register infiniband memory region");
+            goto out;
+        }
+        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].size = size;
+        hainfo[hainfo_cnt].client_ptr = *pHost;
+
+        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        if (ret == cudaSuccess) {
+            hainfo_cnt++;
+        } else {
+            ib_free_memreg(*pHost, hainfo_cnt);
+            *pHost = NULL;
+        }
+    } else if (socktype == UNIX) { //Use local shared memory
+
+        snprintf(shm_name, 128, "/crickethostalloc-%d", hainfo_cnt);
+        if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
+            LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
+            goto out;
+        }
+        if (ftruncate(fd_shm, size) == -1) {
+            LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
+            shm_unlink(shm_name);
+            goto out;
+        }
+        LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
+        if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
+            LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
+            shm_unlink(shm_name);
+            goto out;
+        }
+
+        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].size = size;
+        hainfo[hainfo_cnt].client_ptr = *pHost;
+
+        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        if (ret == cudaSuccess) {
+            hainfo_cnt++;
+        } else {
+            munmap(*pHost, size);
+            *pHost = NULL;
+        }
+        shm_unlink(shm_name);
+    } else {
+        LOGE(LOG_WARNING, "cudaHostAlloc is not supported TCP transports without IB. Using malloc instead...");
         *pHost = malloc(size);
         if (*pHost == NULL) {
             goto out;
@@ -427,38 +490,6 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             goto out;
         }
     }
-
-    snprintf(shm_name, 128, "/crickethostalloc-%d", hainfo_cnt);
-    if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
-        LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
-        goto out;
-    }
-    if (ftruncate(fd_shm, size) == -1) {
-        LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
-        goto cleanup;
-    }
-    LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
-    if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
-        LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
-        goto cleanup;
-    }
-
-    hainfo[hainfo_cnt].cnt = hainfo_cnt;
-    hainfo[hainfo_cnt].size = size;
-    hainfo[hainfo_cnt].client_ptr = *pHost;
-
-    retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-    if (ret == cudaSuccess) {
-        hainfo_cnt++;
-    } else {
-        munmap(*pHost, size);
-        *pHost = NULL;
-    }
-cleanup:
-    shm_unlink(shm_name);
 out:
     return ret;
 }
@@ -492,10 +523,24 @@ DEF_FN(cudaError_t, cudaMemGetInfo, size_t*, free, size_t*, total)
 DEF_FN(cudaError_t, cudaMemPrefetchAsync, const void*, devPtr, size_t, count, int,  dstDevice, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemRangeGetAttribute, void*, data, size_t, dataSize, enum cudaMemRangeAttribute, attribute, const void*, devPtr, size_t, count)
 DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes, enum cudaMemRangeAttribute*, attributes, size_t, numAttributes, const void*, devPtr, size_t, count)
+#if WITH_IB
+struct ib_thread_info {
+    int index;
+    void* host_ptr;
+    size_t size;
+};
+void* ib_thread(void* arg)
+{
+    struct ib_thread_info *info = (struct ib_thread_info*)arg;
+    ib_server_recv(info->host_ptr, info->index, info->size);
+    //ib_cleanup();
+    return NULL;
+}
+#endif //WITH_IB
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
     int ret = 1;
-        enum clnt_stat retval;
+    enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {
         int index = hainfo_getindex((void*)src);
         /* not a cudaHostAlloc'ed memory */
@@ -505,9 +550,16 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             src_mem.mem_data_val = (void*)src;
             retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
         } else {
-            retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+            if (socktype == TCP) { //Use infiniband
+                retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
+                ib_client_send((void*)src, index, count, "ghost");
+                //ib_cleanup();
+            } else if (socktype == UNIX) { //Use local shared memory
+                retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+            }
         }
         if (retval != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "RPC failed.");
             clnt_perror (clnt, "call failed");
         }
     } else if (kind == cudaMemcpyDeviceToHost) {
@@ -528,14 +580,32 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 goto cleanup;
             }
         } else {
-            retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+            if (socktype == TCP) { //Use infiniband
+                pthread_t thread = {0};
+                struct ib_thread_info info = {
+                    .index = index,
+                    .host_ptr = dst,
+                    .size = count,
+                };
+                if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
+                    LOGE(LOG_ERROR, "starting ib thread failed.");
+                    goto cleanup;
+                }
+                retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
+                pthread_join(thread, NULL);
+
+            } else if (socktype == UNIX) { //Use local shared memory
+                retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+            }
         }
         if (retval != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "RPC failed.");
             clnt_perror (clnt, "call failed");
         }
     } else if (kind == cudaMemcpyDeviceToDevice) {
         retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
         if (retval != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "RPC failed.");
             clnt_perror (clnt, "call failed");
         }
     } else {

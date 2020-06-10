@@ -8,6 +8,7 @@
 #ifndef LOG_LEVEL
     #define LOG_LEVEL LOG_DEBUG
 #endif //LOG_LEVEL
+#define WITH_IB 1
 
 typedef struct kernel_info {
     char *name;
