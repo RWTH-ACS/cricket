@@ -19,8 +19,13 @@ RPC_DEF = cpu_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 SRC_CLIENT = $(RPC_XDR) $(RPC_CLIENT) test-client.c
-SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cpu-server.c cpu-utils.c cpu-server-runtime.c cpu-server-driver.c cpu-server-driver-hidden.c log.c cpu-libwrap.c cpu-server-cusolver.c cpu-ib.c
-SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cpu-client.c cpu-utils.c cpu-client-runtime.c cpu-client-driver.c cpu-client-driver-hidden.c log.c cpu-libwrap.c cpu-client-cusolver.c cpu-ib.c
+SRC_SERVER = $(RPC_XDR) $(RPC_SERVER) cpu-server.c cpu-utils.c cpu-server-runtime.c cpu-server-driver.c cpu-server-driver-hidden.c log.c cpu-libwrap.c cpu-server-cusolver.c
+SRC_LIBCUDA = $(RPC_XDR) $(RPC_CLIENT) cpu-client.c cpu-utils.c cpu-client-runtime.c cpu-client-driver.c cpu-client-driver-hidden.c log.c cpu-libwrap.c cpu-client-cusolver.c
+
+ifdef WITH_IB
+SRC_SERVER += cpu-ib.c
+SRC_LIBCUDA += cpu-ib.c
+endif
 
 OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)
@@ -42,12 +47,20 @@ CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS += $(LIB_FLAGS) -ltirpc -lcuda -lcudart
 #SERVER_LD_FLAGS = $(LD_FLAGS) -lbfd -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=../utils/proc-service.list
 SERVER_CC_FLAGS = -std=gnu99 -I$(LIBTIRPC_PREFIX)/include/tirpc -I$(CUDA_SRC)/include -L$(LIBTIRPC_PREFIX)/lib
-SERVER_LD_FLAGS = $(LIB_FLAGS) -ltirpc -lcudart -lcusolver -lbfd -ldl -lcrypto -libverbs
-LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -libverbs
+SERVER_LD_FLAGS = $(LIB_FLAGS) -ltirpc -lcudart -lcusolver -lbfd -ldl -lcrypto
+LD_LIBCUDA = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
+ifdef WITH_IB
+SERVER_LD_FLAGS += -libverbs
+LD_LIBCUDA += -libverbs
+endif
 
 ifdef LOG
 CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
 SERVER_CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
+endif
+ifdef WITH_IB
+CC_FLAGS += -DWITH_IB=$(WITH_IB)
+SERVER_CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
 

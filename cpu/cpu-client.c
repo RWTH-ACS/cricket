@@ -29,6 +29,10 @@ kernel_info_t *infos = NULL;
 
 INIT_SOCKTYPE
 
+#ifdef WITH_API_CNT
+extern void cpu_runtime_print_api_call_cnt(void);
+#endif //WITH_API_CNT
+
 void __attribute__ ((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;
@@ -43,6 +47,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     init_log(LOG_LEVEL, __FILE__);
     char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
     //char server[] = "172.111.0.2";
+    //char server[] = "127.0.0.1";
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
     unsigned long prog=0, vers=0;
@@ -114,6 +119,9 @@ void __attribute__ ((destructor)) deinit_rpc(void)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
+#ifdef WITH_API_CNT
+     cpu_runtime_print_api_call_cnt();
+#endif //WITH_API_CNT
 
     clnt_destroy (clnt);
 }

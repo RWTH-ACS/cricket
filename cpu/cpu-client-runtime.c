@@ -28,12 +28,24 @@
 #endif //WITH_IB
 
 
+#ifdef WITH_API_CNT
+static int api_call_cnt = 0;
+void cpu_runtime_print_api_call_cnt(void)
+{
+    LOG(LOG_INFO, "api-call-cnt: %d\n", api_call_cnt);
+}
+#endif //WITH_API_CNT
+
 
 DEF_FN(cudaError_t, cudaChooseDevice, int*, device, const struct cudaDeviceProp*, prop)
 cudaError_t cudaDeviceGetAttribute(int* value, enum cudaDeviceAttr attr, int device)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+
     retval_1 = cuda_device_get_attribute_1((int)attr, device, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -52,6 +64,9 @@ DEF_FN(cudaError_t, cudaDeviceGetSharedMemConfig, enum cudaSharedMemConfig*, pCo
 DEF_FN(cudaError_t, cudaDeviceGetStreamPriorityRange, int*, leastPriority, int*, greatestPriority)
 cudaError_t cudaDeviceReset(void)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_device_reset_1(&result, clnt);
@@ -65,6 +80,9 @@ DEF_FN(cudaError_t, cudaDeviceSetLimit, enum cudaLimit, limit, size_t, value)
 DEF_FN(cudaError_t, cudaDeviceSetSharedMemConfig, enum cudaSharedMemConfig, config)
 cudaError_t cudaDeviceSynchronize(void)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_device_synchronize_1(&result, clnt);
@@ -75,6 +93,9 @@ cudaError_t cudaDeviceSynchronize(void)
 }
 cudaError_t cudaGetDevice(int* device)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_get_device_1(&result, clnt);
@@ -88,6 +109,9 @@ cudaError_t cudaGetDevice(int* device)
 }
 cudaError_t cudaGetDeviceCount(int* count)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_get_device_count_1(&result, clnt);
@@ -102,6 +126,9 @@ cudaError_t cudaGetDeviceCount(int* count)
 DEF_FN(cudaError_t, cudaGetDeviceFlags, unsigned int*, flags)
 cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     mem_result result;
     result.mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
     result.mem_result_u.data.mem_data_val = (char*)prop;
@@ -126,6 +153,9 @@ DEF_FN(cudaError_t, cudaIpcOpenEventHandle, cudaEvent_t*, event, cudaIpcEventHan
 DEF_FN(cudaError_t, cudaIpcOpenMemHandle, void**, devPtr, cudaIpcMemHandle_t, handle, unsigned int,  flags)
 cudaError_t cudaSetDevice(int device)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_set_device_1(device, &result, clnt);
@@ -153,6 +183,9 @@ const char* cudaGetErrorName(cudaError_t error)
 }
 const char* cudaGetErrorString(cudaError_t error)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     str_result result;
     enum clnt_stat retval_1;
     result.str_result_u.str = malloc(256);
@@ -167,6 +200,9 @@ const char* cudaGetErrorString(cudaError_t error)
 }
 cudaError_t cudaGetLastError(void)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_get_last_error_1(&result, clnt);
@@ -182,6 +218,9 @@ DEF_FN(cudaError_t, cudaStreamBeginCapture, cudaStream_t, stream, enum cudaStrea
 DEF_FN(cudaError_t, cudaStreamCreate, cudaStream_t*, pStream)
 cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_stream_create_with_flags_1(flags, &result, clnt);
@@ -196,6 +235,9 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
 DEF_FN(cudaError_t, cudaStreamCreateWithPriority, cudaStream_t*, pStream, unsigned int,  flags, int,  priority)
 cudaError_t cudaStreamDestroy(cudaStream_t stream)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_stream_destroy_1((ptr)stream, &result, clnt);
@@ -213,6 +255,9 @@ DEF_FN(cudaError_t, cudaStreamIsCapturing, cudaStream_t, stream, enum cudaStream
 DEF_FN(cudaError_t, cudaStreamQuery, cudaStream_t, stream)
 cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_stream_synchronize_1((ptr)stream, &result, clnt);
@@ -226,6 +271,9 @@ DEF_FN(cudaError_t, cudaStreamWaitEvent, cudaStream_t, stream, cudaEvent_t, even
 DEF_FN(cudaError_t, cudaThreadExchangeStreamCaptureMode, enum cudaStreamCaptureMode*, mode)
 cudaError_t cudaEventCreate(cudaEvent_t* event)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_event_create_1(&result, clnt);
@@ -240,6 +288,9 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
 DEF_FN(cudaError_t, cudaEventCreateWithFlags, cudaEvent_t*, event, unsigned int,  flags)
 cudaError_t cudaEventDestroy(cudaEvent_t event)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_event_destroy_1((ptr)event, &result, clnt);
@@ -250,6 +301,9 @@ cudaError_t cudaEventDestroy(cudaEvent_t event)
 }
 cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     float_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_event_elapsed_time_1((ptr)start, (ptr)end, &result, clnt);
@@ -264,6 +318,9 @@ cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
 DEF_FN(cudaError_t, cudaEventQuery, cudaEvent_t, event)
 cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_event_record_1((ptr)event, (ptr)stream, &result, clnt);
@@ -275,6 +332,9 @@ cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
 
 cudaError_t cudaEventSynchronize(cudaEvent_t event)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
@@ -304,6 +364,9 @@ DEF_FN(cudaError_t, cudaLaunchHostFunc, cudaStream_t, stream, cudaHostFn_t, fn, 
 //DEF_FN(cudaError_t, cudaLaunchKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
 cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     size_t i;
@@ -347,6 +410,9 @@ DEF_FN(cudaError_t, cudaArrayGetInfo, struct cudaChannelFormatDesc*, desc, struc
 //DEF_FN(cudaError_t, cudaFree, void*, devPtr)
 cudaError_t cudaFree(void *devPtr)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = cuda_free_1((uint64_t)devPtr, &result, clnt);
@@ -378,17 +444,24 @@ static int hainfo_getindex(void *client_ptr)
 }
 cudaError_t cudaFreeHost(void* ptr)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
     int i = -1;
-    if (socktype == TCP) { //Use infiniband
+    if (socktype == TCP) {
+#ifdef WITH_IB //Use infiniband
         i = hainfo_getindex(ptr);
         if (i == -1) {
             goto out;
         }
         //ib_free_memreg(ptr, i);
         //TODO: Free on Serverside
-
+#else
+        free(ptr);
+        return cudaSuccess;
+#endif //WITH_IB
     } else if (socktype == UNIX) { //Use local shared memory
         i = hainfo_getindex(ptr);
         if (i == -1) {
@@ -421,13 +494,16 @@ DEF_FN(cudaError_t, cudaGetSymbolSize, size_t*, size, const void*, symbol)
 
 cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int ret = cudaErrorMemoryAllocation;
     int fd_shm;
     char shm_name[128];
     enum clnt_stat retval_1;
     
     if (socktype == TCP) { //Use infiniband
-
+#ifdef WITH_IB
         if (ib_allocate_memreg(pHost, size, hainfo_cnt) != 0) {
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
@@ -446,6 +522,16 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             ib_free_memreg(*pHost, hainfo_cnt);
             *pHost = NULL;
         }
+#else
+        LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
+        *pHost = malloc(size);
+        if (*pHost == NULL) {
+            goto out;
+        } else {
+            ret = cudaSuccess;
+            goto out;
+        }
+#endif //WITH_IB
     } else if (socktype == UNIX) { //Use local shared memory
 
         snprintf(shm_name, 128, "/crickethostalloc-%d", hainfo_cnt);
@@ -481,14 +567,8 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         }
         shm_unlink(shm_name);
     } else {
-        LOGE(LOG_WARNING, "cudaHostAlloc is not supported TCP transports without IB. Using malloc instead...");
-        *pHost = malloc(size);
-        if (*pHost == NULL) {
-            goto out;
-        } else {
-            ret = cudaSuccess;
-            goto out;
-        }
+        LOGE(LOG_ERROR, "unknown transport.");
+        goto out;
     }
 out:
     return ret;
@@ -499,6 +579,9 @@ DEF_FN(cudaError_t, cudaHostRegister, void*, ptr, size_t, size, unsigned int,  f
 DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
     retval_1 = cuda_malloc_1(size, &result, clnt);
@@ -523,7 +606,7 @@ DEF_FN(cudaError_t, cudaMemGetInfo, size_t*, free, size_t*, total)
 DEF_FN(cudaError_t, cudaMemPrefetchAsync, const void*, devPtr, size_t, count, int,  dstDevice, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemRangeGetAttribute, void*, data, size_t, dataSize, enum cudaMemRangeAttribute, attribute, const void*, devPtr, size_t, count)
 DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes, enum cudaMemRangeAttribute*, attributes, size_t, numAttributes, const void*, devPtr, size_t, count)
-#if WITH_IB
+#ifdef WITH_IB
 struct ib_thread_info {
     int index;
     void* host_ptr;
@@ -539,6 +622,9 @@ void* ib_thread(void* arg)
 #endif //WITH_IB
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {
@@ -551,9 +637,14 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
         } else {
             if (socktype == TCP) { //Use infiniband
+#ifdef WITH_IB
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
                 ib_client_send((void*)src, index, count, "ghost");
                 //ib_cleanup();
+#else
+                LOGE(LOG_ERROR, "infiniband is disabled.");
+                goto cleanup;
+#endif //WITH_IB
             } else if (socktype == UNIX) { //Use local shared memory
                 retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
             }
@@ -581,6 +672,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             }
         } else {
             if (socktype == TCP) { //Use infiniband
+#ifdef WITH_IB
                 pthread_t thread = {0};
                 struct ib_thread_info info = {
                     .index = index,
@@ -593,6 +685,10 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 }
                 retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
                 pthread_join(thread, NULL);
+#else
+                LOGE(LOG_ERROR, "infiniband is disabled.");
+                goto cleanup;
+#endif //WITH_IB
 
             } else if (socktype == UNIX) { //Use local shared memory
                 retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
@@ -627,6 +723,9 @@ DEF_FN(cudaError_t, cudaMemcpy3DPeer, const struct cudaMemcpy3DPeerParms*, p)
 DEF_FN(cudaError_t, cudaMemcpy3DPeerAsync, const struct cudaMemcpy3DPeerParms*, p, cudaStream_t, stream)
 cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     return cudaMemcpy(dst, src, count, kind);
 }
 DEF_FN(cudaError_t, cudaMemcpyFromSymbol, void*, dst, const void*, symbol, size_t, count, size_t, offset, enum cudaMemcpyKind, kind)
@@ -635,6 +734,9 @@ DEF_FN(cudaError_t, cudaMemcpyPeer, void*, dst, int,  dstDevice, const void*, sr
 DEF_FN(cudaError_t, cudaMemcpyPeerAsync, void*, dst, int,  dstDevice, const void*, src, int,  srcDevice, size_t, count, cudaStream_t, stream)
 cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count, size_t offset, enum cudaMemcpyKind kind)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {

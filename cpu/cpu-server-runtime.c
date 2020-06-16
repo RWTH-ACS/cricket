@@ -397,6 +397,7 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
     }
 
     if (socktype == TCP) { //Use infiniband
+#ifdef WITH_IB
         void *server_ptr = NULL;
         if (ib_allocate_memreg(&server_ptr, size, hainfo_cnt) == 0) {
 
@@ -424,6 +425,10 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
+#else
+                LOGE(LOG_ERROR, "infiniband is disabled.");
+                goto cleanup;
+#endif //WITH_IB
 
     } else if (socktype == UNIX) { //Use local shared memory
         snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
