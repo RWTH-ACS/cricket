@@ -49,10 +49,10 @@ void __attribute__ ((constructor)) init_rpc(void)
     char envvar[] = "REMOTE_GPU_ADDRESS";
 
     if(!getenv(envvar)) {
-        LOG(LOG_ERROR, "Environment variable %s does not exist. It must contain the address where the server application is listening.", envvar)
+        LOG(LOG_ERROR, "Environment variable %s does not exist. It must contain the address where the server application is listening.", envvar);
         exit(1);
     }
-    if(snprintf(server, 256, "%s", getenv(envvar)) >= 256) {
+    if(strncpy(server, getenv(envvar), 256) == 256) {
         LOGE(LOG_ERROR, "Buffer for server address is too small.");
         exit(1);
     }
@@ -110,7 +110,6 @@ void __attribute__ ((constructor)) init_rpc(void)
     }
     if (cricketd_utils_parameter_size(&infos, &kernelnum) != 0) {
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
-        //exit(1);
     }
 #ifdef WITH_IB
     if (ib_init(1) != 0) {
@@ -128,7 +127,7 @@ void __attribute__ ((destructor)) deinit_rpc(void)
         clnt_perror (clnt, "call failed");
     }
 #ifdef WITH_API_CNT
-     cpu_runtime_print_api_call_cnt();
+    cpu_runtime_print_api_call_cnt();
 #endif //WITH_API_CNT
 
     clnt_destroy (clnt);

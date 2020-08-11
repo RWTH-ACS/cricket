@@ -46,7 +46,7 @@ SRC_CLIENT += cpu-ib.c
 endif
 
 OBJ_SERVER = $(SRC_SERVER:%.c=%.o)
-OBJ_CLIENT = $(SRC_LIBCUDA:%.c=%.o)
+OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 
 # Compiler flags
 RPCGEN_FLAGS = -C -M -N
@@ -55,7 +55,7 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
-LD_FLAGS += $(LIB_FLAGS) -ltirpc -ldl -lcrypto
+LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
 ifdef WITH_IB
 LD_FLAGS += -libverbs
