@@ -45,9 +45,17 @@ void __attribute__ ((constructor)) init_rpc(void)
     struct hostent *hp;
 
     init_log(LOG_LEVEL, __FILE__);
-    char server[] = "ghost.acs-lab.eonerc.rwth-aachen.de";
-    //char server[] = "172.111.0.2";
-    //char server[] = "127.0.0.1";
+    char server[256];
+    char envvar[] = "REMOTE_GPU_ADDRESS";
+
+    if(!getenv(envvar)) {
+        LOG(LOG_ERROR, "Environment variable %s does not exist. It must contain the address where the server application is listening.", envvar)
+        exit(1);
+    }
+    if(snprintf(server, 256, "%s", getenv(envvar)) >= 256) {
+        LOGE(LOG_ERROR, "Buffer for server address is too small.");
+        exit(1);
+    }
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
     unsigned long prog=0, vers=0;
