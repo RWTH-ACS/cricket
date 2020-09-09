@@ -6,11 +6,13 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <openssl/md5.h>
+#include <linux/limits.h>
 
 #include <bfd.h>
 
 #include "cpu-utils.h"
 #include "cpu-common.h"
+#include "log.h"
 
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
 #define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
@@ -141,7 +143,7 @@ int cpu_utils_launch_child(const char *file, char **args)
 kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum, char *kernelname)
 {
     if (infos == NULL || kernelname == NULL) {
-        //fprintf(stderr, "error: wrong parameters (%d)\n", __LINE__);
+        LOGE(LOG_ERROR, "parameters are supposed to be pre-allocated.");
         return NULL;
     }
 
@@ -153,110 +155,182 @@ kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum
     return NULL;
 }
 
-int cricketd_utils_parameter_size(kernel_info_t **infos, size_t *kernelnum)
+static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
 {
-    char knamebuf[128] = {0};
-    char type[64] = {0};
-    size_t value;
-    int res;
-    char *args[] = {"cricket", "info", NULL, NULL};
-    char linktarget[1024] = {0};
-    char valuebuf[1024] = {0};
+    static const char* attr_str[] = {"EIATTR_KPARAM_INFO",
+                                     "EIATTR_CBANK_PARAM_SIZE",
+                                     "EIATTR_PARAM_CBANK"};
+    enum attr_t {KPARAM_INFO = 0,
+                 CBANK_PARAM_SIZE = 1,
+                 PARAM_CBANK = 2,
+                 ATTR_T_LAST}; // states for state machine
+    char *line = NULL;
+    size_t linelen = 0;
+    int ret = 1;
+    int read = 0;
+    char key[32];
+    char val[256] = {0};
+    enum attr_t cur_attr = ATTR_T_LAST; // current state of state machine
+    info->param_num = 0;
+    info->param_offsets = NULL;
+    info->param_sizes = NULL;
+    while (getline(&line, &linelen, fdesc) != -1) {
+        memset(val, 0, 256);
+        read = sscanf(line, "%32s %255c\n", key, val);
+        val[strlen(val)-1] = '\0';
+        if (read == -1 || read == 0) {
+            break; //empty line means there is no more info for this kernel
+        } else if (read == 1) {
+            continue; // some lines have no key-value pair.
+                      // We are not interested in those lines.
+        }
+        if (strcmp(key, "Attribute:") == 0) { // state change
+            LOG(LOG_DBG(3), "\"%s\", \"%s\"", key, val);
+            cur_attr = ATTR_T_LAST;
+            for (int i=0; i < ATTR_T_LAST; i++) {
+                if (strcmp(val, attr_str[i]) == 0) {
+                    LOG(LOG_DBG(3), "found %s", attr_str[i]);
+                    cur_attr = i;
+                }
+            }
+        } else if(strcmp(key, "Value:") == 0) {
+            LOG(LOG_DBG(3), "\"%s\", \"%s\"", key, val);
+            size_t buf;
+            uint16_t ordinal, offset, size;
+            switch(cur_attr) {
+            case KPARAM_INFO:
+                if (sscanf(val, "Index : 0x%*hx Ordinal : 0x%hx Offset : 0x%hx Size : 0x%hx\n", &ordinal, &offset, &size) != 3 ) {
+                    LOGE(LOG_ERROR, "unexpected format of cuobjdump output");
+                    goto cleanup;
+                }
+                if (ordinal >= info->param_num) {
+                    info->param_offsets = realloc(
+                                info->param_offsets,
+                                (ordinal+1)*sizeof(uint16_t));
+                    info->param_sizes = realloc(
+                                info->param_sizes,
+                                (ordinal+1)*sizeof(uint16_t));
+                    info->param_num = ordinal+1;
+                }
+                info->param_offsets[ordinal] = offset;
+                info->param_sizes[ordinal] = size;
+                break;
+            case CBANK_PARAM_SIZE:
+                if (sscanf(val, "0x%lx", &info->param_size) != 1) {
+                    LOGE(LOG_ERROR, "value has wrong format: key: %s, val: %s", key, val);
+                    goto cleanup;
+                }
+                break;
+            case PARAM_CBANK:
+                if (sscanf(val, "0x%*x 0x%lx", &buf) != 1) {
+                    LOGE(LOG_ERROR, "value has wrong format: key: %s, val: %s", key, val);
+                    goto cleanup;
+                }
+                LOG(LOG_DBG(3), "found param address: %d", (uint16_t)(buf & 0xFFFF));
+                break;
+            default:
+                break;
+            }
+        }
+
+
+    }
+
+    ret = 0;
+ cleanup:
+    free(line);
+    return ret;
+}
+
+int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
+{
+    int ret = 1;
+    char linktarget[PATH_MAX];
+    char *args[] = {"cuobjdump", "--dump-elf", NULL, NULL};
     int output;
-    FILE *fdesc;
-    kernel_info_t *buf = NULL;
-    int ret = -1;
+    FILE *fdesc; //fd to read subcommands output from
     int child_exit = 0;
+    char *line = NULL;
+    size_t linelen;
+    static const char nv_info_prefix[] = ".nv.info.";
+    kernel_info_t *buf = NULL;
+    char *kernelname;
 
     if (infos == NULL || kernelnum == NULL) {
-        fprintf(stderr, "error: wrong parameters at %d\n", __LINE__);
+        LOGE(LOG_ERROR, "parameters are supposed to be pre-allocated.");
         goto out;
     }
     *kernelnum = 0;
     *infos = NULL;
 
-    if (readlink("/proc/self/exe", linktarget, 1024) == 1024) {
-        fprintf(stderr, "error: executable path too long\n");
+    if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
+        LOGE(LOG_ERROR, "executable path length is too long");
         goto out;
     }
+    LOG(LOG_DBG(1), "we are running the following binary: \"%s\".", linktarget);
     args[2] = linktarget;
 
-    if ( (output = cpu_utils_launch_child(CRICKET_PATH, args)) == -1) {
-        fprintf(stderr, "error while launching child\n");
+    if ( (output = cpu_utils_launch_child(args[0], args)) == -1) {
+        LOGE(LOG_ERROR, "error while launching child.");
         goto out;
     }
+
     if ( (fdesc = fdopen(output, "r")) == NULL) {
-        fprintf(stderr, "error while opening stream\n");
-        close(output);
-        goto out;
+        LOGE(LOG_ERROR, "erro while opening stream");
+        goto cleanup1;
     }
-    while (1) {
-        if ( (res = fscanf(fdesc, "%128s %64s %1024s\n", knamebuf, type, valuebuf)) != 3) {
-            if (feof(fdesc)) {
-                break;
-            } else if (ferror(fdesc)) {
-                fprintf(stderr, "error while reading from pipe\n");
-                goto cleanup;
-            }
-        } else {
-            if (knamebuf == NULL) {
-                continue;
-            }
-            buf = cricketd_utils_search_info(*infos, *kernelnum, knamebuf);
-            //printf("kname: %s, type: %s, val: %s\n", knamebuf, type, valuebuf);
-            if (buf == NULL) {
-                if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
-                    fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
-                    goto cleanup;
-                }
-                buf = &((*infos)[(*kernelnum)-1]);
-                memset(buf, 0, sizeof(kernel_info_t));
-                if ((buf->name = malloc(strlen(knamebuf))) == NULL) {
-                    fprintf(stderr, "error: malloc failed (%d)\n", __LINE__);
-                    goto cleanup;
-                }
-                strcpy(buf->name, knamebuf);
-            }
-            if (strcmp("param_size", type) == 0) {
-                if (sscanf(valuebuf, "%zu", &value) != 1) {
-                    fprintf(stderr, "error (%d)\n", __LINE__);
-                    goto cleanup;
-                }
-                buf->param_size = value;
-            } else if (strcmp("param_num", type) == 0) {
-                if (sscanf(valuebuf, "%zu", &value) != 1) {
-                    fprintf(stderr, "error (%d)\n", __LINE__);
-                    goto cleanup;
-                }
-                buf->param_num = value;
-            } else if (strcmp("param_offsets", type) == 0) {
-                buf->param_offsets = malloc(sizeof(uint16_t)*buf->param_num);
-                for (int i=0; i < buf->param_num; ++i) {
-                    if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
-                        fprintf(stderr, "error (%d)\n", __LINE__);
-                        goto cleanup;
-                    }
-                    buf->param_offsets[i] = value;
-                }
-            } else if (strcmp("param_sizes", type) == 0) {
-                buf->param_sizes = malloc(sizeof(uint16_t)*buf->param_num);
-                for (int i=0; i < buf->param_num; ++i) {
-                    if (sscanf(valuebuf, "%4x,%s", &value, valuebuf) < 1) {
-                        fprintf(stderr, "error (%d)\n", __LINE__);
-                        goto cleanup;
-                    }
-                    buf->param_sizes[i] = value;
-                }
-            }
+
+    while (getline(&line, &linelen, fdesc) != -1) {
+        if (strncmp(line, nv_info_prefix, strlen(nv_info_prefix)) != 0) {
+            // Line does not start with .nv.info. so continue searching.
+            continue;
         }
+        // Line starts with .nv.info.
+        // Kernelname is line + strlen(nv_info_prefix)
+        kernelname = line + strlen(nv_info_prefix);
+        if (strlen(kernelname) == 0) {
+            LOGE(LOG_ERROR, "found .nv.info section, but kernelname is empty");
+            goto cleanup2;
+        }
+
+        if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
+            LOGE(LOG_ERROR, "realloc failed");
+            goto cleanup2;
+        }
+        buf = &((*infos)[(*kernelnum)-1]);
+        memset(buf, 0, sizeof(kernel_info_t));
+        if ((buf->name = malloc(strlen(kernelname))) == NULL) {
+            LOGE(LOG_ERROR, "malloc failed");
+            goto cleanup2;
+        }
+        //copy string and remove trailing \n
+        strncpy(buf->name, kernelname, strlen(kernelname)-1);
+        buf->name[strlen(kernelname)-1] = '\0';
+    
+        if (cpu_utils_read_pars(buf, fdesc) != 0) {
+            LOGE(LOG_ERROR, "reading paramter infos failed.\n");
+            goto cleanup2;
+        }
+
+        LOG(LOG_DEBUG, "found kernel \"%s\" [param_num: %d, param_size: %d]",
+            buf->name, buf->param_num, buf->param_size);
+
     }
+
+    if (ferror(fdesc) != 0) {
+        LOGE(LOG_ERROR, "file descriptor shows an error");
+        goto cleanup2;
+    }
+
     ret = 0;
- cleanup:
+ cleanup2:
     fclose(fdesc);
+ cleanup1:
     close(output);
     wait(&child_exit);
-    printf("child_exit:%d\n", child_exit);
+    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
  out:
+    free(line);
     return (ret != 0 ? ret : child_exit);
 }
 

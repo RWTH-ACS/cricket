@@ -4,7 +4,6 @@
 #include <rpc/rpc.h>
 
 #define CD_SOCKET_PATH "/tmp/cricketd_sock"
-#define CRICKET_PATH "cricket"
 #ifndef LOG_LEVEL
     #define LOG_LEVEL LOG_DEBUG
 #endif //LOG_LEVEL

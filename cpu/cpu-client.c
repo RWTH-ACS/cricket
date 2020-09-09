@@ -52,8 +52,8 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "Environment variable %s does not exist. It must contain the address where the server application is listening.", envvar);
         exit(1);
     }
-    if(strncpy(server, getenv(envvar), 256) == 256) {
-        LOGE(LOG_ERROR, "Buffer for server address is too small.");
+    if(strncpy(server, getenv(envvar), 256) == NULL) {
+        LOGE(LOG_ERROR, "strncpy failed.");
         exit(1);
     }
     LOG(LOG_INFO, "connection to host \"%s\"", server);
@@ -108,8 +108,8 @@ void __attribute__ ((constructor)) init_rpc(void)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (cricketd_utils_parameter_size(&infos, &kernelnum) != 0) {
-        LOG(LOG_ERROR, "error while getting parameter size. Check whether cricket binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
+    if (cpu_utils_parameter_info(&infos, &kernelnum) != 0) {
+        LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
     }
 #ifdef WITH_IB
     if (ib_init(1) != 0) {
@@ -148,7 +148,7 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
 
     kernel_info_t *info = cricketd_utils_search_info(infos, kernelnum, (char*)deviceName);
     if (info == NULL) {
-        fprintf(stderr, "error: request to register unknown function\n");
+        LOGE(LOG_ERROR, "request to register unknown function: \"%s\"", deviceName);
         return;
     }
     info->host_fun = (void*)hostFun;

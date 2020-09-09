@@ -264,7 +264,6 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    printf("%p\n", stream);
     return result;
 }
 DEF_FN(cudaError_t, cudaStreamWaitEvent, cudaStream_t, stream, cudaEvent_t, event, unsigned int,  flags)
@@ -375,7 +374,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 
     for (i=0; i < kernelnum; ++i) {
         if (func != NULL && infos[i].host_fun == func) {
-            LOG(LOG_DEBUG, "param_size: %zd, param_num: %zd\n", infos[i].param_size, infos[i].param_num);
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
             break;
         }
     }
