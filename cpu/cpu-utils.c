@@ -35,7 +35,7 @@ int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
     }
 
     if ((fd = fopen(filename, "rb")) == NULL) {
-        printf ("%s can't be opened.\n", filename);
+        LOGE(LOG_ERROR, "%s can't be opened.", filename);
         return -1;
     }
 
@@ -62,37 +62,35 @@ void* cricketd_utils_symbol_address(char *symbol)
     bfd_init();
 
     if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
-        fprintf(stderr, "cricketd (%d): fopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fopen failed");
         return NULL;
     }
 
     if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricketd (%d): bfd_openr failed on %s\n", __LINE__,
+        LOGE(LOG_ERROR, "bfd_openr failed on %s",
                 "/proc/self/exe");
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricketd (%d): %s has wrong bfd format\n", __LINE__,
+        LOGE(LOG_ERROR, "%s has wrong bfd format",
                 "/proc/self/exe");
         goto cleanup;
     }
 
     if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) == -1) {
-        fprintf(stderr, "cricketd: bfd_get_symtab_upper_bound failed\n");
+        LOGE(LOG_ERROR, "bfd_get_symtab_upper_bound failed");
         return NULL;
     }
 
-    //printf("symtab size: %lu\n", symtab_size);
-
     if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
-        fprintf(stderr, "cricketd: malloc symtab failed\n");
+        LOGE(LOG_ERROR, "malloc symtab failed");
         return NULL;
     }
 
     if ((symtab_length = bfd_canonicalize_symtab(hostbfd, symtab)) == 0) {
-        //printf("symtab empty...\n");
+        LOG(LOG_WARNING, "symtab is empty...");
     } else {
         //printf("%lu symtab entries\n", symtab_length);
     }
@@ -120,13 +118,13 @@ int cpu_utils_launch_child(const char *file, char **args)
     FILE *fd = NULL;
 
     if (pipe(filedes) == -1) {
-        fprintf(stderr, "error while creating pipe\n");
+        LOGE(LOG_ERROR, "error while creating pipe");
         return -1;
     }
 
     pid_t pid = fork();
     if (pid == -1) {
-        fprintf(stderr, "error while forking\n");
+        LOGE(LOG_ERROR, "error while forking");
         return -1;
     } else if (pid == 0) {
         while ((dup2(filedes[1], STDOUT_FILENO) == -1) && (errno == EINTR)) {}
@@ -245,7 +243,7 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
 int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
 {
     int ret = 1;
-    char linktarget[PATH_MAX];
+    char linktarget[PATH_MAX] = {0};
     char *args[] = {"cuobjdump", "--dump-elf", NULL, NULL};
     int output;
     FILE *fdesc; //fd to read subcommands output from
