@@ -27,7 +27,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-driver-hidden.c \
 			 log.c                      \
 			 cpu-libwrap.c              \
-			 cpu-server-cusolver.c
+			 cpu-server-cusolver.c 		\
+			 list.c
 
 SRC_CLIENT = $(RPC_XDR)                 \
 			 $(RPC_CLIENT)              \
