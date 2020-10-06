@@ -15,10 +15,19 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 #include "log.h"
+#include "list.h"
 #ifdef WITH_IB
 #include <pthread.h>
 #include "cpu-ib.h"
 #endif //WITH_IB
+
+
+typedef struct api_record {
+    unsigned int function;
+    void *arguments;
+    void *result;
+} api_record_t;
+list api_records;
 
 typedef struct host_alloc_info {
     int cnt;
@@ -29,10 +38,44 @@ typedef struct host_alloc_info {
 static host_alloc_info_t hainfo[64];
 static size_t hainfo_cnt = 1;
 
+int server_runtime_init(void)
+{
+    int ret = 0;
+    ret = list_init(&api_records, sizeof(api_record_t)); 
+    return ret;
+}
+
+int server_runtime_deinit(void)
+{
+    api_record_t *record;
+    printf("server api records:\n");
+    for (size_t i = 0; i < api_records.length; i++) {
+        record = (api_record_t*)api_records.elements[i];
+        printf("api: %u", record->function);
+        if (record->function == CUDA_MALLOC) {
+            printf(" (cuda_malloc), arg=%zu, result=%p", *(size_t*)record->arguments, record->result);
+        }
+
+        printf("\n");
+    }
+    return 0;
+
+}
+
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
+    api_record_t *record;
     LOGE(LOG_DEBUG, "cudaMalloc\n");
     result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
+    if (list_alloc_append(&api_records, (void**)&record) != 0) {
+        LOGE(LOG_ERROR, "list allocation failed.");
+    }
+    if ( (record->arguments = malloc(sizeof(size_t))) == NULL) {
+        LOGE(LOG_ERROR, "list arguments allocation failed");
+    }
+    record->function = rqstp->rq_proc;
+    *(size_t*)record->arguments = argp;
+    record->result = (void*)result->ptr_result_u.ptr;
     return 1;
 }
 
@@ -45,8 +88,25 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
 
 bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
+    int ret = 1;
+    uint64_t arg;
     LOGE(LOG_DEBUG, "cudaFree\n");
     *result = cudaFree((void*)ptr);
+    for (size_t i = 0; i < api_records.length; ++i) {
+        if (((api_record_t*)api_records.elements[i])->function != CUDA_MALLOC) {
+            continue;
+        }
+        arg = (uint64_t)(((api_record_t*)api_records.elements[i])->result);
+        if (arg == ptr) {
+            list_rm(&api_records, i, NULL);
+            ret = 0;
+            break;
+        } 
+    }
+    if (ret != 0) {
+        LOGE(LOG_ERROR, "could not find a malloc call associated with this free call");
+        *result = CUDA_ERROR_UNKNOWN;
+    }
     return 1;
 }
 

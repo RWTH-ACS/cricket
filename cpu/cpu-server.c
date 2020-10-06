@@ -8,6 +8,7 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 #include "log.h"
+#include "cpu-server-runtime.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -94,6 +95,11 @@ void __attribute__ ((constructor)) cricketd_main(void)
         exit(1);
     }
 
+    if (server_runtime_init() != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        exit(1);
+    }
+
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
@@ -114,6 +120,8 @@ void __attribute__ ((constructor)) cricketd_main(void)
     LOG(LOG_INFO, "waiting for RPC requests...\n");
 
     svc_run ();
+
+    server_runtime_deinit();
     fprintf (stderr, "%s", "svc_run returned\n");
     pmap_unset(prog, vers);
     svc_destroy(transp);
