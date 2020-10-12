@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "log.h"
 #include "list.h"
@@ -50,7 +51,7 @@ int list_append(list *l, void *new_element)
         return 1;
     }
     if (l->capacity == l->length) {
-        l->elements = realloc(l->elements, l->capacity*2);
+        l->elements = realloc(l->elements, l->capacity*2*l->element_size);
         if (l->elements == NULL) {
             LOGE(LOG_ERROR, "realloc failed.");
             /* the old pointer remains valid */

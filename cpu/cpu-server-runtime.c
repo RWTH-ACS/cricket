@@ -21,11 +21,48 @@
 #include "cpu-ib.h"
 #endif //WITH_IB
 
+#define WITH_RECORDER
+#ifdef WITH_RECORDER
+#define RECORD_VOID_API \
+    api_record_t *record; \
+    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
+        LOGE(LOG_ERROR, "list allocation failed."); \
+    } \
+    record->function = rqstp->rq_proc; \
+    record->arguments = NULL;
+#define RECORD_API(ARG_TYPE) \
+    api_record_t *record; \
+    ARG_TYPE *arguments; \
+    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
+        LOGE(LOG_ERROR, "list allocation failed."); \
+    } \
+    if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \
+        LOGE(LOG_ERROR, "list arguments allocation failed"); \
+    } \
+    record->function = rqstp->rq_proc; \
+    record->arguments = arguments;
+#define RECORD_RESULT(TYPE, RES) \
+    record->result.TYPE = RES
+#define RECORD_SINGLE_ARG(ARG) \
+    *arguments = ARG
+#define RECORD_ARG(NUM, ARG) \
+    arguments->arg##NUM = ARG
+#else
+#define RECORD_API(ARG_TYPE) 
+#define RECORD_RESULT(TYPE, RES)
+#define RECORD_ARG(NUM, ARG)
+#define RECORD_SINGLE_ARG(ARG)
+#endif //WITH_RECORDER
+
 
 typedef struct api_record {
     unsigned int function;
     void *arguments;
-    void *result;
+    union {
+        uint64_t u64;
+        void* ptr;
+        int integer;
+    } result;
 } api_record_t;
 list api_records;
 
@@ -51,11 +88,30 @@ int server_runtime_deinit(void)
     printf("server api records:\n");
     for (size_t i = 0; i < api_records.length; i++) {
         record = (api_record_t*)api_records.elements[i];
-        printf("api: %u", record->function);
-        if (record->function == CUDA_MALLOC) {
-            printf(" (cuda_malloc), arg=%zu, result=%p", *(size_t*)record->arguments, record->result);
+        printf("api: %u ", record->function);
+        switch (record->function) {
+        case CUDA_MALLOC:
+            printf("(cuda_malloc), arg=%zu, result=%lx", *(size_t*)record->arguments, record->result.u64);
+            break;
+        case CUDA_SET_DEVICE:
+            printf("(cuda_set_device)");
+            break;
+        case CUDA_EVENT_CREATE:
+            printf("(cuda_even_create)");
+            break;
+        case CUDA_MEMCPY_HTOD:
+            printf("(cuda_memcpy_htod)");
+            break;
+        case CUDA_EVENT_RECORD:
+            printf("(cuda_event_record)");
+            break;
+        case CUDA_EVENT_DESTROY:
+            printf("(cuda_event_destroy)");
+            break;
+        case CUDA_STREAM_CREATE_WITH_FLAGS:
+            printf("(cuda_stream_create_with_flags)");
+            break;
         }
-
         printf("\n");
     }
     return 0;
@@ -64,18 +120,12 @@ int server_runtime_deinit(void)
 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
-    api_record_t *record;
+    RECORD_API(size_t);
+    RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc\n");
     result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
-    if (list_alloc_append(&api_records, (void**)&record) != 0) {
-        LOGE(LOG_ERROR, "list allocation failed.");
-    }
-    if ( (record->arguments = malloc(sizeof(size_t))) == NULL) {
-        LOGE(LOG_ERROR, "list arguments allocation failed");
-    }
-    record->function = rqstp->rq_proc;
-    *(size_t*)record->arguments = argp;
-    record->result = (void*)result->ptr_result_u.ptr;
+
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
 
@@ -90,18 +140,46 @@ bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     int ret = 1;
     uint64_t arg;
+    api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree\n");
     *result = cudaFree((void*)ptr);
+
+    /* The cleanup/simplification of the record could also be
+     * done during checkpoint creation. What is better depends
+     * on whether we want to minimize overhead of cudaFree or
+     * of the checkpoint creation. */
     for (size_t i = 0; i < api_records.length; ++i) {
-        if (((api_record_t*)api_records.elements[i])->function != CUDA_MALLOC) {
+        r = (api_record_t*)api_records.elements[i];
+        switch (r->function) {
+        case CUDA_MALLOC:
+            arg = r->result.u64;
+            break;
+        case CUDA_MEMCPY_DTOD:
+            arg = ((cuda_memcpy_dtod_1_argument*)r->arguments)->arg1;
+            break;
+        case CUDA_MEMCPY_HTOD:
+            arg = ((cuda_memcpy_htod_1_argument*)r->arguments)->arg1;
+            break;
+        case CUDA_MEMCPY_TO_SYMBOL:
+            arg = ((cuda_memcpy_to_symbol_1_argument*)r->arguments)->arg1;
+            break;
+        case CUDA_MEMCPY_TO_SYMBOL_SHM:
+            arg = ((cuda_memcpy_to_symbol_shm_1_argument*)r->arguments)->arg2;
+            break;
+        case CUDA_MEMCPY_IB:
+            arg = ((cuda_memcpy_ib_1_argument*)r->arguments)->arg2;
+            break;
+        case CUDA_MEMCPY_SHM:
+            arg = ((cuda_memcpy_shm_1_argument*)r->arguments)->arg2;
+            break;
+        default:
             continue;
         }
-        arg = (uint64_t)(((api_record_t*)api_records.elements[i])->result);
         if (arg == ptr) {
-            list_rm(&api_records, i, NULL);
+            //list_rm(&api_records, i, NULL);
+            //--i;
             ret = 0;
-            break;
-        } 
+        }
     }
     if (ret != 0) {
         LOGE(LOG_ERROR, "could not find a malloc call associated with this free call");
@@ -123,13 +201,25 @@ bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct s
 
 bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_dtod_1_argument);
+    RECORD_ARG(1, dst);
+    RECORD_ARG(2, src);
+    RECORD_ARG(3, size);
+
     LOGE(LOG_DEBUG, "cudaMemcpyDtoD\n");
     *result = cudaMemcpy((void*)dst, (void*)src, size, cudaMemcpyDeviceToDevice);
+
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_htod_1_argument);
+    RECORD_ARG(1, ptr);
+    RECORD_ARG(2, mem);
+    RECORD_ARG(3, size);
+
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD\n");
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch\n");
@@ -146,11 +236,19 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(mem.mem_data_val);
 #endif
+
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_to_symbol_1_argument);
+    RECORD_ARG(1, ptr);
+    RECORD_ARG(2, mem);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
+
     LOGE(LOG_DEBUG, "cudaMemcpyToSymbol\n");
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch\n");
@@ -167,11 +265,18 @@ bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(mem.mem_data_val);
 #endif
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
+    RECORD_ARG(5, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm\n");
     *result = cudaErrorInitializationError;
     if (hainfo[index].cnt == 0 ||
@@ -191,6 +296,7 @@ bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, s
         LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
     }
 out:
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -214,6 +320,11 @@ void* ib_thread(void* arg)
 
 bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_to_symbol_ib_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyIB\n");
     *result = cudaErrorInitializationError;
     if (hainfo[index].cnt == 0 ||
@@ -245,12 +356,18 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
         ib_client_send(hainfo[index].server_ptr, index, size, "epyc4");
     }
 out:
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 #endif //WITH_IB
 
 bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_shm_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyShm\n");
     *result = cudaErrorInitializationError;
     if (hainfo[index].cnt == 0 ||
@@ -270,11 +387,13 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
         *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
     }
 out:
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
 {
+    //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)\n", ptr, size);
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
@@ -282,13 +401,14 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
                                         size, cudaHostRegisterMapped)) != cudaSuccess) {
         LOGE(LOG_ERROR, "cudaHostRegister failed.");
-        return 1;
+        goto out;
     }
 #endif
     result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(result->mem_result_u.data.mem_data_val);
 #endif
+out: 
     return 1;
 }
 
@@ -337,23 +457,32 @@ bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result,
 
 bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(device);
     LOGE(LOG_DEBUG, "cudaSetDevice\n");
     *result = cudaSetDevice(device);
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
+    RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaEventCreate\n");
     result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
 
 bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
 {
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags\n");
-    result->err = cudaStreamCreateWithFlags((struct CUstream_st**)&result->ptr_result_u.ptr,
-                                            flags);
+    result->err = cudaStreamCreateWithFlags(
+                        (struct CUstream_st**)&result->ptr_result_u.ptr,
+                        flags);
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
 
@@ -366,8 +495,12 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
 
 bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_event_record_1_argument);
+    RECORD_ARG(1, event);
+    RECORD_ARG(2, stream);
     LOGE(LOG_DEBUG, "cudaEventRecord\n");
     *result = cudaEventRecord((struct CUevent_st*) event, (struct CUstream_st*)stream);
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -380,8 +513,11 @@ bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, s
 
 bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(event);
     LOGE(LOG_DEBUG, "cudaEventDestroy\n");
     *result = cudaEventDestroy((struct CUevent_st*) event);
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -423,6 +559,8 @@ bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req
 
 bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(index);
     *result = cudaErrorInitializationError;
     if (socktype != UNIX) {
         *result = cudaSuccess;
@@ -438,6 +576,7 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
             *result = cudaSuccess;
         }
     }
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -448,6 +587,11 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
     void *shm_addr;
     unsigned int register_flags = 0;
     *result = cudaErrorMemoryAllocation;
+    RECORD_API(cuda_host_alloc_1_argument);
+    RECORD_ARG(1, client_cnt);
+    RECORD_ARG(2, size);
+    RECORD_ARG(3, client_ptr);
+    RECORD_ARG(4, flags);
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
 
@@ -531,21 +675,27 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
 cleanup:
     shm_unlink(shm_name);
 out:
+    RECORD_RESULT(integer, *result);
     return 1;
 
 }
 
 bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(stream);
     LOGE(LOG_DEBUG, "cudaStreamDestroy\n");
     *result = cudaStreamDestroy((cudaStream_t) stream);
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
 bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
 {
+    RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaDeviceReset\n");
     *result = cudaDeviceReset();
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
