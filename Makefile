@@ -1,5 +1,5 @@
 #MIT License...
-.PHONY: all submodules gpu cpu tests clean install
+.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu
 
 all: gpu cpu tests install
 
@@ -11,16 +11,15 @@ clean:
 	@echo -e "\033[31m----> Cleaning up test kernels\033[0m"
 	$(MAKE) -C tests clean
 
-submodules:
+cuda-gdb:
 	@echo -e "\033[36m----> Building submodules\033[0m"
-	$(MAKE) -C submodules
+	$(MAKE) -C submodules cuda-gdb
 
 libtirpc:
 	@echo -e "\033[36m----> Building libtirpc\033[0m"
 	$(MAKE) -C submodules libtirpc
 
-
-gpu: submodules
+gpu: cuda-gdb
 	@echo -e "\033[36m----> Building gpu\033[0m"
 	$(MAKE) -C gpu
 
