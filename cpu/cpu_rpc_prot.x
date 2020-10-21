@@ -129,6 +129,27 @@ program RPC_CD_PROG {
         str_result   CUDA_GET_ERROR_STRING(int)                         = 141;
         int          CUDA_GET_LAST_ERROR(void)                          = 142;
         int          CUDA_PEEK_AT_LAST_ERROR(void)                      = 143;
+        /* Stream Management */
+        int          CUDA_CTX_RESET_PERSISTING_L2CACHE(void)            = 250;
+        int          CUDA_STREAM_ADD_CALLBACK(ptr, ptr, mem_data, int)  = 251;
+        int          CUDA_STREAM_ATTACH_MEM_ASYNC(ptr, ptr, size_t, int)= 252;
+        /*int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                = 253;*/
+        int          CUDA_STREAM_COPY_ATTRIBUTES(ptr, ptr)              = 254;
+        ptr_result   CUDA_STREAM_CREATE(void)                           = 255;
+        ptr_result   CUDA_STREAM_CREATE_WITH_FLAGS(int)                 = 256;
+        ptr_result   CUDA_STREAM_CREATE_WITH_PRIORITY(int, int)         = 257;
+        int          CUDA_STREAM_DESTROY(ptr)                           = 258;
+        /*ptr_result   CUDA_STREAM_END_CAPTURE(ptr)                       = 259;*/
+        /* ?         CUDA_STREAM_GET_ATTRIBUTE(ptr, int)                = 260;*/
+        /* ?         CUDA_STREAM_GET_CAPTURE_INFO(ptr)                  = 261;*/
+        int_result   CUDA_STREAM_GET_FLAGS(ptr)                         = 262;
+        int_result   CUDA_STREAM_GET_PRIORITY(ptr)                      = 263;
+        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                      = 264;*/
+        int          CUDA_STREAM_QUERY(ptr)                             = 265;
+        /*int          CUDA_STREAM_SET_ATTRIBUTE(ptr, int, ?)             = 266;*/
+        int          CUDA_STREAM_SYNCHRONIZE(ptr)                       = 267;
+        int          CUDA_STREAM_WAIT_EVENT(ptr, ptr, int)              = 268;
+        int_result   CUDA_THREAD_EXCHANGE_STREAM_CAPTURE_MODE(int)      = 269;
         /* Others */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
@@ -136,8 +157,6 @@ program RPC_CD_PROG {
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
         int          CUDA_FREE(ptr)                                       = 6;
         ptr_result   CUDA_EVENT_CREATE(void)                              = 11;
-        ptr_result   CUDA_STREAM_CREATE_WITH_FLAGS(int)                   = 12;
-        int          CUDA_STREAM_SYNCHRONIZE(ptr)                         = 13;
         int          CUDA_EVENT_RECORD(ptr, ptr)                          = 14;
         float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
@@ -146,7 +165,6 @@ program RPC_CD_PROG {
         int          CUDA_FREE_HOST(int)                                  = 21;   
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
         int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                   = 23;
-        int          CUDA_STREAM_DESTROY(ptr)                             = 24;
         int          CUDA_MEMCPY_TO_SYMBOL(ptr, mem_data, size_t, size_t) = 27;
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int) = 28;
         int          CUDA_MEMCPY_IB(int, ptr, size_t, int)                = 31;
