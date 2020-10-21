@@ -124,7 +124,11 @@ program RPC_CD_PROG {
         int          CUDA_SET_DEVICE(int)                               = 126;
         int          CUDA_SET_DEVICE_FLAGS(int)                         = 127;
         int          CUDA_SET_VALID_DEVICES(mem_data, int)              = 128;
-
+        /* Error Handling */
+        str_result   CUDA_GET_ERROR_NAME(int)                           = 140;
+        str_result   CUDA_GET_ERROR_STRING(int)                         = 141;
+        int          CUDA_GET_LAST_ERROR(void)                          = 142;
+        int          CUDA_PEEK_AT_LAST_ERROR(void)                      = 143;
         /* Others */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
@@ -138,7 +142,6 @@ program RPC_CD_PROG {
         float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
-        str_result   CUDA_GET_ERROR_NAME(int)                             = 19;
         int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)      = 20;
         int          CUDA_FREE_HOST(int)                                  = 21;   
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
@@ -146,8 +149,6 @@ program RPC_CD_PROG {
         int          CUDA_STREAM_DESTROY(ptr)                             = 24;
         int          CUDA_MEMCPY_TO_SYMBOL(ptr, mem_data, size_t, size_t) = 27;
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int) = 28;
-        str_result   CUDA_GET_ERROR_STRING(int)                           = 29;
-        int          CUDA_GET_LAST_ERROR(void)                            = 30;
         int          CUDA_MEMCPY_IB(int, ptr, size_t, int)                = 31;
         /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
