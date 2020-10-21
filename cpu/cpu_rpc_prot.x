@@ -8,9 +8,26 @@ typedef opaque mem_data<>;
 typedef uint64_t size_t;
 typedef uint64_t ptr;
 
+struct ptr_ptr {
+    uint64_t ptr1;
+    uint64_t ptr2;
+};
+
+struct dint {
+    int i1;
+    int i2;
+};
+
 union int_result switch (int err) {
 case 0:
     int data;
+default:
+    void;
+};
+
+union dint_result switch (int err) {
+case 0:
+    struct dint data;
 default:
     void;
 };
@@ -34,11 +51,6 @@ case 0:
     uint64_t ptr;
 default:
     void;
-};
-
-struct ptr_ptr {
-    uint64_t ptr1;
-    uint64_t ptr2;
 };
 
 union str_result switch (int err) {
@@ -83,15 +95,42 @@ program RPC_CD_PROG {
         int          rpc_deinit(void)                                     = 0;
         int          PRINTMESSAGE(string)                                 = 1;
 /* RUNTIME API */
+        /* Device Management */
+        int_result   CUDA_CHOOSE_DEVICE(mem_data)                       = 101;
+        int_result   CUDA_DEVICE_GET_ATTRIBUTE(int, int)                = 102;
+        int_result   CUDA_DEVICE_GET_BY_PCI_BUS_ID(string<>)            = 103;
+        int_result   CUDA_DEVICE_GET_CACHE_CONFIG(void)                 = 104;
+        u64_result   CUDA_DEVICE_GET_LIMIT(int)                         = 105;
+        /*mem_result CUDA_DEVICE_GET_NVSCISYNC_ATTRIBUTES(int ,int)     = 106;*/
+        int_result   CUDA_DEVICE_GET_P2P_ATTRIBUTE(int, int, int)       = 107;
+        str_result   CUDA_DEVICE_GET_PCI_BUS_ID(int, int)               = 108;
+        int_result   CUDA_DEVICE_GET_SHARED_MEM_CONFIG(void)            = 109;
+        dint_result  CUDA_DEVICE_GET_STREAM_PRIORITY_RANGE(void)        = 110;
+        u64_result   CUDA_DEVICE_GET_TEXTURE_LMW(mem_data, int)         = 111;
+        int          CUDA_DEVICE_RESET(void)                            = 112;
+        int          CUDA_DEVICE_SET_CACHE_CONFIG(int)                  = 113;
+        int          CUDA_DEVICE_SET_LIMIT(int, size_t)                 = 114;
+        int          CUDA_DEVICE_SET_SHARED_MEM_CONFIG(int)             = 115;
+        int          CUDA_DEVICE_SYNCHRONIZE(void)                      = 116;
+        int_result   CUDA_GET_DEVICE(void)                              = 117;
+        int_result   CUDA_GET_DEVICE_COUNT(void)                        = 118;
+        int_result   CUDA_GET_DEVICE_FLAGS(void)                        = 119;
+        mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                    = 120;
+        /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                     = 121;*/
+        /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                     = 122;*/
+        /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                       = 123;*/
+        /*ptr_result CUDA_IPC_OPEN_EVENT_HANDLE(ptr)                    = 124;*/
+        /*ptr_result CUDA_IPC_OPEN_MEM_HANDLE(ptr, int)                 = 125;*/
+        int          CUDA_SET_DEVICE(int)                               = 126;
+        int          CUDA_SET_DEVICE_FLAGS(int)                         = 127;
+        int          CUDA_SET_VALID_DEVICES(mem_data, int)              = 128;
+
+        /* Others */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
         int          CUDA_FREE(ptr)                                       = 6;
-        int          CUDA_DEVICE_SYNCHRONIZE(void)                        = 7;
-        int_result   CUDA_GET_DEVICE_COUNT(void)                          = 8;
-        int_result   CUDA_DEVICE_GET_ATTRIBUTE(int, int)                  = 9;
-        int          CUDA_SET_DEVICE(int)                                 = 10;
         ptr_result   CUDA_EVENT_CREATE(void)                              = 11;
         ptr_result   CUDA_STREAM_CREATE_WITH_FLAGS(int)                   = 12;
         int          CUDA_STREAM_SYNCHRONIZE(ptr)                         = 13;
@@ -99,15 +138,12 @@ program RPC_CD_PROG {
         float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
         int          CUDA_EVENT_DESTROY(ptr)                              = 16;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
-        mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                      = 18;
         str_result   CUDA_GET_ERROR_NAME(int)                             = 19;
         int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)      = 20;
         int          CUDA_FREE_HOST(int)                                  = 21;   
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
         int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                   = 23;
         int          CUDA_STREAM_DESTROY(ptr)                             = 24;
-        int          CUDA_DEVICE_RESET(void)                              = 25;
-        int_result   CUDA_GET_DEVICE(void)                                = 26;
         int          CUDA_MEMCPY_TO_SYMBOL(ptr, mem_data, size_t, size_t) = 27;
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int) = 28;
         str_result   CUDA_GET_ERROR_STRING(int)                           = 29;
