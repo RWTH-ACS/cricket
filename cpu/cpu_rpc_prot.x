@@ -150,17 +150,21 @@ program RPC_CD_PROG {
         int          CUDA_STREAM_SYNCHRONIZE(ptr)                       = 267;
         int          CUDA_STREAM_WAIT_EVENT(ptr, ptr, int)              = 268;
         int_result   CUDA_THREAD_EXCHANGE_STREAM_CAPTURE_MODE(int)      = 269;
+        /* Event Management */
+        ptr_result   CUDA_EVENT_CREATE(void)                            = 280;
+        ptr_result   CUDA_EVENT_CREATE_WITH_FLAGS(int)                  = 281;
+        int          CUDA_EVENT_DESTROY(ptr)                            = 282;
+        float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                  = 283;
+        int          CUDA_EVENT_QUERY(ptr)                              = 284;
+        int          CUDA_EVENT_RECORD(ptr, ptr)                        = 285;
+        int          CUDA_EVENT_RECORD_WITH_FLAGS(ptr, ptr, int)        = 286;
+        int          CUDA_EVENT_SYNCHRONIZE(ptr)                        = 287;
         /* Others */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
         int          CUDA_FREE(ptr)                                       = 6;
-        ptr_result   CUDA_EVENT_CREATE(void)                              = 11;
-        int          CUDA_EVENT_RECORD(ptr, ptr)                          = 14;
-        float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                    = 15;
-        int          CUDA_EVENT_DESTROY(ptr)                              = 16;
-        int          CUDA_EVENT_SYNCHRONIZE(ptr)                          = 17;
         int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)      = 20;
         int          CUDA_FREE_HOST(int)                                  = 21;   
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)               = 22;
