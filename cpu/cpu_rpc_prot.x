@@ -276,10 +276,17 @@ program RPC_CD_PROG {
         int          CUDA_DEVICE_ENABLE_PEER_ACCESS(int, int)           = 502;
         /* ### Interoperability APIs ### */
             /* NOT IMPLEMENTED */
-
-
-
-
+        /* ### Texture Object Management ### */
+            /* NOT IMPLEMENTED */
+        /* ### Surface Object Management ### */
+            /* NOT IMPLEMENTED */
+        /* ### Version Management ### */
+        int          CUDA_DRIVER_GET_VERSION(void)                      = 510;
+        int          CUDA_RUNTIME_GET_VERSION(void)                     = 511;
+        /* ### Graph Management ### */
+            /* NOT IMPLEMENTED */
+        /* ### Profiler Control ### */
+            /* NOT IMPLEMENTED */
         /* DRIVER API */
         int_result  rpc_cuDeviceGetCount(void)                          = 1002;
         int         rpc_cuInit(int)                                     = 1003;
