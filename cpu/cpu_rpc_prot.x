@@ -39,6 +39,13 @@ default:
     void;
 };
 
+union d_result switch (int err) {
+case 0:
+    double data;
+default:
+    void;
+};
+
 union u64_result switch (int err) {
 case 0:
     uint64_t u64;
@@ -159,11 +166,28 @@ program RPC_CD_PROG {
         int          CUDA_EVENT_RECORD(ptr, ptr)                        = 285;
         int          CUDA_EVENT_RECORD_WITH_FLAGS(ptr, ptr, int)        = 286;
         int          CUDA_EVENT_SYNCHRONIZE(ptr)                        = 287;
+        /* External Resource Interoperability */
+            /* NOT IMPLEMENTED */
+        /* Execution Control */
+        mem_result   CUDA_FUNC_GET_ATTRIBUTES(ptr)                      = 310;
+        int          CUDA_FUNC_SET_ATTRIBUTES(ptr, int, int)            = 311;
+        int          CUDA_FUNC_SET_CACHE_CONFIG(ptr, int)               = 312;
+        int          CUDA_FUNC_SET_SHARED_MEM_CONFIG(ptr, int)          = 313;
+        int          CUDA_LAUNCH_COOPERATIVE_KERNEL(ptr, rpc_dim3, 
+                          rpc_dim3, mem_data, size_t, ptr)              = 314;
+        int          CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE(ptr, rpc_dim3,
+                          rpc_dim3, mem_data, size_t, ptr, int, int)    = 315;
+        /*int          CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)        = 316;*/
+        int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, 
+                          size_t, ptr)                                  = 317;
+        d_result     CUDA_SET_DOUBLE_FOR_DEVICE(double)                 = 318;
+        d_result     CUDA_SET_DOUBLE_FOR_HOST(double)                   = 319;
+
+        
         /* Others */
         ptr_result   CUDA_MALLOC(size_t)                                  = 2;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)              = 3;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                        = 4;
-        int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, size_t, ptr) = 5;
         int          CUDA_FREE(ptr)                                       = 6;
         int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)      = 20;
         int          CUDA_FREE_HOST(int)                                  = 21;   
