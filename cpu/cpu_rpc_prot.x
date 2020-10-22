@@ -182,6 +182,12 @@ program RPC_CD_PROG {
                           size_t, ptr)                                  = 317;
         d_result     CUDA_SET_DOUBLE_FOR_DEVICE(double)                 = 318;
         d_result     CUDA_SET_DOUBLE_FOR_HOST(double)                   = 319;
+        /* Occupancy */
+        u64_result   CUDA_OCCUPANCY_AVAILABLE_DSMPB(ptr, int, int)      = 330;
+        int_result   CUDA_OCCUPANCY_MAX_ACTIVE_BPM(ptr, int, size_t)    = 331;
+        int_result   CUDA_OCCUPANCY_MAX_ACTIVE_BPM_WITH_FLAGS(ptr, int,
+                          size_t, int)                                  = 332;
+
 
         
         /* Others */
