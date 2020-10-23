@@ -171,8 +171,8 @@ program RPC_CD_PROG {
         int          CUDA_PEEK_AT_LAST_ERROR(void)                      = 143;
         /* ### Stream Management ### */
         int          CUDA_CTX_RESET_PERSISTING_L2CACHE(void)            = 250;
-        int          CUDA_STREAM_ADD_CALLBACK(ptr, ptr, mem_data, int)  = 251;
-        int          CUDA_STREAM_ATTACH_MEM_ASYNC(ptr, ptr, size_t, int)= 252;
+        /*int          CUDA_STREAM_ADD_CALLBACK(ptr, ptr, mem_data, int)  = 251;*/
+        /*int          CUDA_STREAM_ATTACH_MEM_ASYNC(ptr, ptr, size_t, int)= 252;*/
         /*int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                = 253;*/
         int          CUDA_STREAM_COPY_ATTRIBUTES(ptr, ptr)              = 254;
         ptr_result   CUDA_STREAM_CREATE(void)                           = 255;

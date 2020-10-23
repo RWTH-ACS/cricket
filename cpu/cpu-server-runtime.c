@@ -362,7 +362,7 @@ bool_t cuda_set_valid_devices_flags_1_svc(mem_data device_arr, int len, int *res
 }
 
 
-//        /* ### Error Handling ### */
+/* ### Error Handling ### */
 
 bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *rqstp)
 {
@@ -400,6 +400,154 @@ bool_t cuda_peek_at_last_error_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
+/* ### Stream Management ### */
+
+#if CUDART_VERSION >= 11000
+bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaCtxResetPersistingL2Cache");
+    *result = cudaCtxResetPersistingL2Cache();
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+#endif
+
+/* Requires us do call a callback on the client side to make sense */
+//        int          CUDA_STREAM_ADD_CALLBACK(ptr, ptr, mem_data, int)  = 251;
+
+/* Requires unified memory OR attaching a shared memory region. */
+//        int          CUDA_STREAM_ATTACH_MEM_ASYNC(ptr, ptr, size_t, int)= 252;
+
+/* Requires Graph API to make sense */
+//        int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                = 253;
+
+#if CUDART_VERSION >= 11000
+bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_stream_copy_attributes_1_argument);
+    RECORD_ARG(1, dst);
+    RECORD_ARG(2, src);
+    LOGE(LOG_DEBUG, "cudaStreamCopyAttributes");
+    *result = cudaStreamCopyAttributes(dst, src);
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+#endif
+
+bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaStreamCreate");
+    result->err = cudaStreamCreate((void*)&result->ptr_result_u.ptr);
+    
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(flags);
+    LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags");
+    result->err = cudaStreamCreateWithFlags((void*)&result->ptr_result_u.ptr, flags);
+    
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_stream_create_with_priority_1_argument);
+    RECORD_ARG(1, flags);
+    RECORD_ARG(2, priority);
+
+    LOGE(LOG_DEBUG, "cudaStreamCreateWithPriority");
+    result->err = cudaStreamCreateWithPriority((void*)&result->ptr_result_u.ptr, flags, priority);
+    
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(stream);
+    LOGE(LOG_DEBUG, "cudaStreamDestroy\n");
+    *result = cudaStreamDestroy((cudaStream_t) stream);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* Capture API does not make sense without graph API */
+//        /*ptr_result   CUDA_STREAM_END_CAPTURE(ptr)                       = 259;*/
+/* What datatypes are in the union cudaStreamAttrValue? */
+//        /* ?         CUDA_STREAM_GET_ATTRIBUTE(ptr, int)                = 260;*/
+/* Capture API does not make sense without graph API */
+//        /* ?         CUDA_STREAM_GET_CAPTURE_INFO(ptr)                  = 261;*/
+
+
+bool_t cuda_stream_get_flags_1_svc(ptr hStream, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamGetFlags");
+    result->err = cudaStreamGetFlags((void*)hStream, (unsigned*)&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamGetPriority");
+    result->err = cudaStreamGetPriority((void*)hStream, &result->int_result_u.data);
+    return 1;
+}
+
+/* Capture API does not make sense without graph API */
+//        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                      = 264;*/
+
+bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamQuery");
+    *result = cudaStreamQuery((void*)hStream);
+    return 1;
+}
+
+/* What datatypes are in the union cudaStreamAttrValue? */
+//        /*int          CUDA_STREAM_SET_ATTRIBUTE(ptr, int, ?)             = 266;*/
+
+bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(uint64_t);
+    RECORD_SINGLE_ARG(stream);
+    LOGE(LOG_DEBUG, "cudaStreamSynchronize");
+    *result = cudaStreamSynchronize((struct CUstream_st*)stream);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_stream_wait_event_1_argument);
+    RECORD_ARG(1, stream);
+    RECORD_ARG(2, event);
+    RECORD_ARG(3, flags);
+    LOGE(LOG_DEBUG, "cudaStreamWaitEvent");
+    *result = cudaStreamWaitEvent((void*)stream, (void*)event, flags);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_thread_exchange_stream_capture_mode_1_svc(int mode, int_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(mode);
+    LOGE(LOG_DEBUG, "cudaThreadExchangeStreamCaptureMode");
+    result->int_result_u.data = mode;
+    result->err = cudaThreadExchangeStreamCaptureMode((void*)&result->int_result_u.data);
+    RECORD_RESULT(integer, result->int_result_u.data);
+    return 1;
+}
 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
@@ -411,7 +559,6 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
-
 
 bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
@@ -710,24 +857,6 @@ bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
-{
-    RECORD_API(int);
-    RECORD_SINGLE_ARG(flags);
-    LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags\n");
-    result->err = cudaStreamCreateWithFlags(
-                        (struct CUstream_st**)&result->ptr_result_u.ptr,
-                        flags);
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
-    return 1;
-}
-
-bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaStreamSynchronize\n");
-    *result = cudaStreamSynchronize((struct CUstream_st*)stream);
-    return 1;
-}
 
 bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
 {
@@ -888,15 +1017,6 @@ out:
 
 }
 
-bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(ptr);
-    RECORD_SINGLE_ARG(stream);
-    LOGE(LOG_DEBUG, "cudaStreamDestroy\n");
-    *result = cudaStreamDestroy((cudaStream_t) stream);
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
 
 
 /*extern void** __cudaRegisterFatBinary(
