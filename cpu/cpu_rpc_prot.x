@@ -28,6 +28,14 @@ struct ptrsz {
     size_t s;
 };
 
+struct cuda_channel_format_desc {
+    int f;
+    int w;
+    int x;
+    int y;
+    int z;
+};
+
 union int_result switch (int err) {
 case 0:
     int data;
@@ -137,7 +145,8 @@ program RPC_CD_PROG {
         str_result   CUDA_DEVICE_GET_PCI_BUS_ID(int, int)               = 108;
         int_result   CUDA_DEVICE_GET_SHARED_MEM_CONFIG(void)            = 109;
         dint_result  CUDA_DEVICE_GET_STREAM_PRIORITY_RANGE(void)        = 110;
-        u64_result   CUDA_DEVICE_GET_TEXTURE_LMW(mem_data, int)         = 111;
+        u64_result   CUDA_DEVICE_GET_TEXTURE_LMW(cuda_channel_format_desc,
+                          int)                                          = 111;
         int          CUDA_DEVICE_RESET(void)                            = 112;
         int          CUDA_DEVICE_SET_CACHE_CONFIG(int)                  = 113;
         int          CUDA_DEVICE_SET_LIMIT(int, size_t)                 = 114;

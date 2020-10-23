@@ -22,6 +22,7 @@
 #endif //WITH_IB
 
 #define WITH_RECORDER
+
 #ifdef WITH_RECORDER
 #define RECORD_VOID_API \
     api_record_t *record; \
@@ -118,6 +119,249 @@ int server_runtime_deinit(void)
 
 }
 
+/* ############### RUNTIME API ############### */
+/* ### Device Management ### */
+bool_t cuda_choose_device_1_svc(mem_data prop, int_result *result, struct svc_req *rqstp)
+{
+    struct cudaDeviceProp *cudaProp;
+    LOGE(LOG_DEBUG, "cudaChooseDevice");
+    if (prop.mem_data_len != sizeof(struct cudaDeviceProp)) {
+        LOGE(LOG_ERROR, "Received wrong amount of data: expected %zu but got %zu", sizeof(struct cudaDeviceProp), prop.mem_data_len);
+        return 0;
+    }
+    cudaProp = (struct cudaDeviceProp*)prop.mem_data_val;
+    RECORD_API(struct cudaDeviceProp);
+    RECORD_SINGLE_ARG(*cudaProp);
+
+    result->err = cudaChooseDevice(&result->int_result_u.data, cudaProp);
+
+    RECORD_RESULT(integer, result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetAttribute");
+    result->err = cudaDeviceGetAttribute(&result->int_result_u.data, (enum cudaDeviceAttr)attr, device);
+    return 1;
+}
+
+bool_t cuda_device_get_by_pci_bus_id_1_svc(char* pciBusId, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetByPCIBusId");
+    result->err = cudaDeviceGetByPCIBusId(&result->int_result_u.data, pciBusId);
+    return 1;
+}
+
+bool_t cuda_device_get_cache_config_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    enum cudaFuncCache res;
+    LOGE(LOG_DEBUG, "cudaDeviceGetCacheConfig");
+    result->err = cudaDeviceGetCacheConfig(&res);
+    result->int_result_u.data = (int)res;
+    return 1;
+}
+
+bool_t cuda_device_get_limit_1_svc(int limit, u64_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceLimit");
+    result->err = cudaDeviceGetLimit(&result->u64_result_u.u64, limit);
+    return 1;
+}
+
+//        /*mem_result CUDA_DEVICE_GET_NVSCISYNC_ATTRIBUTES(int ,int)     = 106;*/
+
+bool_t cuda_device_get_p2p_attribute_1_svc(int attr, int srcDevice, int dstDevice, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetP2PAttribute");
+    result->err = cudaDeviceGetP2PAttribute(&result->int_result_u.data, attr,
+                                            srcDevice, dstDevice);
+    return 1;
+}
+
+bool_t cuda_device_get_pci_bus_id_1_svc(int len, int device, str_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetPCIBusId");
+    if ((result->str_result_u.str = malloc(len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+
+    result->err = cudaDeviceGetPCIBusId(result->str_result_u.str, len, device);
+    return 1;
+}
+
+bool_t cuda_device_get_shared_mem_config_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetSharedMemConfig");
+    result->err = cudaDeviceGetSharedMemConfig((enum cudaSharedMemConfig*)&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_device_get_stream_priority_range_1_svc(dint_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceGetStreamPriorityRange");
+    result->err = cudaDeviceGetStreamPriorityRange(&result->dint_result_u.data.i1,                      &result->dint_result_u.data.i2);
+    return 1;
+}
+
+#if CUDART_VERSION >= 11000
+bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int device, u64_result *result, struct svc_req *rqstp)
+{
+    struct cudaChannelFormatDesc desc = {
+        .f = fmtDesc.f,
+        .w = fmtDesc.w,
+        .x = fmtDesc.x,
+        .y = fmtDesc.y,
+        .z = fmtDesc.z,
+    };
+    LOGE(LOG_DEBUG, "cudaDeviceGetTexture1DLinearMaxWidth");
+    result->err = cudaDeviceGetTexture1DLinearMaxWidth(&result->u64_result_u.u64,
+                      &desc, device);
+    return 1;
+}
+#endif
+
+bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaDeviceReset");
+    *result = cudaDeviceReset();
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_device_set_cache_config_1_svc(int cacheConfig, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(cacheConfig);
+    LOGE(LOG_DEBUG, "cudaFuncSetCacheConfig");
+    *result = cudaDeviceSetCacheConfig(cacheConfig);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_device_set_limit_1_svc(int limit, size_t value, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_device_set_limit_1_argument);
+    RECORD_ARG(1, limit);
+    RECORD_ARG(2, value);
+    LOGE(LOG_DEBUG, "cudaFuncSetLimit");
+    *result = cudaDeviceSetLimit(limit, value);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_device_set_shared_mem_config_1_svc(int config, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(config);
+    LOGE(LOG_DEBUG, "cudaFuncSetSharedMemConfig");
+    *result = cudaDeviceSetSharedMemConfig(config);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaDeviceSynchronize\n");
+    *result = cudaDeviceSynchronize();
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetDevice");
+    result->err = cudaGetDevice(&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetDeviceCount");
+    result->err = cudaGetDeviceCount(&result->int_result_u.data);
+    return 1;
+}
+
+
+bool_t cuda_get_device_flags_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetDeviceFlags");
+    result->err = cudaGetDeviceFlags((unsigned*)&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetDeviceProperties");
+    result->mem_result_u.data.mem_data_val = malloc(sizeof(struct cudaDeviceProp));
+    if (result->mem_result_u.data.mem_data_val == NULL) {
+        LOGE(LOG_ERROR, "malloc failed.");
+        return 0;
+    }
+    result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
+    result->err = cudaGetDeviceProperties((void*)result->mem_result_u.data.mem_data_val, device);
+    return 1;
+}
+
+//        /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                     = 121;*/
+//        /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                     = 122;*/
+//        /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                       = 123;*/
+//        /*ptr_result CUDA_IPC_OPEN_EVENT_HANDLE(ptr)                    = 124;*/
+//        /*ptr_result CUDA_IPC_OPEN_MEM_HANDLE(ptr, int)                 = 125;*/
+
+bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(device);
+    LOGE(LOG_DEBUG, "cudaSetDevice");
+    *result = cudaSetDevice(device);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_set_device_flags_1_svc(int flags, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(flags);
+    LOGE(LOG_DEBUG, "cudaSetDevice");
+    *result = cudaSetDeviceFlags(flags);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+struct cuda_set_valid_device_param {
+    int* arg1;
+    int arg2;
+};
+bool_t cuda_set_valid_devices_flags_1_svc(mem_data device_arr, int len, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(struct cuda_set_valid_device_param);
+#ifdef WITH_RECORDER
+    int *valid_device = malloc(len*sizeof(int));
+    if (valid_device == NULL) {
+        LOGE(LOG_ERROR, "malloc failed.");
+        return 0;
+    }
+    /* TODO: We actually create a memory leak here. We need to explicity
+     * clean up the allocated memory region when the recorder list is cleaned */
+    memcpy(valid_device, device_arr.mem_data_val, len*sizeof(int));
+#endif
+    RECORD_ARG(1, valid_device);
+    RECORD_ARG(2, len);
+    LOGE(LOG_DEBUG, "cudaSetValidDevices");
+    if (device_arr.mem_data_len != len*sizeof(int)) {
+        LOGE(LOG_ERROR, "mismatch between expected size (%d) and received size (%d)", len*sizeof(int), device_arr.mem_data_len);
+        return 0;
+    }
+    *result = cudaSetValidDevices((int*)device_arr.mem_data_val, len);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(size_t);
@@ -129,12 +373,6 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaDeviceSynchronize\n");
-    *result = cudaDeviceSynchronize();
-    return 1;
-}
 
 bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
@@ -185,17 +423,6 @@ bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
         LOGE(LOG_ERROR, "could not find a malloc call associated with this free call");
         *result = CUDA_ERROR_UNKNOWN;
     }
-    return 1;
-}
-
-bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaGetDeviceProperties(%d)\n", device);
-    result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
-    result->mem_result_u.data.mem_data_val = malloc(sizeof(struct cudaDeviceProp));
-    result->err = cudaGetDeviceProperties(
-                      (struct cudaDeviceProp*)result->mem_result_u.data.mem_data_val,
-                      device);
     return 1;
 }
 
@@ -435,36 +662,6 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     return 1;
 }
 
-bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaGetDeviceCount\n");
-    result->err = cudaGetDeviceCount(&result->int_result_u.data);
-    return 1;
-}
-bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaGetDevice\n");
-    result->err = cudaGetDevice(&result->int_result_u.data);
-    return 1;
-}
-
-bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaDeviceGetAttribute\n");
-    result->err = cudaDeviceGetAttribute(&result->int_result_u.data, (enum cudaDeviceAttr)attr, device);
-    return 1;
-}
-
-bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(int);
-    RECORD_SINGLE_ARG(device);
-    LOGE(LOG_DEBUG, "cudaSetDevice\n");
-    *result = cudaSetDevice(device);
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
 bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_VOID_API;
@@ -690,14 +887,6 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
-{
-    RECORD_VOID_API;
-    LOGE(LOG_DEBUG, "cudaDeviceReset\n");
-    *result = cudaDeviceReset();
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
 
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
