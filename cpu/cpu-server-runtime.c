@@ -362,6 +362,45 @@ bool_t cuda_set_valid_devices_flags_1_svc(mem_data device_arr, int len, int *res
 }
 
 
+//        /* ### Error Handling ### */
+
+bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *rqstp)
+{
+    const char* str;
+    result->str_result_u.str = malloc(128);
+    LOGE(LOG_DEBUG, "cudaGetErrorName");
+    str = cudaGetErrorName((cudaError_t)error);
+    strncpy(result->str_result_u.str, str, 128);
+    result->err = 0;
+    return 1;
+}
+
+bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req *rqstp)
+{
+    const char* str;
+    result->str_result_u.str = malloc(256);
+    LOGE(LOG_DEBUG, "cudaGetErrorString");
+    str = cudaGetErrorString((cudaError_t)error);
+    strncpy(result->str_result_u.str, str, 256);
+    result->err = 0;
+    return 1;
+}
+
+bool_t cuda_get_last_error_1_svc(int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetLastError");
+    *result = cudaGetLastError();
+    return 1;
+}
+
+bool_t cuda_peek_at_last_error_1_svc(int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaPeekAtLastError");
+    *result = cudaPeekAtLastError();
+    return 1;
+}
+
+
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(size_t);
@@ -722,34 +761,6 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
 {
     LOGE(LOG_DEBUG, "cudaEventSynchronize\n");
     *result = cudaEventSynchronize((struct CUevent_st*) event);
-    return 1;
-}
-
-bool_t cuda_get_last_error_1_svc(int *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaGetLastError\n");
-    *result = cudaGetLastError();
-    return 1;
-}
-bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *rqstp)
-{
-    const char* str;
-    result->str_result_u.str = malloc(128);
-    LOGE(LOG_DEBUG, "cudaGetErrorName\n");
-    str = cudaGetErrorName((cudaError_t)error);
-    strncpy(result->str_result_u.str, str, 128);
-    result->err = 0;
-    return 1;
-}
-
-bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req *rqstp)
-{
-    const char* str;
-    result->str_result_u.str = malloc(256);
-    LOGE(LOG_DEBUG, "cudaGetErrorString\n");
-    str = cudaGetErrorString((cudaError_t)error);
-    strncpy(result->str_result_u.str, str, 256);
-    result->err = 0;
     return 1;
 }
 
