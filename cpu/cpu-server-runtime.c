@@ -549,11 +549,93 @@ bool_t cuda_thread_exchange_stream_capture_mode_1_svc(int mode, int_result *resu
     return 1;
 }
 
+/* ### Event Management ### */
+
+bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaEventCreate");
+    result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_event_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(flags);
+    LOGE(LOG_DEBUG, "cudaEventCreateWithFlags");
+    result->err = cudaEventCreateWithFlags((struct CUevent_st**)&result->ptr_result_u.ptr, flags);
+    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    return 1;
+}
+
+bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(event);
+    LOGE(LOG_DEBUG, "cudaEventDestroy");
+    *result = cudaEventDestroy((struct CUevent_st*) event);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaEventElapsedTime");
+    result->err = cudaEventElapsedTime(&result->float_result_u.data, (struct CUevent_st*) start, (struct CUevent_st*)end);
+    return 1;
+}
+
+bool_t cuda_event_query_1_svc(ptr event, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(event);
+    LOGE(LOG_DEBUG, "cudaEventQuery");
+    *result = cudaEventQuery((struct CUevent_st*) event);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_event_record_1_argument);
+    RECORD_ARG(1, event);
+    RECORD_ARG(2, stream);
+    LOGE(LOG_DEBUG, "cudaEventRecord");
+    *result = cudaEventRecord((struct CUevent_st*) event, (struct CUstream_st*)stream);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+#if CUDART_VERSION >= 11000
+bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_event_record_with_flags_1_argument);
+    RECORD_ARG(1, event);
+    RECORD_ARG(2, stream);
+    RECORD_ARG(3, flags);
+    LOGE(LOG_DEBUG, "cudaEventRecordWithFlags\n");
+    *result = cudaEventRecordWithFlags((struct CUevent_st*) event, (struct CUstream_st*)stream, flags);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+#endif
+
+bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaEventSynchronize");
+    *result = cudaEventSynchronize((struct CUevent_st*) event);
+    return 1;
+}
+
+/**/
+
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
-    LOGE(LOG_DEBUG, "cudaMalloc\n");
+    LOGE(LOG_DEBUG, "cudaMalloc");
     result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
 
     RECORD_RESULT(u64, result->ptr_result_u.ptr);
@@ -565,7 +647,7 @@ bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
     int ret = 1;
     uint64_t arg;
     api_record_t *r;
-    LOGE(LOG_DEBUG, "cudaFree\n");
+    LOGE(LOG_DEBUG, "cudaFree");
     *result = cudaFree((void*)ptr);
 
     /* The cleanup/simplification of the record could also be
@@ -619,7 +701,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
     RECORD_ARG(2, src);
     RECORD_ARG(3, size);
 
-    LOGE(LOG_DEBUG, "cudaMemcpyDtoD\n");
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoD");
     *result = cudaMemcpy((void*)dst, (void*)src, size, cudaMemcpyDeviceToDevice);
 
     RECORD_RESULT(integer, *result);
@@ -848,50 +930,6 @@ bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDi
     return 1;
 }
 
-bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
-{
-    RECORD_VOID_API;
-    LOGE(LOG_DEBUG, "cudaEventCreate\n");
-    result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
-    return 1;
-}
-
-
-bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_event_record_1_argument);
-    RECORD_ARG(1, event);
-    RECORD_ARG(2, stream);
-    LOGE(LOG_DEBUG, "cudaEventRecord\n");
-    *result = cudaEventRecord((struct CUevent_st*) event, (struct CUstream_st*)stream);
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaEventElapsedTime\n");
-    result->err = cudaEventElapsedTime(&result->float_result_u.data, (struct CUevent_st*) start, (struct CUevent_st*)end);
-    return 1;
-}
-
-bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(ptr);
-    RECORD_SINGLE_ARG(event);
-    LOGE(LOG_DEBUG, "cudaEventDestroy\n");
-    *result = cudaEventDestroy((struct CUevent_st*) event);
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
-{
-    LOGE(LOG_DEBUG, "cudaEventSynchronize\n");
-    *result = cudaEventSynchronize((struct CUevent_st*) event);
-    return 1;
-}
 
 
 bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
