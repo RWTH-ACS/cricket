@@ -748,6 +748,35 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
 /* cudaSetDoubleForHost ( double* d ) is deprecated */
 
 /* Occupancy */
+
+#if CUDART_VERSION >= 11000
+bool_t cuda_occupancy_available_dsmpb_1_svc(ptr func, int numBlocks, int blockSize, u64_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaOccupancyAvailableDynamicSMemPerBlock");
+    result->err = cudaOccupancyAvailableDynamicSMemPerBlock(
+        &result->u64_result_u.u64, (void*)func, numBlocks, blockSize);
+    return 1;
+}
+#endif
+
+bool_t cuda_occupancy_max_active_bpm_1_svc(ptr func, int blockSize, size_t dynamicSMemSize, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+    result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &result->int_result_u.data, (void*)func, blockSize, dynamicSMemSize);
+    return 1;
+}
+
+bool_t cuda_occupancy_max_active_bpm_with_flags_1_svc(ptr func, int blockSize, size_t dynamicSMemSize, int flags, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags");
+    result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
+        &result->int_result_u.data, (void*)func, blockSize, dynamicSMemSize, flags);
+    return 1;
+}
+
+/* Memory Management */
+
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(size_t);
