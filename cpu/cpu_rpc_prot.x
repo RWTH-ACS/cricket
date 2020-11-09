@@ -213,8 +213,8 @@ program RPC_CD_PROG {
         /*int          CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)        = 316;*/
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3, mem_data, 
                           size_t, ptr)                                  = 317;
-        d_result     CUDA_SET_DOUBLE_FOR_DEVICE(double)                 = 318;
-        d_result     CUDA_SET_DOUBLE_FOR_HOST(double)                   = 319;
+        /*d_result     CUDA_SET_DOUBLE_FOR_DEVICE(double)                 = 318;*/
+        /*d_result     CUDA_SET_DOUBLE_FOR_HOST(double)                   = 319;*/
         /* ### Occupancy ### */
         u64_result   CUDA_OCCUPANCY_AVAILABLE_DSMPB(ptr, int, int)      = 330;
         int_result   CUDA_OCCUPANCY_MAX_ACTIVE_BPM(ptr, int, size_t)    = 331;

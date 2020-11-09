@@ -16,56 +16,14 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "list.h"
+#include "rpc/types.h"
 #ifdef WITH_IB
 #include <pthread.h>
 #include "cpu-ib.h"
 #endif //WITH_IB
 
 #define WITH_RECORDER
-
-#ifdef WITH_RECORDER
-#define RECORD_VOID_API \
-    api_record_t *record; \
-    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
-        LOGE(LOG_ERROR, "list allocation failed."); \
-    } \
-    record->function = rqstp->rq_proc; \
-    record->arguments = NULL;
-#define RECORD_API(ARG_TYPE) \
-    api_record_t *record; \
-    ARG_TYPE *arguments; \
-    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
-        LOGE(LOG_ERROR, "list allocation failed."); \
-    } \
-    if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \
-        LOGE(LOG_ERROR, "list arguments allocation failed"); \
-    } \
-    record->function = rqstp->rq_proc; \
-    record->arguments = arguments;
-#define RECORD_RESULT(TYPE, RES) \
-    record->result.TYPE = RES
-#define RECORD_SINGLE_ARG(ARG) \
-    *arguments = ARG
-#define RECORD_ARG(NUM, ARG) \
-    arguments->arg##NUM = ARG
-#else
-#define RECORD_API(ARG_TYPE) 
-#define RECORD_RESULT(TYPE, RES)
-#define RECORD_ARG(NUM, ARG)
-#define RECORD_SINGLE_ARG(ARG)
-#endif //WITH_RECORDER
-
-
-typedef struct api_record {
-    unsigned int function;
-    void *arguments;
-    union {
-        uint64_t u64;
-        void* ptr;
-        int integer;
-    } result;
-} api_record_t;
-list api_records;
+#include "api-recorder.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -79,7 +37,7 @@ static size_t hainfo_cnt = 1;
 int server_runtime_init(void)
 {
     int ret = 0;
-    ret = list_init(&api_records, sizeof(api_record_t)); 
+    ret = list_init(&api_records, sizeof(api_record_t));
     return ret;
 }
 
@@ -442,7 +400,7 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaStreamCreate");
     result->err = cudaStreamCreate((void*)&result->ptr_result_u.ptr);
-    
+
     RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
@@ -453,7 +411,7 @@ bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags");
     result->err = cudaStreamCreateWithFlags((void*)&result->ptr_result_u.ptr, flags);
-    
+
     RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
@@ -466,7 +424,7 @@ bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_resul
 
     LOGE(LOG_DEBUG, "cudaStreamCreateWithPriority");
     result->err = cudaStreamCreateWithPriority((void*)&result->ptr_result_u.ptr, flags, priority);
-    
+
     RECORD_RESULT(u64, result->ptr_result_u.ptr);
     return 1;
 }
@@ -624,13 +582,172 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
 
 bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(event);
     LOGE(LOG_DEBUG, "cudaEventSynchronize");
     *result = cudaEventSynchronize((struct CUevent_st*) event);
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
-/**/
+/* Execution Control */
 
+bool_t cuda_func_get_attributes_1_svc(ptr func, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaFuncGetAttributes");
+    result->mem_result_u.data.mem_data_val =
+        malloc(sizeof(struct cudaFuncAttributes));
+    result->mem_result_u.data.mem_data_len = sizeof(struct cudaFuncAttributes);
+    result->err = cudaFuncGetAttributes(
+      (struct cudaFuncAttributes*) result->mem_result_u.data.mem_data_val,
+      (void*)func);
+    return 1;
+}
+
+bool_t cuda_func_set_attributes_1_svc(ptr func, int attr, int value, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_func_set_attributes_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, attr);
+    RECORD_ARG(3, value);
+    LOGE(LOG_DEBUG, "cudaFuncSetAttributes");
+    *result = cudaFuncSetAttribute((void*)func, attr, value);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_func_set_cache_config_1_svc(ptr func, int cacheConfig, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_func_set_cache_config_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, cacheConfig);
+    LOGE(LOG_DEBUG, "cudaFuncSetCacheConfig");
+    *result = cudaFuncSetCacheConfig((void*)func, cacheConfig);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_func_set_shared_mem_config_1_svc(ptr func, int config, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_func_set_shared_mem_config_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, config);
+    LOGE(LOG_DEBUG, "cudaFuncSetSharedMemConfig");
+    *result = cudaFuncSetSharedMemConfig((void*)func, config);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim, mem_data args, size_t sharedMem, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_launch_cooperative_kernel_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, gridDim);
+    RECORD_ARG(3, blockDim);
+    //TODO: Store parameters explicitly
+    //RECORD_ARG(4, args);
+    RECORD_ARG(5, sharedMem);
+    RECORD_ARG(6, stream);
+    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    void **cuda_args;
+    uint16_t *arg_offsets;
+    size_t param_num = *((size_t*)args.mem_data_val);
+    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
+    cuda_args = malloc(param_num*sizeof(void*));
+    for (size_t i = 0; i < param_num; ++i) {
+        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+    }
+
+    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+
+    *result = cudaLaunchCooperativeKernel((void*)func, cuda_gridDim, cuda_blockDim, cuda_args, sharedMem, (void*)stream);
+    RECORD_RESULT(integer, *result);
+    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel result: %d", *result);
+    return 1;
+}
+
+bool_t cuda_launch_cooperative_kernel_multi_device_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim, mem_data args, size_t sharedMem, ptr stream, int numDevices, int flags, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_launch_cooperative_kernel_multi_device_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, gridDim);
+    RECORD_ARG(3, blockDim);
+    //TODO: Store parameters explicitly
+    //RECORD_ARG(4, args);
+    RECORD_ARG(5, sharedMem);
+    RECORD_ARG(6, stream);
+    RECORD_ARG(7, numDevices);
+    RECORD_ARG(8, flags);
+    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    void **cuda_args;
+    uint16_t *arg_offsets;
+    size_t param_num = *((size_t*)args.mem_data_val);
+    struct cudaLaunchParams lp;
+    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
+    cuda_args = malloc(param_num*sizeof(void*));
+    for (size_t i = 0; i < param_num; ++i) {
+        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+    }
+
+    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernelMultiDevice(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    lp.args = cuda_args;
+    lp.blockDim = cuda_blockDim;
+    lp.func = (void*)func;
+    lp.gridDim = cuda_gridDim;
+    lp.sharedMem = sharedMem;
+    lp.stream = (void*)stream;
+    *result = cudaLaunchCooperativeKernelMultiDevice(&lp, numDevices, flags);
+    RECORD_RESULT(integer, *result);
+    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernelMultiDevice result: %d", *result);
+    return 1;
+}
+
+/* This would require RPCs in the opposite direction.
+ * __host__ ​cudaError_t cudaLaunchHostFunc ( cudaStream_t stream, cudaHostFn_t fn, void* userData )
+ *   Enqueues a host function call in a stream.
+ */
+
+bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
+                                mem_data args, size_t sharedMem, ptr stream,
+                                int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_launch_kernel_1_argument);
+    RECORD_ARG(1, func);
+    RECORD_ARG(2, gridDim);
+    RECORD_ARG(3, blockDim);
+    //TODO: Store parameters explicitly
+    //RECORD_ARG(4, args);
+    RECORD_ARG(5, sharedMem);
+    RECORD_ARG(6, stream);
+    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    void **cuda_args;
+    uint16_t *arg_offsets;
+    size_t param_num = *((size_t*)args.mem_data_val);
+    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
+    cuda_args = malloc(param_num*sizeof(void*));
+    for (size_t i = 0; i < param_num; ++i) {
+        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+    }
+
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+
+    *result = cudaLaunchKernel((void*)func, cuda_gridDim, cuda_blockDim, cuda_args, sharedMem, (void*)stream);
+    RECORD_RESULT(integer, *result);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
+    return 1;
+}
+
+
+/* cudaSetDoubleForDevice ( double* d ) is deprecated */
+/* cudaSetDoubleForHost ( double* d ) is deprecated */
+
+/* Occupancy */
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(size_t);
@@ -904,29 +1021,6 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     cudaHostUnregister(result->mem_result_u.data.mem_data_val);
 #endif
 out: 
-    return 1;
-}
-
-bool_t cuda_launch_kernel_1_svc(ptr function, rpc_dim3 gridDim, rpc_dim3 blockDim,
-                                mem_data args, size_t sharedMem, ptr stream,
-                                int *result, struct svc_req *rqstp)
-{
-    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
-    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
-    void **cuda_args;
-    uint16_t *arg_offsets;
-    size_t param_num = *((size_t*)args.mem_data_val);
-    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
-    cuda_args = malloc(param_num*sizeof(void*));
-    for (size_t i = 0; i < param_num; ++i) {
-        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
-    }
-
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", function, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
-
-    *result = cudaLaunchKernel((void*)function, cuda_gridDim, cuda_blockDim, cuda_args, sharedMem, (void*)stream);
-    LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d\n", *result);
     return 1;
 }
 
