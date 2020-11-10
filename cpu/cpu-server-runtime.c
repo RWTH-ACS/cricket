@@ -1203,65 +1203,6 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
 }
 
 
-bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_to_symbol_1_argument);
-    RECORD_ARG(1, ptr);
-    RECORD_ARG(2, mem);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol");
-    if (size != mem.mem_data_len) {
-        LOGE(LOG_ERROR, "data size mismatch");
-        *result = cudaErrorUnknown;
-        return 1;
-    }
-#ifdef WITH_MEMCPY_REGISTER
-    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
-        return 1;
-    }
-#endif
-    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(mem.mem_data_val);
-#endif
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-    RECORD_ARG(5, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
-    }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
-    } else {
-        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
 #if WITH_IB
 struct ib_thread_info {
     int index;
@@ -1373,71 +1314,148 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
 out:
     return 1;
 }
-//__host__ ​cudaError_t cudaMemcpy ( void* dst, const void* src, size_t count, cudaMemcpyKind kind )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2D ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2DArrayToArray ( cudaArray_t dst, size_t wOffsetDst, size_t hOffsetDst, cudaArray_const_t src, size_t wOffsetSrc, size_t hOffsetSrc, size_t width, size_t height, cudaMemcpyKind kind = cudaMemcpyDeviceToDevice )
-//    Copies data between host and device. 
-//__host__ ​ __device__ ​cudaError_t cudaMemcpy2DAsync ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2DFromArray ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2DFromArrayAsync ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2DToArray ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy2DToArrayAsync ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpy3D ( const cudaMemcpy3DParms* p )
-//    Copies data between 3D objects. 
-//__host__ ​ __device__ ​cudaError_t cudaMemcpy3DAsync ( const cudaMemcpy3DParms* p, cudaStream_t stream = 0 )
-//    Copies data between 3D objects. 
-//__host__ ​cudaError_t cudaMemcpy3DPeer ( const cudaMemcpy3DPeerParms* p )
-//    Copies memory between devices. 
-//__host__ ​cudaError_t cudaMemcpy3DPeerAsync ( const cudaMemcpy3DPeerParms* p, cudaStream_t stream = 0 )
-//    Copies memory between devices asynchronously. 
-//__host__ ​ __device__ ​cudaError_t cudaMemcpyAsync ( void* dst, const void* src, size_t count, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data between host and device. 
-//__host__ ​cudaError_t cudaMemcpyFromSymbol ( void* dst, const void* symbol, size_t count, size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyDeviceToHost )
-//    Copies data from the given symbol on the device. 
-//__host__ ​cudaError_t cudaMemcpyFromSymbolAsync ( void* dst, const void* symbol, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data from the given symbol on the device. 
-//__host__ ​cudaError_t cudaMemcpyPeer ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count )
-//    Copies memory between two devices. 
-//__host__ ​cudaError_t cudaMemcpyPeerAsync ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count, cudaStream_t stream = 0 )
-//    Copies memory between two devices asynchronously. 
-//__host__ ​cudaError_t cudaMemcpyToSymbol ( const void* symbol, const void* src, size_t count, size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyHostToDevice )
-//    Copies data to the given symbol on the device. 
-//__host__ ​cudaError_t cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 )
-//    Copies data to the given symbol on the device. 
-//__host__ ​cudaError_t cudaMemset ( void* devPtr, int  value, size_t count )
-//    Initializes or sets device memory to a value. 
-//__host__ ​cudaError_t cudaMemset2D ( void* devPtr, size_t pitch, int  value, size_t width, size_t height )
-//    Initializes or sets device memory to a value. 
-//__host__ ​ __device__ ​cudaError_t cudaMemset2DAsync ( void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0 )
-//    Initializes or sets device memory to a value. 
-//__host__ ​cudaError_t cudaMemset3D ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent )
-//    Initializes or sets device memory to a value. 
-//__host__ ​ __device__ ​cudaError_t cudaMemset3DAsync ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent, cudaStream_t stream = 0 )
-//    Initializes or sets device memory to a value. 
-//__host__ ​ __device__ ​cudaError_t cudaMemsetAsync ( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 )
-//    Initializes or sets device memory to a value. 
-//__host__ ​cudaError_t cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap )
-//    Returns the layout properties of a sparse CUDA mipmapped array. 
-//__host__ ​cudaExtent make_cudaExtent ( size_t w, size_t h, size_t d )
-//    Returns a cudaExtent based on input parameters. 
-//__host__ ​cudaPitchedPtr make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz )
-//    Returns a cudaPitchedPtr based on input parameters. 
-//__host__ ​cudaPos make_cudaPos ( size_t x, size_t y, size_t z )
-//    Returns a cudaPos based on input parameters.
 
+/* Multidimensional Memcpys */
 
+/* cudaMemcpy2D ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind ) not implemented yet */
+/* cudaMemcpy2DArrayToArray ( cudaArray_t dst, size_t wOffsetDst, size_t hOffsetDst, cudaArray_const_t src, size_t wOffsetSrc, size_t hOffsetSrc, size_t width, size_t height, cudaMemcpyKind kind = cudaMemcpyDeviceToDevice ) not implemented yet */
+/* cudaMemcpy2DAsync ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpy2DFromArray ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind ) not implemented yet */
+/* cudaMemcpy2DFromArrayAsync ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpy2DToArray ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind ) not implemented yet */
+/* cudaMemcpy2DToArrayAsync ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpy3D ( const cudaMemcpy3DParms* p ) not implemented yet */
+/* cudaMemcpy3DAsync ( const cudaMemcpy3DParms* p, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpy3DPeer ( const cudaMemcpy3DPeerParms* p ) not implemented yet */
+/* cudaMemcpy3DPeerAsync ( const cudaMemcpy3DPeerParms* p, cudaStream_t stream = 0 ) not implemented yet */
 
+/* More memcpy Family */
 
+/* cudaMemcpyAsync ( void* dst, const void* src, size_t count, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpyFromSymbol ( void* dst, const void* symbol, size_t count, size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyDeviceToHost ) not implemented yet. see cudaMemcpyToSymbol */
+/* cudaMemcpyFromSymbolAsync ( void* dst, const void* symbol, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+/* cudaMemcpyPeer ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count ) not implemented yet. see cudaMemcpyDtoD */
+/* cudaMemcpyPeerAsync ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count, cudaStream_t stream = 0 ) */
 
+bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_to_symbol_1_argument);
+    RECORD_ARG(1, ptr);
+    RECORD_ARG(2, mem);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
 
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol");
+    if (size != mem.mem_data_len) {
+        LOGE(LOG_ERROR, "data size mismatch");
+        *result = cudaErrorUnknown;
+        return 1;
+    }
+#ifdef WITH_MEMCPY_REGISTER
+    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        return 1;
+    }
+#endif
+    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(mem.mem_data_val);
+#endif
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 
+bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
+    RECORD_ARG(5, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
+    } else {
+        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
+    }
+out:
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
+
+/* cudaMemset family */
+bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, value);
+    RECORD_ARG(3, count);
+    LOGE(LOG_DEBUG, "cudaMemset");
+    *result = cudaMemset((void*)devPtr, value, count);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, size_t height, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_2d_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, pitch);
+    RECORD_ARG(3, value);
+    RECORD_ARG(4, height);
+    RECORD_ARG(5, width);
+    LOGE(LOG_DEBUG, "cudaMemset2D");
+    *result = cudaMemset2D((void*)devPtr, pitch, value, width, height);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* cudaMemset2DAsync ( void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0 ) is not implemented */
+
+bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_3d_1_argument);
+    RECORD_ARG(1, pitch);
+    RECORD_ARG(2, devPtr);
+    RECORD_ARG(3, xsize);
+    RECORD_ARG(4, ysize);
+    RECORD_ARG(5, value);
+    RECORD_ARG(6, depth);
+    RECORD_ARG(7, height);
+    RECORD_ARG(8, width);
+    LOGE(LOG_DEBUG, "cudaMemset3D");
+    struct cudaPitchedPtr pptr = {.pitch = pitch,
+                                  .ptr = (void*)devPtr,
+                                  .xsize = xsize,
+                                  .ysize = ysize};
+    struct cudaExtent extent = {.depth = depth,
+                                .height = height,
+                                .width = width};
+    *result = cudaMemset3D(pptr, value, extent);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+/* cudaMemset3DAsync ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent, cudaStream_t stream = 0 ) is not implemented */
+/* cudaMemsetAsync ( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 ) is not implemented */
+/* cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap ) is not implemented */
+/* make_cudaExtent ( size_t w, size_t h, size_t d ) should be implemented on the client side */
+/* make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz ) should be implemented on the client side */
+/* make_cudaPos ( size_t x, size_t y, size_t z ) should be implemented on the client side */
 
 
 /*extern void** __cudaRegisterFatBinary(
