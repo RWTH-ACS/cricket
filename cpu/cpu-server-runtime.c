@@ -1457,6 +1457,34 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
 /* make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz ) should be implemented on the client side */
 /* make_cudaPos ( size_t x, size_t y, size_t z ) should be implemented on the client side */
 
+/* Peer Device Memory Access */
+bool_t cuda_device_can_access_peer_1_svc(int device, int peerDevice, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDeviceCanAccessPeer");
+    result->err = cudaDeviceCanAccessPeer(&result->int_result_u.data, device, peerDevice);
+    return 1;
+}
+
+bool_t cuda_device_disable_peer_access_1_svc(int peerDevice, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(peerDevice);
+    LOGE(LOG_DEBUG, "cudaDeviceDisablePeerAccess");
+    *result = cudaDeviceDisablePeerAccess(peerDevice);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_device_enable_peer_access_1_svc(int peerDevice, int flags, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_device_enable_peer_access_1_argument);
+    RECORD_ARG(1, peerDevice);
+    RECORD_ARG(2, flags);
+    LOGE(LOG_DEBUG, "cudaDeviceEnablePeerAccess");
+    *result = cudaDeviceEnablePeerAccess(peerDevice, flags);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
