@@ -32,6 +32,17 @@ prepare:centos8:docker-dev:
     - shell
     - linux
 
+prepare:centos8:cuda10:
+  stage: prepare
+  script:
+    - docker build
+        --file utils/Dockerfile.cuda10
+        --tag ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+        --tag ${DOCKER_IMAGE_DEV}_cuda10:latest .
+  tags:
+    - shell
+    - linux
+
 # check if styleguide is fulfilled
 #style_check:
 #  stage: build
@@ -49,6 +60,8 @@ prepare:centos8:docker-dev:
 build:
   stage: build
   script:
+   - make -j 32 libtirpc
+   - make -j 32 cuda-gdb
    - make -j 1 LOG=INFO
   artifacts:
     expire_in: 1 week
@@ -63,6 +76,28 @@ build:
       - submodules/libtirpc/install
       - bin
     key: build
+  tags:
+    - docker
+
+build:cuda10:
+  stage: build
+  script:
+   - make -j 32 libtirpc
+   - make -j 32 cuda-gdb
+   - make -j 1 LOG=INFO
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - bin
+  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  cache:
+    paths:
+      - gpu/build
+      - cpu/*.o
+      - tests/*.o
+      - submodules/libtirpc/install
+      - bin
+    key: build_cuda10
   tags:
     - docker
 
