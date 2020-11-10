@@ -1486,6 +1486,22 @@ bool_t cuda_device_enable_peer_access_1_svc(int peerDevice, int flags, int *resu
     return 1;
 }
 
+/* Version Management */
+
+bool_t cuda_driver_get_version_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaDriverGetVersion");
+    result->err = cudaDriverGetVersion(&result->int_result_u.data);
+    return 1;
+}
+
+bool_t cuda_runtime_get_version_1_svc(int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaRuntimeGetVersion");
+    result->err = cudaRuntimeGetVersion(&result->int_result_u.data);
+    return 1;
+}
+
 /*extern void** __cudaRegisterFatBinary(
   void *fatCubin
 );
