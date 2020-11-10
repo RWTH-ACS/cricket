@@ -221,7 +221,7 @@ program RPC_CD_PROG {
         int_result   CUDA_OCCUPANCY_MAX_ACTIVE_BPM_WITH_FLAGS(ptr, int,
                           size_t, int)                                  = 332;
         /* ### Memory Management ### */
-        mem_result   CUDA_ARRAY_GET_INFO(int, ptr)                      = 400; 
+        mem_result   CUDA_ARRAY_GET_INFO(ptr)                           = 400; 
         mem_result   CUDA_ARRAY_GET_SPARSE_PROPERTIES(ptr)              = 401;
         int          CUDA_FREE(ptr)                                     = 402;
         int          CUDA_FREE_ARRAY(ptr)                               = 403;
@@ -233,8 +233,8 @@ program RPC_CD_PROG {
         int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)    = 409;
         ptr_result   CUDA_HOST_GET_DEVICE_POINTER(ptr, int)             = 410;
         int_result   CUDA_HOST_GET_FLAGS(ptr)                           = 411;
-        int          CUDA_HOST_REGISTER(ptr, size_t, int)               = 412;
-        int          CUDA_HOST_UNREGISTER(ptr)                          = 413;
+        /* int       CUDA_HOST_REGISTER(ptr, size_t, int)               = 412;*/
+        /* int       CUDA_HOST_UNREGISTER(ptr)                          = 413;*/
         ptr_result   CUDA_MALLOC(size_t)                                = 414;
         ptr_result   CUDA_MALLOC_3D(size_t, size_t, size_t)             = 415;
         ptr_result   CUDA_MALLOC_3D_ARRAY(mem_data, size_t, size_t, size_t,
@@ -247,7 +247,7 @@ program RPC_CD_PROG {
         ptrsz_result CUDA_MALLOC_PITCH(size_t, size_t)                  = 421;
         int          CUDA_MEM_ADVISE(ptr, size_t, int, int)             = 422;
         dsz_result   CUDA_MEM_GET_INFO(void)                            = 423;
-        int          CUDA_MEM_PREFETCH_ASYNC(ptr, size_t, int, int)     = 424;
+        int          CUDA_MEM_PREFETCH_ASYNC(ptr, size_t, int, ptr)     = 424;
         mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTE(int, ptr, size_t)     = 425;
         mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTES(mem_data, size_t, 
                           ptr, size_t)                                  = 426;

@@ -49,7 +49,7 @@ prepare:centos8:docker-dev:
 build:
   stage: build
   script:
-   - make -j 32 LOG=INFO
+   - make -j 1 LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:

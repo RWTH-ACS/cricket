@@ -777,283 +777,103 @@ bool_t cuda_occupancy_max_active_bpm_with_flags_1_svc(ptr func, int blockSize, s
 
 /* Memory Management */
 
-bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
+bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *rqstp)
 {
-    RECORD_API(size_t);
-    RECORD_SINGLE_ARG(argp);
-    LOGE(LOG_DEBUG, "cudaMalloc");
-    result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
+    LOGE(LOG_DEBUG, "cudaArrayGetInfo");
+    result->mem_result_u.data.mem_data_len =
+      sizeof(struct cudaChannelFormatDesc)+sizeof(struct cudaExtent)+sizeof(int);
+    result->mem_result_u.data.mem_data_val = malloc(
+      sizeof(struct cudaChannelFormatDesc)+sizeof(struct cudaExtent)+sizeof(int));
+    struct cudaChannelFormatDesc* desc = (void*)result->mem_result_u.data.mem_data_val;
+    struct cudaExtent *extent = (void*)result->mem_result_u.data.mem_data_val+
+                                sizeof(struct cudaChannelFormatDesc);
+    unsigned *flags = (void*)&result->mem_result_u.data.mem_data_val+
+                      sizeof(struct cudaChannelFormatDesc)+
+                      sizeof(struct cudaExtent);
 
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    result->err = cudaArrayGetInfo(desc, extent, flags, (void*)array);
     return 1;
 }
 
-bool_t cuda_free_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
+#if CUDART_VERSION >= 11000
+bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, struct svc_req *rqstp)
 {
+    LOGE(LOG_DEBUG, "cudaArrayGetSparseProperties");
+    result->mem_result_u.data.mem_data_len =
+      sizeof(struct cudaArraySparseProperties);
+    result->mem_result_u.data.mem_data_val = malloc(
+      sizeof(struct cudaArraySparseProperties));
+    struct cudaArraySparseProperties* sparseProperties = (void*)result->mem_result_u.data.mem_data_val;
+
+    result->err = cudaArrayGetSparseProperties(sparseProperties, (void*)array);
+    return 1;
+}
+#endif
+
+bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(devPtr);
     int ret = 1;
     uint64_t arg;
     api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree");
-    *result = cudaFree((void*)ptr);
+    *result = cudaFree((void*)devPtr);
 
     /* The cleanup/simplification of the record could also be
      * done during checkpoint creation. What is better depends
      * on whether we want to minimize overhead of cudaFree or
      * of the checkpoint creation. */
-    for (size_t i = 0; i < api_records.length; ++i) {
-        r = (api_record_t*)api_records.elements[i];
-        switch (r->function) {
-        case CUDA_MALLOC:
-            arg = r->result.u64;
-            break;
-        case CUDA_MEMCPY_DTOD:
-            arg = ((cuda_memcpy_dtod_1_argument*)r->arguments)->arg1;
-            break;
-        case CUDA_MEMCPY_HTOD:
-            arg = ((cuda_memcpy_htod_1_argument*)r->arguments)->arg1;
-            break;
-        case CUDA_MEMCPY_TO_SYMBOL:
-            arg = ((cuda_memcpy_to_symbol_1_argument*)r->arguments)->arg1;
-            break;
-        case CUDA_MEMCPY_TO_SYMBOL_SHM:
-            arg = ((cuda_memcpy_to_symbol_shm_1_argument*)r->arguments)->arg2;
-            break;
-        case CUDA_MEMCPY_IB:
-            arg = ((cuda_memcpy_ib_1_argument*)r->arguments)->arg2;
-            break;
-        case CUDA_MEMCPY_SHM:
-            arg = ((cuda_memcpy_shm_1_argument*)r->arguments)->arg2;
-            break;
-        default:
-            continue;
-        }
-        if (arg == ptr) {
-            //list_rm(&api_records, i, NULL);
-            //--i;
-            ret = 0;
-        }
-    }
-    if (ret != 0) {
-        LOGE(LOG_ERROR, "could not find a malloc call associated with this free call");
-        *result = CUDA_ERROR_UNKNOWN;
-    }
-    return 1;
-}
-
-bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_dtod_1_argument);
-    RECORD_ARG(1, dst);
-    RECORD_ARG(2, src);
-    RECORD_ARG(3, size);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyDtoD");
-    *result = cudaMemcpy((void*)dst, (void*)src, size, cudaMemcpyDeviceToDevice);
-
+    //for (size_t i = 0; i < api_records.length; ++i) {
+    //    r = (api_record_t*)api_records.elements[i];
+    //    switch (r->function) {
+    //    case CUDA_MALLOC:
+    //        arg = r->result.u64;
+    //        break;
+    //    case CUDA_MEMCPY_DTOD:
+    //        arg = ((cuda_memcpy_dtod_1_argument*)r->arguments)->arg1;
+    //        break;
+    //    case CUDA_MEMCPY_HTOD:
+    //        arg = ((cuda_memcpy_htod_1_argument*)r->arguments)->arg1;
+    //        break;
+    //    case CUDA_MEMCPY_TO_SYMBOL:
+    //        arg = ((cuda_memcpy_to_symbol_1_argument*)r->arguments)->arg1;
+    //        break;
+    //    case CUDA_MEMCPY_TO_SYMBOL_SHM:
+    //        arg = ((cuda_memcpy_to_symbol_shm_1_argument*)r->arguments)->arg2;
+    //        break;
+    //    case CUDA_MEMCPY_IB:
+    //        arg = ((cuda_memcpy_ib_1_argument*)r->arguments)->arg2;
+    //        break;
+    //    case CUDA_MEMCPY_SHM:
+    //        arg = ((cuda_memcpy_shm_1_argument*)r->arguments)->arg2;
+    //        break;
+    //    default:
+    //        continue;
+    //    }
+    //    if (arg == devPtr) {
+    //        list_rm(&api_records, i, NULL);
+    //        --i;
+    //        ret = 0;
+    //    }
+    //}
+    //if (ret != 0) {
+    //    LOGE(LOG_ERROR, "could not find a malloc call associated with this free call");
+    //    *result = CUDA_ERROR_UNKNOWN;
+    //}
     RECORD_RESULT(integer, *result);
     return 1;
 }
 
-bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
+bool_t cuda_free_array_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_htod_1_argument);
-    RECORD_ARG(1, ptr);
-    RECORD_ARG(2, mem);
-    RECORD_ARG(3, size);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyHtoD\n");
-    if (size != mem.mem_data_len) {
-        LOGE(LOG_ERROR, "data size mismatch\n");
-        *result = cudaErrorUnknown;
-        return 1;
-    }
-#ifdef WITH_MEMCPY_REGISTER
-    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
-        return 1;
-    }
-#endif
-    *result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(mem.mem_data_val);
-#endif
-
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(devPtr);
+    LOGE(LOG_DEBUG, "cudaFreeArray");
+    *result = cudaFree((void*)devPtr);
     RECORD_RESULT(integer, *result);
     return 1;
 }
-
-bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_to_symbol_1_argument);
-    RECORD_ARG(1, ptr);
-    RECORD_ARG(2, mem);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol\n");
-    if (size != mem.mem_data_len) {
-        LOGE(LOG_ERROR, "data size mismatch\n");
-        *result = cudaErrorUnknown;
-        return 1;
-    }
-#ifdef WITH_MEMCPY_REGISTER
-    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
-        return 1;
-    }
-#endif
-    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(mem.mem_data_val);
-#endif
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-    RECORD_ARG(5, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm\n");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
-    }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
-    } else {
-        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-#if WITH_IB
-struct ib_thread_info {
-    int index;
-    void* host_ptr;
-    void *device_ptr;
-    size_t size;
-    int result;
-};
-void* ib_thread(void* arg)
-{
-    struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    ib_server_recv(info->host_ptr, info->index, info->size);
-    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
-    //ib_cleanup();
-    free (info);
-    return NULL;
-}
-
-bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_to_symbol_ib_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyIB\n");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
-    }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than ib memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        pthread_t thread = {0};
-        struct ib_thread_info *info = malloc(sizeof(struct ib_thread_info));
-        info->index = index;
-        info->host_ptr = hainfo[index].server_ptr;
-        info->device_ptr = (void*)device_ptr;
-        info->size = size;
-        info->result = 0;
-        if (pthread_create(&thread, NULL, ib_thread, info) != 0) {
-            LOGE(LOG_ERROR, "starting ib thread failed.");
-            goto out;
-        }
-        *result = cudaSuccess;
-    } else if (kind == cudaMemcpyDeviceToHost) {
-        *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
-        ib_client_send(hainfo[index].server_ptr, index, size, "epyc4");
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-#endif //WITH_IB
-
-bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_memcpy_shm_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyShm\n");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
-    }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        *result = cudaMemcpy((void*)device_ptr, hainfo[index].server_ptr, size, kind);
-    } else if (kind == cudaMemcpyDeviceToHost) {
-        *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
-}
-
-bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
-{
-    //Does not need to be recorded because doesn't change device state
-    LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)\n", ptr, size);
-    result->mem_result_u.data.mem_data_len = size;
-    result->mem_result_u.data.mem_data_val = malloc(size);
-#ifdef WITH_MEMCPY_REGISTER
-    if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
-                                        size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed.");
-        goto out;
-    }
-#endif
-    result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(result->mem_result_u.data.mem_data_val);
-#endif
-out: 
-    return 1;
-}
-
-
 
 bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
 {
@@ -1075,6 +895,24 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
         }
     }
     RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* cudaFreeMipmappedArray ( cudaMipmappedArray_t mipmappedArray ) is not implemented */
+/* cudaGetMipmappedArrayLevel ( cudaArray_t* levelArray, cudaMipmappedArray_const_t mipmappedArray, unsigned int  level ) is not implemented */
+
+
+bool_t cuda_get_symbol_address_1_svc(ptr symbol, ptr_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetSymbolAddress");
+    result->err = cudaGetSymbolAddress((void**)&result->ptr_result_u.ptr, (void*)symbol);
+    return 1;
+}
+
+bool_t cuda_get_symbol_size_1_svc(ptr symbol, u64_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaGetSymbolSize");
+    result->err = cudaGetSymbolSize(&result->u64_result_u.u64, (void*)symbol);
     return 1;
 }
 
@@ -1175,8 +1013,430 @@ cleanup:
 out:
     RECORD_RESULT(integer, *result);
     return 1;
-
 }
+
+bool_t cuda_host_get_device_pointer_1_svc(ptr pHost, int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaHostGetDevicePointer");
+    //TODO: implement correctly using the resouce manager
+    //result->err = cudaHostGetDevicePointer((void**)&result->ptr_result_u.ptr, (void*)pHost, flags);
+    result->err = cudaErrorUnknown;
+    return 1;
+}
+
+bool_t cuda_host_get_flags_1_svc(ptr pHost, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaHostGetFlags");
+    //TODO: implement correctly using the resouce manager
+    //result->err = cudaHostFlags(&result->int_result_u.data, (void*)pHost);
+    result->err = cudaErrorUnknown;
+    return 1;
+}
+/* cudaHostRegister ( void* ptr, size_t size, unsigned int  flags ) not possible using shared memory
+ * maybe we can register infiniband segment though?
+ */
+/* cudaHostUnregister ( void* ptr ) same as above */
+
+bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(size_t);
+    RECORD_SINGLE_ARG(argp);
+    LOGE(LOG_DEBUG, "cudaMalloc");
+    result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_malloc_3d_1_argument);
+    RECORD_ARG(1, depth);
+    RECORD_ARG(2, height);
+    RECORD_ARG(3, width);
+    struct cudaExtent extent = {.depth = depth,
+                                .height = height,
+                                .width = width};
+    LOGE(LOG_DEBUG, "cudaMalloc3D");
+    result->err = cudaMalloc3D((void*)&result->ptr_result_u.ptr, extent);
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_malloc_3d_array_1_svc(mem_data desc, size_t depth, size_t height, size_t width, int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_malloc_3d_array_1_argument);
+    //RECORD_ARG(1, desc);
+    RECORD_ARG(2, depth);
+    RECORD_ARG(3, height);
+    RECORD_ARG(4, width);
+    RECORD_ARG(5, flags);
+    struct cudaChannelFormatDesc* cuda_desc = (void*)desc.mem_data_val;
+    struct cudaExtent extent = {.depth = depth,
+                                .height = height,
+                                .width = width};
+    LOGE(LOG_DEBUG, "cudaMalloc3DArray");
+    result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, cuda_desc, extent, flags);
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_malloc_array_1_svc(mem_data desc, size_t width, size_t height, int flags, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_malloc_array_1_argument);
+    //RECORD_ARG(1, desc);
+    RECORD_ARG(2, width);
+    RECORD_ARG(3, height);
+    RECORD_ARG(4, flags);
+    struct cudaChannelFormatDesc* cuda_desc = (void*)desc.mem_data_val;
+    LOGE(LOG_DEBUG, "cudaMallocArray");
+    result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, cuda_desc, width, height, flags);
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+/* cudaMallocHost ( void** ptr, size_t size ) is not implemented */
+/* cudaMallocManaged ( void** devPtr, size_t size, unsigned int  flags = cudaMemAttachGlobal ) is not implemented */
+/* cudaMallocMipmappedArray ( cudaMipmappedArray_t* mipmappedArray, const cudaChannelFormatDesc* desc, cudaExtent extent, unsigned int  numLevels, unsigned int  flags = 0 ) is not implemented */
+
+bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_malloc_pitch_1_argument);
+    RECORD_ARG(1, width);
+    RECORD_ARG(2, height);
+    LOGE(LOG_DEBUG, "cudaMallocPitch");
+    result->err = cudaMallocPitch((void*)&result->ptrsz_result_u.data.p,
+                                  &result->ptrsz_result_u.data.s,
+                                  width, height);
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_mem_advise_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, count);
+    RECORD_ARG(3, advice);
+    RECORD_ARG(4, device);
+
+    LOGE(LOG_DEBUG, "cudaMemAdvise");
+    *result = cudaMemAdvise((void*)devPtr, count, advice, device);
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_mem_get_info_1_svc(dsz_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaMemGetInfo");
+    result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
+                             &result->dsz_result_u.data.sz2);
+    return 1;
+}
+
+bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_mem_prefetch_async_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, count);
+    RECORD_ARG(3, dstDevice);
+    RECORD_ARG(4, stream);
+
+    LOGE(LOG_DEBUG, "cudaMemPrefetchAsync");
+    *result = cudaMemPrefetchAsync((void*)devPtr, count, dstDevice, (void*)stream);
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* cuda_mem_range_get_attribute_1_svc(int attribute, ptr devPtr, size_t count, mem_result *result, struct svc_req *rqstp) unsupported because requires unified memors */
+/* cudaMemRangeGetAttribute ( void* data, size_t dataSize, cudaMemRangeAttribute attribute, const void* devPtr, size_t count ) unsupported because requires unified memory */
+
+/* CUDA_MEMCPY Family */
+
+bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_htod_1_argument);
+    RECORD_ARG(1, ptr);
+    RECORD_ARG(2, mem);
+    RECORD_ARG(3, size);
+
+    LOGE(LOG_DEBUG, "cudaMemcpyHtoD");
+    if (size != mem.mem_data_len) {
+        LOGE(LOG_ERROR, "data size mismatch");
+        *result = cudaErrorUnknown;
+        return 1;
+    }
+#ifdef WITH_MEMCPY_REGISTER
+    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        return 1;
+    }
+#endif
+    *result = cudaMemcpy((void*)ptr, mem.mem_data_val, size, cudaMemcpyHostToDevice);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(mem.mem_data_val);
+#endif
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+
+bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_dtod_1_argument);
+    RECORD_ARG(1, dst);
+    RECORD_ARG(2, src);
+    RECORD_ARG(3, size);
+
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoD");
+    *result = cudaMemcpy((void*)dst, (void*)src, size, cudaMemcpyDeviceToDevice);
+
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+
+bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_to_symbol_1_argument);
+    RECORD_ARG(1, ptr);
+    RECORD_ARG(2, mem);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
+
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol");
+    if (size != mem.mem_data_len) {
+        LOGE(LOG_ERROR, "data size mismatch");
+        *result = cudaErrorUnknown;
+        return 1;
+    }
+#ifdef WITH_MEMCPY_REGISTER
+    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        return 1;
+    }
+#endif
+    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(mem.mem_data_val);
+#endif
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, offset);
+    RECORD_ARG(5, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
+    } else {
+        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
+    }
+out:
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+#if WITH_IB
+struct ib_thread_info {
+    int index;
+    void* host_ptr;
+    void *device_ptr;
+    size_t size;
+    int result;
+};
+void* ib_thread(void* arg)
+{
+    struct ib_thread_info *info = (struct ib_thread_info*)arg;
+    ib_server_recv(info->host_ptr, info->index, info->size);
+    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
+    //ib_cleanup();
+    free (info);
+    return NULL;
+}
+
+bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_to_symbol_ib_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyIB\n");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than ib memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        pthread_t thread = {0};
+        struct ib_thread_info *info = malloc(sizeof(struct ib_thread_info));
+        info->index = index;
+        info->host_ptr = hainfo[index].server_ptr;
+        info->device_ptr = (void*)device_ptr;
+        info->size = size;
+        info->result = 0;
+        if (pthread_create(&thread, NULL, ib_thread, info) != 0) {
+            LOGE(LOG_ERROR, "starting ib thread failed.");
+            goto out;
+        }
+        *result = cudaSuccess;
+    } else if (kind == cudaMemcpyDeviceToHost) {
+        *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
+        ib_client_send(hainfo[index].server_ptr, index, size, "epyc4");
+    }
+out:
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+#endif //WITH_IB
+
+bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_shm_1_argument);
+    RECORD_ARG(1, index);
+    RECORD_ARG(2, device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyShm");
+    *result = cudaErrorInitializationError;
+    if (hainfo[index].cnt == 0 ||
+        hainfo[index].cnt != index) {
+
+        LOGE(LOG_ERROR, "inconsistent state");
+        goto out;
+    }
+    if (hainfo[index].size < size) {
+        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
+        goto out;
+    }
+
+    if (kind == cudaMemcpyHostToDevice) {
+        *result = cudaMemcpy((void*)device_ptr, hainfo[index].server_ptr, size, kind);
+    } else if (kind == cudaMemcpyDeviceToHost) {
+        *result = cudaMemcpy(hainfo[index].server_ptr, (void*)device_ptr, size, kind);
+    }
+out:
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
+{
+    //Does not need to be recorded because doesn't change device state
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
+    result->mem_result_u.data.mem_data_len = size;
+    result->mem_result_u.data.mem_data_val = malloc(size);
+#ifdef WITH_MEMCPY_REGISTER
+    if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
+                                        size, cudaHostRegisterMapped)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostRegister failed.");
+        goto out;
+    }
+#endif
+    result->err = cudaMemcpy(result->mem_result_u.data.mem_data_val, (void*)ptr, size, cudaMemcpyDeviceToHost);
+#ifdef WITH_MEMCPY_REGISTER
+    cudaHostUnregister(result->mem_result_u.data.mem_data_val);
+#endif
+out:
+    return 1;
+}
+//__host__ ​cudaError_t cudaMemcpy ( void* dst, const void* src, size_t count, cudaMemcpyKind kind )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2D ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2DArrayToArray ( cudaArray_t dst, size_t wOffsetDst, size_t hOffsetDst, cudaArray_const_t src, size_t wOffsetSrc, size_t hOffsetSrc, size_t width, size_t height, cudaMemcpyKind kind = cudaMemcpyDeviceToDevice )
+//    Copies data between host and device. 
+//__host__ ​ __device__ ​cudaError_t cudaMemcpy2DAsync ( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2DFromArray ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2DFromArrayAsync ( void* dst, size_t dpitch, cudaArray_const_t src, size_t wOffset, size_t hOffset, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2DToArray ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy2DToArrayAsync ( cudaArray_t dst, size_t wOffset, size_t hOffset, const void* src, size_t spitch, size_t width, size_t height, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpy3D ( const cudaMemcpy3DParms* p )
+//    Copies data between 3D objects. 
+//__host__ ​ __device__ ​cudaError_t cudaMemcpy3DAsync ( const cudaMemcpy3DParms* p, cudaStream_t stream = 0 )
+//    Copies data between 3D objects. 
+//__host__ ​cudaError_t cudaMemcpy3DPeer ( const cudaMemcpy3DPeerParms* p )
+//    Copies memory between devices. 
+//__host__ ​cudaError_t cudaMemcpy3DPeerAsync ( const cudaMemcpy3DPeerParms* p, cudaStream_t stream = 0 )
+//    Copies memory between devices asynchronously. 
+//__host__ ​ __device__ ​cudaError_t cudaMemcpyAsync ( void* dst, const void* src, size_t count, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data between host and device. 
+//__host__ ​cudaError_t cudaMemcpyFromSymbol ( void* dst, const void* symbol, size_t count, size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyDeviceToHost )
+//    Copies data from the given symbol on the device. 
+//__host__ ​cudaError_t cudaMemcpyFromSymbolAsync ( void* dst, const void* symbol, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data from the given symbol on the device. 
+//__host__ ​cudaError_t cudaMemcpyPeer ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count )
+//    Copies memory between two devices. 
+//__host__ ​cudaError_t cudaMemcpyPeerAsync ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count, cudaStream_t stream = 0 )
+//    Copies memory between two devices asynchronously. 
+//__host__ ​cudaError_t cudaMemcpyToSymbol ( const void* symbol, const void* src, size_t count, size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyHostToDevice )
+//    Copies data to the given symbol on the device. 
+//__host__ ​cudaError_t cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 )
+//    Copies data to the given symbol on the device. 
+//__host__ ​cudaError_t cudaMemset ( void* devPtr, int  value, size_t count )
+//    Initializes or sets device memory to a value. 
+//__host__ ​cudaError_t cudaMemset2D ( void* devPtr, size_t pitch, int  value, size_t width, size_t height )
+//    Initializes or sets device memory to a value. 
+//__host__ ​ __device__ ​cudaError_t cudaMemset2DAsync ( void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0 )
+//    Initializes or sets device memory to a value. 
+//__host__ ​cudaError_t cudaMemset3D ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent )
+//    Initializes or sets device memory to a value. 
+//__host__ ​ __device__ ​cudaError_t cudaMemset3DAsync ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent, cudaStream_t stream = 0 )
+//    Initializes or sets device memory to a value. 
+//__host__ ​ __device__ ​cudaError_t cudaMemsetAsync ( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 )
+//    Initializes or sets device memory to a value. 
+//__host__ ​cudaError_t cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap )
+//    Returns the layout properties of a sparse CUDA mipmapped array. 
+//__host__ ​cudaExtent make_cudaExtent ( size_t w, size_t h, size_t d )
+//    Returns a cudaExtent based on input parameters. 
+//__host__ ​cudaPitchedPtr make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz )
+//    Returns a cudaPitchedPtr based on input parameters. 
+//__host__ ​cudaPos make_cudaPos ( size_t x, size_t y, size_t z )
+//    Returns a cudaPos based on input parameters.
+
+
+
+
+
+
 
 
 
