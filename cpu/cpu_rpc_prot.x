@@ -290,8 +290,8 @@ program RPC_CD_PROG {
         /* ### Surface Object Management ### */
             /* NOT IMPLEMENTED */
         /* ### Version Management ### */
-        int          CUDA_DRIVER_GET_VERSION(void)                      = 510;
-        int          CUDA_RUNTIME_GET_VERSION(void)                     = 511;
+        int_result   CUDA_DRIVER_GET_VERSION(void)                      = 510;
+        int_result   CUDA_RUNTIME_GET_VERSION(void)                     = 511;
         /* ### Graph Management ### */
             /* NOT IMPLEMENTED */
         /* ### Profiler Control ### */

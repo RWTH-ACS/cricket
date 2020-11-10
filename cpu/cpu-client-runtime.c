@@ -37,7 +37,27 @@ void cpu_runtime_print_api_call_cnt(void)
 #endif //WITH_API_CNT
 
 
-DEF_FN(cudaError_t, cudaChooseDevice, int*, device, const struct cudaDeviceProp*, prop)
+cudaError_t cudaChooseDevice(int* device, const struct cudaDeviceProp* prop)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    mem_data prop_mem = {
+      .mem_data_len = sizeof(struct cudaDeviceProp),
+      .mem_data_val = (void*)prop};
+
+    retval_1 = cuda_choose_device_1(prop_mem, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *device = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 cudaError_t cudaDeviceGetAttribute(int* value, enum cudaDeviceAttr attr, int device)
 {
 #ifdef WITH_API_CNT
@@ -55,13 +75,134 @@ cudaError_t cudaDeviceGetAttribute(int* value, enum cudaDeviceAttr attr, int dev
     }
     return result.err;
 }
-DEF_FN(cudaError_t, cudaDeviceGetByPCIBusId, int*, device, const char*, pciBusId)
-DEF_FN(cudaError_t, cudaDeviceGetCacheConfig, enum cudaFuncCache*, pCacheConfig)
-DEF_FN(cudaError_t, cudaDeviceGetLimit, size_t*, pValue, enum cudaLimit, limit)
-DEF_FN(cudaError_t, cudaDeviceGetP2PAttribute, int*, value, enum cudaDeviceP2PAttr, attr, int,  srcDevice, int,  dstDevice)
-DEF_FN(cudaError_t, cudaDeviceGetPCIBusId, char*, pciBusId, int, len, int, device)
-DEF_FN(cudaError_t, cudaDeviceGetSharedMemConfig, enum cudaSharedMemConfig*, pConfig)
-DEF_FN(cudaError_t, cudaDeviceGetStreamPriorityRange, int*, leastPriority, int*, greatestPriority)
+
+cudaError_t cudaDeviceGetByPCIBusId(int* device, const char* pciBusId)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_by_pci_bus_id_1((char*)pciBusId, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *device = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetCacheConfig(enum cudaFuncCache* pCacheConfig)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_cache_config_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pCacheConfig = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetLimit(size_t* pValue, enum cudaLimit limit)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    u64_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_limit_1(limit, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pValue = result.u64_result_u.u64;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetP2PAttribute(int* value, enum cudaDeviceP2PAttr attr, int  srcDevice, int  dstDevice)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_p2p_attribute_1(attr, srcDevice, dstDevice, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *value = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetPCIBusId(char* pciBusId, int len, int device)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    str_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_pci_bus_id_1(len, device, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        strncpy(pciBusId, result.str_result_u.str, len);
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetSharedMemConfig(enum cudaSharedMemConfig* pConfig)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_shared_mem_config_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pConfig = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceGetStreamPriorityRange(int* leastPriority, int* greatestPriority)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    dint_result result;
+    enum clnt_stat retval_1;
+
+    retval_1 = cuda_device_get_stream_priority_range_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *leastPriority = result.dint_result_u.data.i1;
+        *greatestPriority = result.dint_result_u.data.i2;
+    }
+    return result.err;
+}
+
 cudaError_t cudaDeviceReset(void)
 {
 #ifdef WITH_API_CNT
@@ -75,9 +216,49 @@ cudaError_t cudaDeviceReset(void)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaDeviceSetCacheConfig, enum cudaFuncCache, cacheConfig)
-DEF_FN(cudaError_t, cudaDeviceSetLimit, enum cudaLimit, limit, size_t, value)
-DEF_FN(cudaError_t, cudaDeviceSetSharedMemConfig, enum cudaSharedMemConfig, config)
+
+cudaError_t cudaDeviceSetCacheConfig(enum cudaFuncCache cacheConfig)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_set_cache_config_1(cacheConfig, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaDeviceSetLimit(enum cudaLimit limit, size_t value)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_set_limit_1(limit, value, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaDeviceSetSharedMemConfig(enum cudaSharedMemConfig config)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_device_set_shared_mem_config_1(config, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 cudaError_t cudaDeviceSynchronize(void)
 {
 #ifdef WITH_API_CNT
@@ -91,6 +272,7 @@ cudaError_t cudaDeviceSynchronize(void)
     }
     return result;
 }
+
 cudaError_t cudaGetDevice(int* device)
 {
 #ifdef WITH_API_CNT
@@ -107,6 +289,7 @@ cudaError_t cudaGetDevice(int* device)
     }
     return result.err;
 }
+
 cudaError_t cudaGetDeviceCount(int* count)
 {
 #ifdef WITH_API_CNT
@@ -123,7 +306,24 @@ cudaError_t cudaGetDeviceCount(int* count)
     }
     return result.err;
 }
-DEF_FN(cudaError_t, cudaGetDeviceFlags, unsigned int*, flags)
+
+cudaError_t cudaGetDeviceFlags(unsigned int* flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_device_flags_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *flags = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
 {
 #ifdef WITH_API_CNT
@@ -146,11 +346,13 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     }
     return result.err;
 }
+
 DEF_FN(cudaError_t, cudaIpcCloseMemHandle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcGetEventHandle, cudaIpcEventHandle_t*, handle, cudaEvent_t, event)
 DEF_FN(cudaError_t, cudaIpcGetMemHandle, cudaIpcMemHandle_t*, handle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcOpenEventHandle, cudaEvent_t*, event, cudaIpcEventHandle_t, handle)
 DEF_FN(cudaError_t, cudaIpcOpenMemHandle, void**, devPtr, cudaIpcMemHandle_t, handle, unsigned int,  flags)
+
 cudaError_t cudaSetDevice(int device)
 {
 #ifdef WITH_API_CNT
@@ -164,9 +366,37 @@ cudaError_t cudaSetDevice(int device)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaSetDeviceFlags, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaSetValidDevices, int*, device_arr, int,  len)
-//DEF_FN(const char*, cudaGetErrorName, cudaError_t, error)
+
+cudaError_t cudaSetDeviceFlags(unsigned int  flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_set_device_flags_1(flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaSetValidDevices(int *device_arr, int len)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data arr_mem = {.mem_data_len = len*sizeof(int),
+                        .mem_data_val = (void*)device_arr};
+    retval_1 = cuda_set_valid_devices_1(arr_mem, len, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 const char* cudaGetErrorName(cudaError_t error)
 {
     str_result result;
@@ -181,6 +411,7 @@ const char* cudaGetErrorName(cudaError_t error)
     }
     return result.str_result_u.str;
 }
+
 const char* cudaGetErrorString(cudaError_t error)
 {
 #ifdef WITH_API_CNT
@@ -198,6 +429,7 @@ const char* cudaGetErrorString(cudaError_t error)
     }
     return result.str_result_u.str;
 }
+
 cudaError_t cudaGetLastError(void)
 {
 #ifdef WITH_API_CNT
@@ -211,7 +443,21 @@ cudaError_t cudaGetLastError(void)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaPeekAtLastError, void)
+
+cudaError_t cudaPeekAtLastError(void)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_peek_at_last_error_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaStreamAddCallback, cudaStream_t, stream, cudaStreamCallback_t, callback, void*, userData, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamAttachMemAsync, cudaStream_t, stream, void*, devPtr, size_t, length, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamBeginCapture, cudaStream_t, stream, enum cudaStreamCaptureMode, mode)
