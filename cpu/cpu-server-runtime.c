@@ -1048,7 +1048,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, ptr_result *result, struct svc_req *rqstp)
+bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_malloc_3d_1_argument);
     RECORD_ARG(1, depth);
@@ -1057,42 +1057,57 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, ptr_resul
     struct cudaExtent extent = {.depth = depth,
                                 .height = height,
                                 .width = width};
+    struct cudaPitchedPtr pptr;
     LOGE(LOG_DEBUG, "cudaMalloc3D");
-    result->err = cudaMalloc3D((void*)&result->ptr_result_u.ptr, extent);
+    result->err = cudaMalloc3D(&pptr, extent);
+    result->pptr_result_u.ptr.pitch = pptr.pitch;
+    result->pptr_result_u.ptr.ptr = (ptr)pptr.ptr;
+    result->pptr_result_u.ptr.xsize = pptr.xsize;
+    result->pptr_result_u.ptr.ysize = pptr.ysize;
 
     RECORD_RESULT(integer, result->err);
     return 1;
 }
 
-bool_t cuda_malloc_3d_array_1_svc(mem_data desc, size_t depth, size_t height, size_t width, int flags, ptr_result *result, struct svc_req *rqstp)
+bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, size_t height, size_t width, int flags, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_malloc_3d_array_1_argument);
-    //RECORD_ARG(1, desc);
+    RECORD_ARG(1, desc);
     RECORD_ARG(2, depth);
     RECORD_ARG(3, height);
     RECORD_ARG(4, width);
     RECORD_ARG(5, flags);
-    struct cudaChannelFormatDesc* cuda_desc = (void*)desc.mem_data_val;
+    struct cudaChannelFormatDesc cuda_desc = {
+      .f = desc.f,
+      .w = desc.w,
+      .x = desc.x,
+      .y = desc.y,
+      .z = desc.z};
     struct cudaExtent extent = {.depth = depth,
                                 .height = height,
                                 .width = width};
     LOGE(LOG_DEBUG, "cudaMalloc3DArray");
-    result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, cuda_desc, extent, flags);
+    result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, &cuda_desc, extent, flags);
 
     RECORD_RESULT(integer, result->err);
     return 1;
 }
 
-bool_t cuda_malloc_array_1_svc(mem_data desc, size_t width, size_t height, int flags, ptr_result *result, struct svc_req *rqstp)
+bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size_t height, int flags, ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_malloc_array_1_argument);
-    //RECORD_ARG(1, desc);
+    RECORD_ARG(1, desc);
     RECORD_ARG(2, width);
     RECORD_ARG(3, height);
     RECORD_ARG(4, flags);
-    struct cudaChannelFormatDesc* cuda_desc = (void*)desc.mem_data_val;
+    struct cudaChannelFormatDesc cuda_desc = {
+      .f = desc.f,
+      .w = desc.w,
+      .x = desc.x,
+      .y = desc.y,
+      .z = desc.z};
     LOGE(LOG_DEBUG, "cudaMallocArray");
-    result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, cuda_desc, width, height, flags);
+    result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, &cuda_desc, width, height, flags);
 
     RECORD_RESULT(integer, result->err);
     return 1;

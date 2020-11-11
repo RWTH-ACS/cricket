@@ -36,6 +36,13 @@ struct cuda_channel_format_desc {
     int z;
 };
 
+struct pitche_ptr {
+    size_t pitch;
+    ptr ptr;
+    size_t xsize;
+    size_t ysize;
+};
+
 union int_result switch (int err) {
 case 0:
     int data;
@@ -81,6 +88,13 @@ default:
 union ptr_result switch (int err) {
 case 0:
     uint64_t ptr;
+default:
+    void;
+};
+
+union pptr_result switch (int err) {
+case 0:
+    pitche_ptr ptr;
 default:
     void;
 };
@@ -236,10 +250,10 @@ program RPC_CD_PROG {
         /* int       CUDA_HOST_REGISTER(ptr, size_t, int)               = 412;*/
         /* int       CUDA_HOST_UNREGISTER(ptr)                          = 413;*/
         ptr_result   CUDA_MALLOC(size_t)                                = 414;
-        ptr_result   CUDA_MALLOC_3D(size_t, size_t, size_t)             = 415;
-        ptr_result   CUDA_MALLOC_3D_ARRAY(mem_data, size_t, size_t, size_t,
-                          int)                                          = 416;
-        ptr_result   CUDA_MALLOC_ARRAY(mem_data, size_t, size_t, int)   = 417;
+        pptr_result  CUDA_MALLOC_3D(size_t, size_t, size_t)             = 415;
+        ptr_result   CUDA_MALLOC_3D_ARRAY(cuda_channel_format_desc, 
+                          size_t, size_t, size_t, int)                  = 416;
+        ptr_result   CUDA_MALLOC_ARRAY(cuda_channel_format_desc, size_t, size_t, int)   = 417;
         /*ptr_result   CUDA_MALLOC_HOST(ptr, size_t)                      = 418;*/
         /*ptr_result   CUDA_MALLOC_MANAGED(size_t, int)                   = 419;*/
         /*ptr_result   CUDA_MALLOC_MIPMAPPED_ARRAY(mem_data, size_t, size_t,
@@ -248,9 +262,9 @@ program RPC_CD_PROG {
         int          CUDA_MEM_ADVISE(ptr, size_t, int, int)             = 422;
         dsz_result   CUDA_MEM_GET_INFO(void)                            = 423;
         int          CUDA_MEM_PREFETCH_ASYNC(ptr, size_t, int, ptr)     = 424;
-        mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTE(int, ptr, size_t)     = 425;
-        mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTES(mem_data, size_t, 
-                          ptr, size_t)                                  = 426;
+        /*mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTE(int, ptr, size_t)     = 425;*/
+        /*mem_result   CUDA_MEM_RANGE_GET_ATTRIBUTES(mem_data, size_t, 
+                          ptr, size_t)                                  = 426;*/
         /* ### CUDA_MEMCPY Family ### */
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)            = 440;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                      = 441;
@@ -268,13 +282,13 @@ program RPC_CD_PROG {
                  much code duplication */
         int          CUDA_MEMSET(ptr, int, size_t)                      = 470;
         int          CUDA_MEMSET_2D(ptr, size_t, int, size_t, size_t)   = 471;
-        int          CUDA_MEMSET_2D_ASYNC(ptr, size_t, int, size_t, size_t,
-                          int)                                          = 472;
+        /*int          CUDA_MEMSET_2D_ASYNC(ptr, size_t, int, size_t, size_t,
+                          int)                                          = 472;*/
         int          CUDA_MEMSET_3D(size_t, ptr, size_t, size_t, int, size_t,
                           size_t, size_t)                               = 473;
-        int          CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
-                          size_t, size_t, size_t, int)                  = 474;
-        int          CUDA_MEMSET_ASYNC(ptr, int, size_t, int)           = 475;
+        /*int          CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
+                          size_t, size_t, size_t, int)                  = 474;*/
+        /*int          CUDA_MEMSET_ASYNC(ptr, int, size_t, int)           = 475;*/
         /* ?         CUDA_MIPMAPPED_ARRAY_GET_SPARSE_PROPERTIES(ptr)    = 476;*/
         /* make_ APIs can be copied on the client side */
         /* ### Unified Addressing ### */

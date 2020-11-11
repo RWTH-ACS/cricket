@@ -747,16 +747,153 @@ DEF_FN(cudaError_t, cudaImportExternalMemory, cudaExternalMemory_t*, extMem_out,
 DEF_FN(cudaError_t, cudaImportExternalSemaphore, cudaExternalSemaphore_t*, extSem_out, const struct cudaExternalSemaphoreHandleDesc*, semHandleDesc)
 DEF_FN(cudaError_t, cudaSignalExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreSignalParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaWaitExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreWaitParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaFuncGetAttributes, struct cudaFuncAttributes*, attr, const void*, func)
-DEF_FN(cudaError_t, cudaFuncSetAttribute, const void*, func, enum cudaFuncAttribute, attr, int, value)
-DEF_FN(cudaError_t, cudaFuncSetCacheConfig, const void*, func, enum cudaFuncCache, cacheConfig)
-DEF_FN(cudaError_t, cudaFuncSetSharedMemConfig, const void*, func, enum cudaSharedMemConfig, config)
-DEF_FN(void* cudaGetParameterBuffer, size_t, alignment, size_t, size)
-DEF_FN(void* cudaGetParameterBufferV2, void*, func, dim3, gridDimension, dim3, blockDimension, unsigned int,  sharedMemSize)
-DEF_FN(cudaError_t, cudaLaunchCooperativeKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaLaunchCooperativeKernelMultiDevice, struct cudaLaunchParams*, launchParamsList, unsigned int, numDevices, unsigned int, flags)
+
+cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* func)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        memcpy(attr, result.mem_result_u.data.mem_data_val,
+                     result.mem_result_u.data.mem_data_len);
+    }
+    return result.err;
+}
+
+cudaError_t cudaFuncSetAttribute(const void* func, enum cudaFuncAttribute attr, int value)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_func_set_attributes_1((ptr)func, attr, value, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaFuncSetCacheConfig(const void* func, enum cudaFuncCache cacheConfig)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_func_set_cache_config_1((ptr)func, cacheConfig, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaFuncSetSharedMemConfig(const void* func, enum cudaSharedMemConfig config)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_func_set_shared_mem_config_1((ptr)func, config, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaLaunchCooperativeKernel(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    size_t i;
+    char *buf;
+
+    for (i=0; i < kernelnum; ++i) {
+        if (func != NULL && infos[i].host_fun == func) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+            break;
+        }
+    }
+
+    rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    mem_data rpc_args;
+    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
+    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
+        size = infos[i].param_sizes[j];
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
+               infos[i].param_offsets[j],
+               args[j],
+               size);
+    }
+    retval_1 = cuda_launch_cooperative_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    free(rpc_args.mem_data_val);
+    return result;
+}
+
+cudaError_t cudaLaunchCooperativeKernelMultiDevice(struct cudaLaunchParams* launchParamsList, unsigned int numDevices, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    size_t i;
+    char *buf;
+    void* func = launchParamsList->func;
+    dim3 gridDim = launchParamsList->gridDim;
+    dim3 blockDim = launchParamsList->blockDim;
+
+    for (i=0; i < kernelnum; ++i) {
+        if (func != NULL && infos[i].host_fun == func) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+            break;
+        }
+    }
+
+    rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
+    rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
+    mem_data rpc_args;
+    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
+    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
+        size = infos[i].param_sizes[j];
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
+               infos[i].param_offsets[j],
+               launchParamsList->args[j],
+               size);
+    }
+    retval_1 = cuda_launch_cooperative_kernel_1(
+      (uint64_t)func, rpc_gridDim, rpc_blockDim,
+      rpc_args, launchParamsList->sharedMem,
+      (uint64_t)launchParamsList->stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    free(rpc_args.mem_data_val);
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaLaunchHostFunc, cudaStream_t, stream, cudaHostFn_t, fn, void*, userData)
-//DEF_FN(cudaError_t, cudaLaunchKernel, const void*, func, dim3, gridDim, dim3, blockDim, void**, args, size_t, sharedMem, cudaStream_t, stream)
+
 cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream)
 {
 #ifdef WITH_API_CNT
@@ -797,12 +934,89 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     free(rpc_args.mem_data_val);
     return result;
 }
+
 DEF_FN(cudaError_t, cudaSetDoubleForDevice, double*, d)
 DEF_FN(cudaError_t, cudaSetDoubleForHost, double*, d)
-DEF_FN(cudaError_t, cudaOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, const void*, func, int,  blockSize, size_t, dynamicSMemSize)
-DEF_FN(cudaError_t, cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, int*, numBlocks, const void*, func, int,  blockSize, size_t, dynamicSMemSize, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaArrayGetInfo, struct cudaChannelFormatDesc*, desc, struct cudaExtent*, extent, unsigned int*, flags, cudaArray_t, array)
-//DEF_FN(cudaError_t, cudaFree, void*, devPtr)
+    
+
+cudaError_t cudaOccupancyMaxActiveBlocksPerMultiprocessor(int* numBlocks, const void* func, int  blockSize, size_t dynamicSMemSize)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_occupancy_max_active_bpm_1((ptr)func, blockSize, dynamicSMemSize, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *numBlocks = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(int* numBlocks, const void* func, int  blockSize, size_t dynamicSMemSize, unsigned int  flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_occupancy_max_active_bpm_with_flags_1((ptr)func, blockSize, dynamicSMemSize, flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *numBlocks = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaArrayGetInfo(struct cudaChannelFormatDesc* desc, struct cudaExtent* extent, unsigned int* flags, cudaArray_t array)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_array_get_info_1((ptr)array, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        memcpy(desc, result.mem_result_u.data.mem_data_val, 
+               sizeof(struct cudaChannelFormatDesc));
+        memcpy(extent, result.mem_result_u.data.mem_data_val +
+               sizeof(struct cudaChannelFormatDesc),
+               sizeof(struct cudaExtent));
+        memcpy(flags, result.mem_result_u.data.mem_data_val +
+               sizeof(struct cudaChannelFormatDesc),
+               sizeof(struct cudaExtent));
+    }
+    return result.err;
+}
+
+#if CUDART_VERSION >= 11000
+cudaError_t cudaArrayGetSparseProperties(struct cudaArraySparseProperties* sparseProperties, cudaArray_t array)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_array_get_info_1((ptr)array, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        memcpy(sparseProperties, result.mem_result_u.data.mem_data_val, 
+               sizeof(struct cudaArraySparseProperties));
+    }
+    return result.err;
+}
+#endif
+
 cudaError_t cudaFree(void *devPtr)
 {
 #ifdef WITH_API_CNT
@@ -816,7 +1030,20 @@ cudaError_t cudaFree(void *devPtr)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaFreeArray, cudaArray_t, array)
+
+cudaError_t cudaFreeArray(cudaArray_t array)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_free_array_1((uint64_t)array, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 typedef struct host_alloc_info {
     int cnt;
@@ -883,8 +1110,40 @@ cudaError_t cudaFreeHost(void* ptr)
 }
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
 DEF_FN(cudaError_t, cudaGetMipmappedArrayLevel, cudaArray_t*, levelArray, cudaMipmappedArray_const_t, mipmappedArray, unsigned int,  level)
-DEF_FN(cudaError_t, cudaGetSymbolAddress, void**, devPtr, const void*, symbol)
-DEF_FN(cudaError_t, cudaGetSymbolSize, size_t*, size, const void*, symbol)
+
+cudaError_t cudaGetSymbolAddress(void** devPtr, const void* symbol)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_symbol_address_1((ptr)symbol, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *devPtr = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudaError_t cudaGetSymbolSize(size_t* size, const void* symbol)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    u64_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_get_symbol_size_1((ptr)symbol, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *size = result.u64_result_u.u64;
+    }
+    return result.err;
+}
 
 
 cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
@@ -929,7 +1188,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 #endif //WITH_IB
     } else if (socktype == UNIX) { //Use local shared memory
 
-        snprintf(shm_name, 128, "/crickethostalloc-%d", hainfo_cnt);
+        snprintf(shm_name, 128, "/crickethostalloc-%zu", hainfo_cnt);
         if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
             LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
             goto out;
@@ -968,10 +1227,44 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 out:
     return ret;
 }
-DEF_FN(cudaError_t, cudaHostGetDevicePointer, void**, pDevice, void*, pHost, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaHostGetFlags, unsigned int*, pFlags, void*, pHost)
+
+cudaError_t cudaHostGetDevicePointer(void** pDevice, void* pHost, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_host_get_device_pointer_1((ptr)pHost, flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pDevice = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudaError_t cudaHostGetFlags(unsigned int* pFlags, void* pHost)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_host_get_flags_1((ptr)pHost, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pFlags = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 DEF_FN(cudaError_t, cudaHostRegister, void*, ptr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
+
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
 #ifdef WITH_API_CNT
@@ -989,18 +1282,192 @@ cudaError_t cudaMalloc(void** devPtr, size_t size)
     *devPtr = (void*)result.ptr_result_u.ptr;
     return result.err;
 }
-DEF_FN(cudaError_t, cudaMalloc3D, struct cudaPitchedPtr*, pitchedDevPtr, struct cudaExtent, extent)
-DEF_FN(cudaError_t, cudaMalloc3DArray, cudaArray_t*, array, const struct cudaChannelFormatDesc*, desc, struct cudaExtent, extent, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaMallocArray, cudaArray_t*, array, const struct cudaChannelFormatDesc*, desc, size_t, width, size_t, height, unsigned int,  flags)
+
+cudaError_t cudaMalloc3D(struct cudaPitchedPtr* pitchedDevPtr, struct cudaExtent extent)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    pptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_malloc_3d_1(extent.depth, extent.height, extent.width, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        pitchedDevPtr->pitch = result.pptr_result_u.ptr.pitch;
+        pitchedDevPtr->ptr = (void*)result.pptr_result_u.ptr.ptr;
+        pitchedDevPtr->xsize = result.pptr_result_u.ptr.xsize;
+        pitchedDevPtr->ysize = result.pptr_result_u.ptr.pitch;
+    }
+    return result.err;
+}
+
+cudaError_t cudaMalloc3DArray(cudaArray_t* array, const struct cudaChannelFormatDesc* desc, struct cudaExtent extent, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    cuda_channel_format_desc rpc_desc = {
+        .f = desc->f,
+        .w = desc->w,
+        .x = desc->x,
+        .y = desc->y,
+        .z = desc->z};
+    retval_1 = cuda_malloc_3d_array_1(rpc_desc, extent.depth, extent.height, extent.width, flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *array = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudaError_t cudaMallocArray(cudaArray_t* array, const struct cudaChannelFormatDesc* desc, size_t width, size_t height, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    cuda_channel_format_desc rpc_desc = {
+        .f = desc->f,
+        .w = desc->w,
+        .x = desc->x,
+        .y = desc->y,
+        .z = desc->z};
+    retval_1 = cuda_malloc_array_1(rpc_desc, width, height, flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *array = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 DEF_FN(cudaError_t, cudaMallocHost, void**, ptr, size_t, size)
 DEF_FN(cudaError_t, cudaMallocManaged, void**, devPtr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaMallocMipmappedArray, cudaMipmappedArray_t*, mipmappedArray, const struct cudaChannelFormatDesc*, desc, struct cudaExtent, extent, unsigned int,  numLevels, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaMallocPitch, void**, devPtr, size_t*, pitch, size_t, width, size_t, height)
-DEF_FN(cudaError_t, cudaMemAdvise, const void*, devPtr, size_t, count, enum cudaMemoryAdvise, advice, int,  device)
-DEF_FN(cudaError_t, cudaMemGetInfo, size_t*, free, size_t*, total)
-DEF_FN(cudaError_t, cudaMemPrefetchAsync, const void*, devPtr, size_t, count, int,  dstDevice, cudaStream_t, stream)
+
+cudaError_t cudaMallocPitch(void** devPtr, size_t* pitch, size_t width, size_t height)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptrsz_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_malloc_pitch_1(width, height, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *devPtr = (void*)result.ptrsz_result_u.data.p;
+        *pitch = result.ptrsz_result_u.data.s;
+    }
+    return result.err;
+}
+
+cudaError_t cudaMemAdvise(const void* devPtr, size_t count, enum cudaMemoryAdvise advice, int device)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_mem_advise_1((ptr)devPtr, count, advice, device, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaMemGetInfo(size_t* free, size_t* total)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    dsz_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_mem_get_info_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *free = result.dsz_result_u.data.sz1;
+        *total = result.dsz_result_u.data.sz2;
+    }
+    return result.err;
+}
+
+cudaError_t cudaMemPrefetchAsync(const void* devPtr, size_t count, int dstDevice, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_mem_prefetch_async_1((ptr)devPtr, count, dstDevice, (ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaMemRangeGetAttribute, void*, data, size_t, dataSize, enum cudaMemRangeAttribute, attribute, const void*, devPtr, size_t, count)
 DEF_FN(cudaError_t, cudaMemRangeGetAttributes, void**, data, size_t*, dataSizes, enum cudaMemRangeAttribute*, attributes, size_t, numAttributes, const void*, devPtr, size_t, count)
+/* NOT IMPLEMENTED because requires unified memory
+ * cudaError_t cudaMemRangeGetAttribute(void* data, size_t dataSize, enum cudaMemRangeAttribute attribute, const void* devPtr, size_t count)
+ * {
+ * #ifdef WITH_API_CNT
+ *     api_call_cnt++;
+ * #endif //WITH_API_CNT
+ *     mem_result result;
+ *     enum clnt_stat retval_1;
+ *     retval_1 = cuda_mem_range_get_attribute_1(attribute, (ptr)devPtr, count, &result, clnt);
+ *     if (retval_1 != RPC_SUCCESS) {
+ *         clnt_perror (clnt, "call failed");
+ *     }
+ *     if (result.err == 0) {
+ *         if (dataSize < result.mem_result_u.data.mem_data_len) {
+ *             LOGE(LOG_ERROR, "data is too small to store result");
+ *             return cudaErrorUnknown;
+ *         }
+ *         memcpy(data, result.mem_result_u.data.mem_data_val,
+ *                      result.mem_result_u.data.mem_data_len);
+ *     }
+ *     return result.err;
+ * }
+ * cudaError_t cudaMemRangeGetAttributes(void** data, size_t* dataSizes, enum cudaMemRangeAttribute* attributes, size_t numAttributes, const void* devPtr, size_t count)
+ * {
+ * #ifdef WITH_API_CNT
+ *     api_call_cnt++;
+ * #endif //WITH_API_CNT
+ *     mem_result result;
+ *     enum clnt_stat retval_1;
+ *     for (size_t i=0; i < numAttributes; ++i) {
+ *         retval_1 = cuda_mem_range_get_attribute_1(attributes[i], (ptr)devPtr, count, &result, clnt);
+ *         if (retval_1 != RPC_SUCCESS) {
+ *             clnt_perror (clnt, "call failed");
+ *         }
+ *         if (result.err == 0) {
+ *             if (dataSizes[i] < result.mem_result_u.data.mem_data_len) {
+ *                 LOGE(LOG_ERROR, "data is too small to store result");
+ *                 return cudaErrorUnknown;
+ *             }
+ *             memcpy(data, result.mem_result_u.data.mem_data_val,
+ *                          result.mem_result_u.data.mem_data_len);
+ *         } else {
+ *             return result.err;
+ *         }
+ *     }
+ *     return result.err;
+ * }
+ **/
+
 #ifdef WITH_IB
 struct ib_thread_info {
     int index;
@@ -1153,19 +1620,62 @@ cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count
     }
 cleanup:
     return ret;
-
 }
+
 DEF_FN(cudaError_t, cudaMemcpyToSymbolAsync, const void*, symbol, const void*, src, size_t, count, size_t, offset, enum cudaMemcpyKind, kind, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemset, void*, devPtr, int,  value, size_t, count)
-DEF_FN(cudaError_t, cudaMemset2D, void*, devPtr, size_t, pitch, int,  value, size_t, width, size_t, height)
+
+cudaError_t cudaMemset(void* devPtr, int value, size_t count)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_1((ptr)devPtr, value, count, &result, clnt);
+    return result;
+}
+
+cudaError_t cudaMemset2D(void* devPtr, size_t pitch, int value, size_t width, size_t height)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_2d_1((ptr)devPtr, pitch, value, width, height, &result, clnt);
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaMemset2DAsync, void*, devPtr, size_t, pitch, int,  value, size_t, width, size_t, height, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemset3D, struct cudaPitchedPtr, pitchedDevPtr, int,  value, struct cudaExtent, extent)
+
+cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct cudaExtent extent)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_3d_1(pitchedDevPtr.pitch,
+                              (ptr)pitchedDevPtr.ptr,
+                              pitchedDevPtr.xsize,
+                              pitchedDevPtr.ysize,
+                              value,
+                              extent.depth,
+                              extent.height,
+                              extent.width, 
+                              &result, clnt);
+    return result;
+}
+
 DEF_FN(cudaError_t, cudaMemset3DAsync, struct cudaPitchedPtr, pitchedDevPtr, int,  value, struct cudaExtent, extent, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemsetAsync, void*, devPtr, int,  value, size_t, count, cudaStream_t, stream)
+
 DEF_FN(struct cudaExtent, make_cudaExtent, size_t, w, size_t, h, size_t, d)
 DEF_FN(struct cudaPitchedPtr, make_cudaPitchedPtr, void*, d, size_t, p, size_t, xsz, size_t, ysz)
 DEF_FN(struct cudaPos, make_cudaPos, size_t, x, size_t, y, size_t, z)
+
 DEF_FN(cudaError_t, cudaPointerGetAttributes, struct cudaPointerAttributes*, attributes, const void*, ptr)
+
 DEF_FN(cudaError_t, cudaDeviceCanAccessPeer, int*, canAccessPeer, int,  device, int,  peerDevice)
 DEF_FN(cudaError_t, cudaDeviceDisablePeerAccess, int,  peerDevice)
 DEF_FN(cudaError_t, cudaDeviceEnablePeerAccess, int,  peerDevice, unsigned int,  flags)
