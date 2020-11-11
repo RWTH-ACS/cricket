@@ -461,7 +461,24 @@ cudaError_t cudaPeekAtLastError(void)
 DEF_FN(cudaError_t, cudaStreamAddCallback, cudaStream_t, stream, cudaStreamCallback_t, callback, void*, userData, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamAttachMemAsync, cudaStream_t, stream, void*, devPtr, size_t, length, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamBeginCapture, cudaStream_t, stream, enum cudaStreamCaptureMode, mode)
-DEF_FN(cudaError_t, cudaStreamCreate, cudaStream_t*, pStream)
+
+cudaError_t cudaStreamCreate(cudaStream_t* pStream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_create_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pStream = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
 {
 #ifdef WITH_API_CNT
@@ -478,7 +495,24 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
     }
     return result.err;
 }
-DEF_FN(cudaError_t, cudaStreamCreateWithPriority, cudaStream_t*, pStream, unsigned int,  flags, int,  priority)
+
+cudaError_t cudaStreamCreateWithPriority(cudaStream_t* pStream, unsigned int  flags, int  priority)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_create_with_priority_1(flags, priority, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pStream = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 cudaError_t cudaStreamDestroy(cudaStream_t stream)
 {
 #ifdef WITH_API_CNT
@@ -494,11 +528,65 @@ cudaError_t cudaStreamDestroy(cudaStream_t stream)
 }
 
 DEF_FN(cudaError_t, cudaStreamEndCapture, cudaStream_t, stream, cudaGraph_t*, pGraph)
+#if CUDART_VERSION >= 11000
+DEF_FN(cudaError_t, cudaStreamGetAttribute, cudaStream_t, hStream, cudaStreamAttrID, attr, cudaStreamAttrValue*, value_out )
+#endif
 DEF_FN(cudaError_t, cudaStreamGetCaptureInfo, cudaStream_t, stream, cudaStreamCaptureStatus**, pCaptureStatus, unsigned long, long*, pId)
-DEF_FN(cudaError_t, cudaStreamGetFlags, cudaStream_t, hStream, unsigned int*, flags)
-DEF_FN(cudaError_t, cudaStreamGetPriority, cudaStream_t, hStream, int*, priority)
+
+cudaError_t cudaStreamGetFlags(cudaStream_t hStream, unsigned int* flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_get_flags_1((ptr)hStream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *flags = (unsigned)result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaStreamGetPriority(cudaStream_t hStream, int* priority)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_get_priority_1((ptr)hStream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *priority = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 DEF_FN(cudaError_t, cudaStreamIsCapturing, cudaStream_t, stream, enum cudaStreamCaptureStatus*, pCaptureStatus)
-DEF_FN(cudaError_t, cudaStreamQuery, cudaStream_t, stream)
+
+cudaError_t cudaStreamQuery(cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_query_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+#if CUDART_VERSION >= 11000
+DEF_FN(cudaError_t, cudaStreamSetAttribute, cudaStream_t, hStream, cudaStreamAttrID, attr, const cudaStreamAttrValue*, value)
+#endif
+
 cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 {
 #ifdef WITH_API_CNT
@@ -512,8 +600,38 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
     }
     return result;
 }
-DEF_FN(cudaError_t, cudaStreamWaitEvent, cudaStream_t, stream, cudaEvent_t, event, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaThreadExchangeStreamCaptureMode, enum cudaStreamCaptureMode*, mode)
+
+cudaError_t cudaStreamWaitEvent(cudaStream_t stream, cudaEvent_t event, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_wait_event_1((ptr)stream, (ptr)event, flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaThreadExchangeStreamCaptureMode(enum cudaStreamCaptureMode* mode)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_thread_exchange_stream_capture_mode_1(*mode, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *mode = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 cudaError_t cudaEventCreate(cudaEvent_t* event)
 {
 #ifdef WITH_API_CNT
@@ -530,7 +648,24 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
     }
     return result.err;
 }
-DEF_FN(cudaError_t, cudaEventCreateWithFlags, cudaEvent_t*, event, unsigned int,  flags)
+
+cudaError_t cudaEventCreateWithFlags(cudaEvent_t* event, unsigned int  flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_create_with_flags_1(flags, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *event = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 cudaError_t cudaEventDestroy(cudaEvent_t event)
 {
 #ifdef WITH_API_CNT
@@ -544,6 +679,7 @@ cudaError_t cudaEventDestroy(cudaEvent_t event)
     }
     return result;
 }
+
 cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
 {
 #ifdef WITH_API_CNT
@@ -560,7 +696,21 @@ cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
     }
     return result.err;
 }
-DEF_FN(cudaError_t, cudaEventQuery, cudaEvent_t, event)
+
+cudaError_t cudaEventQuery(cudaEvent_t event)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_event_query_1((ptr)event, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
 {
 #ifdef WITH_API_CNT
