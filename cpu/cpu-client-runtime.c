@@ -1632,6 +1632,9 @@ cudaError_t cudaMemset(void* devPtr, int value, size_t count)
     int result;
     enum clnt_stat retval;
     retval = cuda_memset_1((ptr)devPtr, value, count, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
     return result;
 }
 
@@ -1643,6 +1646,9 @@ cudaError_t cudaMemset2D(void* devPtr, size_t pitch, int value, size_t width, si
     int result;
     enum clnt_stat retval;
     retval = cuda_memset_2d_1((ptr)devPtr, pitch, value, width, height, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
     return result;
 }
 
@@ -1664,6 +1670,9 @@ cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct 
                               extent.height,
                               extent.width, 
                               &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
     return result;
 }
 
@@ -1676,9 +1685,57 @@ DEF_FN(struct cudaPos, make_cudaPos, size_t, x, size_t, y, size_t, z)
 
 DEF_FN(cudaError_t, cudaPointerGetAttributes, struct cudaPointerAttributes*, attributes, const void*, ptr)
 
-DEF_FN(cudaError_t, cudaDeviceCanAccessPeer, int*, canAccessPeer, int,  device, int,  peerDevice)
-DEF_FN(cudaError_t, cudaDeviceDisablePeerAccess, int,  peerDevice)
-DEF_FN(cudaError_t, cudaDeviceEnablePeerAccess, int,  peerDevice, unsigned int,  flags)
+cudaError_t cudaDeviceCanAccessPeer(int* canAccessPeer, int device, int peerDevice)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval;
+    retval = cuda_device_can_access_peer_1(device,
+                                           peerDevice,
+                                           &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *canAccessPeer = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaDeviceDisablePeerAccess(int peerDevice)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_device_disable_peer_access_1(
+                                           peerDevice,
+                                           &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaDeviceEnablePeerAccess(int peerDevice, unsigned int flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_device_disable_peer_access_1(
+                                           peerDevice,
+                                           &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(struct cudaChannelFormatDesc, cudaCreateChannelDesc, int,  x, int,  y, int,  z, int,  w, enum cudaChannelFormatKind, f)
 DEF_FN(cudaError_t, cudaCreateTextureObject, cudaTextureObject_t*, pTexObject, const struct cudaResourceDesc*, pResDesc, const struct cudaTextureDesc*, pTexDesc, const struct cudaResourceViewDesc*, pResViewDesc)
 DEF_FN(cudaError_t, cudaDestroyTextureObject, cudaTextureObject_t, texObject)
@@ -1690,8 +1747,41 @@ DEF_FN(cudaError_t, cudaGetTextureObjectTextureDesc,
 DEF_FN(cudaError_t, cudaCreateSurfaceObject, cudaSurfaceObject_t*, pSurfObject, const struct cudaResourceDesc*, pResDesc)
 DEF_FN(cudaError_t, cudaDestroySurfaceObject, cudaSurfaceObject_t, surfObject)
 DEF_FN(cudaError_t, cudaGetSurfaceObjectResourceDesc, struct cudaResourceDesc*, pResDesc, cudaSurfaceObject_t, surfObject)
-DEF_FN(cudaError_t, cudaDriverGetVersion, int*, driverVersion)
-DEF_FN(cudaError_t, cudaRuntimeGetVersion, int*, runtimeVersion)
+
+cudaError_t cudaDriverGetVersion(int* driverVersion)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval;
+    retval = cuda_driver_get_version_1(&result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *driverVersion = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudaError_t cudaRuntimeGetVersion(int* runtimeVersion)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval;
+    retval = cuda_runtime_get_version_1(&result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *runtimeVersion = result.int_result_u.data;
+    }
+    return result.err;
+}
+
 DEF_FN(cudaError_t, cudaGraphAddChildGraphNode, cudaGraphNode_t*, pGraphNode, cudaGraph_t, graph, const cudaGraphNode_t*, pDependencies, size_t, numDependencies, cudaGraph_t, childGraph)
 DEF_FN(cudaError_t, cudaGraphAddDependencies, cudaGraph_t, graph, const cudaGraphNode_t*, from, const cudaGraphNode_t*, to, size_t, numDependencies)
 DEF_FN(cudaError_t, cudaGraphAddEmptyNode, cudaGraphNode_t*, pGraphNode, cudaGraph_t, graph, const cudaGraphNode_t*, pDependencies, size_t, numDependencies)
