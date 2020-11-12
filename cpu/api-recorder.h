@@ -7,7 +7,7 @@
 #ifdef WITH_RECORDER
 #define RECORD_VOID_API \
     api_record_t *record; \
-    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
+    if (list_append(&api_records, (void**)&record) != 0) { \
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
     record->function = rqstp->rq_proc; \
@@ -15,7 +15,7 @@
 #define RECORD_API(ARG_TYPE) \
     api_record_t *record; \
     ARG_TYPE *arguments; \
-    if (list_alloc_append(&api_records, (void**)&record) != 0) { \
+    if (list_append(&api_records, (void**)&record) != 0) { \
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
     if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \

@@ -24,6 +24,7 @@
 
 #define WITH_RECORDER
 #include "api-recorder.h"
+#include "resource-mg.h"
 
 typedef struct host_alloc_info {
     int cnt;

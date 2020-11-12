@@ -29,7 +29,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-libwrap.c              \
 			 cpu-server-cusolver.c 		\
 			 list.c                     \
-			 api-recorder.c
+			 api-recorder.c 			\
+			 resource-mg.c
 
 SRC_CLIENT = $(RPC_XDR)                 \
 			 $(RPC_CLIENT)              \

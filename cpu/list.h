@@ -11,22 +11,23 @@ typedef struct list_t {
 
 int list_init(list *l, size_t element_size);
 int list_free(list *l);
+int list_free_elements(list *l);
 
 /** appends an element to the list.
- * the element is not copied. It must be heap allocated.
+ * the list is extended if needed.
  * @l the list
  * @new_element the new list element
  * @return 0 on success; 1 if l is NULL or allocation failed
  */
-int list_append(list *l, void *new_element);
+int list_append(list *l, void **new_element);
 
-/** appends a newly allocated element to the list.
- * the element is only allocated but not initialized in any way.
+/** appends an element an copies its content.
+ * the new element is copied using element_size as set during initialization.
  * @l the list
- * @new_element points to the newly created element
+ * @new_element element from which to copy
  * @return 0 on success; 1 if l is NULL or allocation failed
  */
-int list_alloc_append(list *l, void **new_element);
+int list_append_coyp(list *l, void *new_element);
 
 /** return list element at the specified index.
  * @l the list
@@ -36,6 +37,14 @@ int list_alloc_append(list *l, void **new_element);
  *         list length
  */
 int list_at(list *l, size_t at, void **element);
+
+/** returns the position at which the requested element should be.
+ * performs no checks - use with caution
+ * @l the list
+ * @at the index of the element
+ * @return the element address or NULL on error
+ */
+void *list_get(list *l, size_t at);
 
 /** removes an element from the list.
  * if element is NULL, the element is freed.
