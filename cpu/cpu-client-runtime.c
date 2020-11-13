@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
-#include <cuda_profiler_api.h>
 #include <driver_types.h>
 #include <surface_types.h>
 #include <texture_types.h>
@@ -529,7 +528,7 @@ cudaError_t cudaStreamDestroy(cudaStream_t stream)
 
 DEF_FN(cudaError_t, cudaStreamEndCapture, cudaStream_t, stream, cudaGraph_t*, pGraph)
 #if CUDART_VERSION >= 11000
-DEF_FN(cudaError_t, cudaStreamGetAttribute, cudaStream_t, hStream, cudaStreamAttrID, attr, cudaStreamAttrValue*, value_out )
+DEF_FN(cudaError_t, cudaStreamGetAttribute, cudaStream_t, hStream, enum cudaStreamAttrID, attr, union cudaStreamAttrValue*, value_out )
 #endif
 DEF_FN(cudaError_t, cudaStreamGetCaptureInfo, cudaStream_t, stream, cudaStreamCaptureStatus**, pCaptureStatus, unsigned long, long*, pId)
 
@@ -584,7 +583,7 @@ cudaError_t cudaStreamQuery(cudaStream_t stream)
 }
 
 #if CUDART_VERSION >= 11000
-DEF_FN(cudaError_t, cudaStreamSetAttribute, cudaStream_t, hStream, cudaStreamAttrID, attr, const cudaStreamAttrValue*, value)
+DEF_FN(cudaError_t, cudaStreamSetAttribute, cudaStream_t, hStream, enum cudaStreamAttrID, attr, const union cudaStreamAttrValue*, value)
 #endif
 
 cudaError_t cudaStreamSynchronize(cudaStream_t stream)

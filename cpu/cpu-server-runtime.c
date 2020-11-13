@@ -397,7 +397,7 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
     RECORD_ARG(1, dst);
     RECORD_ARG(2, src);
     LOGE(LOG_DEBUG, "cudaStreamCopyAttributes");
-    *result = cudaStreamCopyAttributes(dst, src);
+    *result = cudaStreamCopyAttributes((void*)dst, (void*)src);
 
     RECORD_RESULT(integer, *result);
     return 1;

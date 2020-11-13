@@ -6,7 +6,6 @@
 #include <cudaEGL.h>
 #include <vdpau/vdpau.h>
 #include <cudaVDPAU.h>
-#include <cudaProfiler.h>
 
 #include <driver_types.h>
 #include <string.h>
@@ -63,9 +62,9 @@ int dlclose(void *handle)
 
 }
 
-DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
-DEF_FN(CUresult, cuProfilerStart)
-DEF_FN(CUresult, cuProfilerStop)
+//DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
+//DEF_FN(CUresult, cuProfilerStart)
+//DEF_FN(CUresult, cuProfilerStop)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 DEF_FN(CUresult, cuGraphicsVDPAURegisterVideoSurface, CUgraphicsResource*, pCudaResource, VdpVideoSurface, vdpSurface, unsigned int, flags)

@@ -58,23 +58,45 @@ DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsDestroy,
             cusolverDnIRSParams_t, params )
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSParamsSetTol,
+            cusolverDnIRSParams_t, params,
+            double, val )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetTol,
             cusolverDnIRSParams_t, params,
             cudaDataType, data_type,
             double, val )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSParamsSetTolInner,
+            cusolverDnIRSParams_t, params,
+            double, val )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetTolInner,
             cusolverDnIRSParams_t, params,
             cudaDataType, data_type,
             double, val )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSParamsSetSolverPrecisions,
+            cusolverDnIRSParams_t, params,
+            cusolverPrecType_t, solver_main_precision,
+            cusolverPrecType_t, solver_lowest_precision)
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetSolverPrecisions,
             cusolverDnIRSParams_t, params,
             cudaDataType, solver_main_precision,
             cudaDataType, solver_lowest_precision )
+#endif
 
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetRefinementSolver,
@@ -106,52 +128,106 @@ DEF_FN(cusolverStatus_t,
             cusolverDnIRSParams_t, params,
             cusolver_int_t*, maxiters )
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSParamsSetSolverMainPrecision,
+            cusolverDnIRSParams_t, params,
+            cusolverPrecType_t, solver_main_precision )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetSolverMainPrecision,
             cusolverDnIRSParams_t, params,
             cudaDataType, solver_main_precision )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSParamsSetSolverLowestPrecision,
+            cusolverDnIRSParams_t, params,
+            cusolverPrecType_t, lowest_precision_type )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSParamsSetSolverLowestPrecision,
             cusolverDnIRSParams_t, params,
             cudaDataType, solver_lowest_precision )
+#endif
 
-
-
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t, cusolverDnIRSInfosDestroy,
+        cusolverDnIRSInfos_t, infos )
+#else
 DEF_FN(cusolverStatus_t, cusolverDnIRSInfosDestroy,
         cusolverDnIRSParams_t, params,
         cusolverDnIRSInfos_t, infos )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t, cusolverDnIRSInfosCreate,
+        cusolverDnIRSInfos_t*, infos_ptr )
+#else
 DEF_FN(cusolverStatus_t, cusolverDnIRSInfosCreate,
         cusolverDnIRSParams_t, params,
         cusolverDnIRSInfos_t*, infos_ptr )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSInfosGetNiters,
+            cusolverDnIRSInfos_t, infos,
+            cusolver_int_t*, niters )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSInfosGetNiters,
             cusolverDnIRSParams_t, params,
             cusolverDnIRSInfos_t, infos,
             cusolver_int_t*, niters )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSInfosGetOuterNiters,
+            cusolverDnIRSInfos_t, infos,
+            cusolver_int_t*, outer_niters )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSInfosGetOuterNiters,
             cusolverDnIRSParams_t, params,
             cusolverDnIRSInfos_t, infos,
             cusolver_int_t*, outer_niters )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t,
+    cusolverDnIRSInfosGetMaxIters,
+            cusolverDnIRSInfos_t, infos,
+            cusolver_int_t*, maxiters )
+#else
 DEF_FN(cusolverStatus_t,
     cusolverDnIRSInfosGetMaxIters,
             cusolverDnIRSParams_t, params,
             cusolverDnIRSInfos_t, infos,
             cusolver_int_t*, maxiters )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t, cusolverDnIRSInfosRequestResidual,
+        cusolverDnIRSInfos_t, infos )
+#else
 DEF_FN(cusolverStatus_t, cusolverDnIRSInfosRequestResidual,
         cusolverDnIRSParams_t, params,
         cusolverDnIRSInfos_t, infos )
+#endif
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t, cusolverDnIRSInfosGetResidualHistory,
+            cusolverDnIRSInfos_t, infos,
+            void**, residual_history )
+#else
 DEF_FN(cusolverStatus_t, cusolverDnIRSInfosGetResidualHistory,
             cusolverDnIRSParams_t, params,
             cusolverDnIRSInfos_t, infos,
             void**, residual_history )
+#endif
 
 DEF_FN(cusolverStatus_t, cusolverDnZZgesv,
         cusolverDnHandle_t, handle,
@@ -353,6 +429,23 @@ DEF_FN(cusolverStatus_t, cusolverDnSHgesv_bufferSize,
         float*, dX, cusolver_int_t, lddx,
         void*, dWorkspace, size_t*, lwork_bytes)
 
+#if CUDART_VERSION >= 11000
+DEF_FN(cusolverStatus_t, cusolverDnIRSXgesv,
+        cusolverDnHandle_t, handle,
+        cusolverDnIRSParams_t, gesv_irs_params,
+        cusolverDnIRSInfos_t , gesv_irs_infos,
+        int     n,
+        int     nrhs,
+        void   *dA,
+        int     ldda,
+        void   *dB,
+        int     lddb,
+        void   *dX,
+        int     lddx,
+        void   *dWorkspace,
+        size_t  lwork_bytes,
+        int    *dinfo)
+#else
 DEF_FN(cusolverStatus_t, cusolverDnIRSXgesv,
         cusolverDnHandle_t, handle,
         cusolverDnIRSParams_t, gesv_irs_params,
@@ -366,6 +459,7 @@ DEF_FN(cusolverStatus_t, cusolverDnIRSXgesv,
         void*, dWorkspace, size_t, lwork_bytes,
         cusolver_int_t*, niters,
         cusolver_int_t*, d_info)
+#endif
 
 DEF_FN(cusolverStatus_t, cusolverDnIRSXgesv_bufferSize,
         cusolverDnHandle_t, handle,
