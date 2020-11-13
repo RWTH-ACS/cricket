@@ -270,13 +270,13 @@ program RPC_CD_PROG {
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                      = 441;
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)             = 442;
         int          CUDA_MEMCPY_DTOD(ptr, ptr, size_t)                 = 443;
-        mem_result   CUDA_MEMCPY_FROM_SYMBOL(ptr, size_t, size_t)       = 444;
+        /*mem_result   CUDA_MEMCPY_FROM_SYMBOL(ptr, size_t, size_t)       = 444;*/
         int          CUDA_MEMCPY_TO_SYMBOL(ptr, mem_data, size_t,
                           size_t)                                       = 445;
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, 
                           size_t, int)                                  = 446;
         int          CUDA_MEMCPY_IB(int, ptr, size_t, int)              = 447;
-        int          CUDA_MEMCPY_PEER(ptr, int, ptr, int, size_t)       = 448;
+        /*int          CUDA_MEMCPY_PEER(ptr, int, ptr, int, size_t)       = 448;*/
         /* TODO: Think about how to implement MEMCPY 2D and 3D */
         /* TODO: Think about how to implement MEMCPY Async without too
                  much code duplication */

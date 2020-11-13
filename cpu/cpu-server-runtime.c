@@ -47,7 +47,9 @@ int server_runtime_deinit(void)
     api_record_t *record;
     printf("server api records:\n");
     for (size_t i = 0; i < api_records.length; i++) {
-        record = (api_record_t*)api_records.elements[i];
+        if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at returned an error.");
+        }
         printf("api: %u ", record->function);
         switch (record->function) {
         case CUDA_MALLOC:
@@ -164,9 +166,9 @@ bool_t cuda_device_get_stream_priority_range_1_svc(dint_result *result, struct s
     return 1;
 }
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int device, u64_result *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     struct cudaChannelFormatDesc desc = {
         .f = fmtDesc.f,
         .w = fmtDesc.w,
@@ -178,8 +180,11 @@ bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int d
     result->err = cudaDeviceGetTexture1DLinearMaxWidth(&result->u64_result_u.u64,
                       &desc, device);
     return 1;
-}
+#else
+    LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
+    return 1;
 #endif
+}
 
 bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
 {
@@ -295,7 +300,7 @@ struct cuda_set_valid_device_param {
     int* arg1;
     int arg2;
 };
-bool_t cuda_set_valid_devices_flags_1_svc(mem_data device_arr, int len, int *result, struct svc_req *rqstp)
+bool_t cuda_set_valid_devices_1_svc(mem_data device_arr, int len, int *result, struct svc_req *rqstp)
 {
     RECORD_API(struct cuda_set_valid_device_param);
 #ifdef WITH_RECORDER
@@ -361,17 +366,20 @@ bool_t cuda_peek_at_last_error_1_svc(int *result, struct svc_req *rqstp)
 
 /* ### Stream Management ### */
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaCtxResetPersistingL2Cache");
     *result = cudaCtxResetPersistingL2Cache();
 
     RECORD_RESULT(integer, *result);
+#else
+    LOGE(LOG_ERROR, "Compiled without CUDA 11 support");
+#endif
     return 1;
 }
-#endif
+
 
 /* Requires us do call a callback on the client side to make sense */
 //        int          CUDA_STREAM_ADD_CALLBACK(ptr, ptr, mem_data, int)  = 251;
@@ -382,9 +390,9 @@ bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqst
 /* Requires Graph API to make sense */
 //        int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                = 253;
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     RECORD_API(cuda_stream_copy_attributes_1_argument);
     RECORD_ARG(1, dst);
     RECORD_ARG(2, src);
@@ -393,8 +401,11 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
 
     RECORD_RESULT(integer, *result);
     return 1;
-}
+#else
+    LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
+    return 1;
 #endif
+}
 
 bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
@@ -567,9 +578,9 @@ bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_re
     return 1;
 }
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     RECORD_API(cuda_event_record_with_flags_1_argument);
     RECORD_ARG(1, event);
     RECORD_ARG(2, stream);
@@ -578,8 +589,11 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
     *result = cudaEventRecordWithFlags((struct CUevent_st*) event, (struct CUstream_st*)stream, flags);
     RECORD_RESULT(integer, *result);
     return 1;
-}
+#else
+    LOGE(LOG_ERROR, "compiled without CUDA 11 support");
+    return 1;
 #endif
+}
 
 bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
@@ -750,15 +764,18 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
 
 /* Occupancy */
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_occupancy_available_dsmpb_1_svc(ptr func, int numBlocks, int blockSize, u64_result *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     LOGE(LOG_DEBUG, "cudaOccupancyAvailableDynamicSMemPerBlock");
     result->err = cudaOccupancyAvailableDynamicSMemPerBlock(
         &result->u64_result_u.u64, (void*)func, numBlocks, blockSize);
     return 1;
-}
+#else
+    LOGE(LOG_ERROR, "compiled without CUDA 11 support");
+    return 1;
 #endif
+}
 
 bool_t cuda_occupancy_max_active_bpm_1_svc(ptr func, int blockSize, size_t dynamicSMemSize, int_result *result, struct svc_req *rqstp)
 {
@@ -796,9 +813,9 @@ bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *
     return 1;
 }
 
-#if CUDART_VERSION >= 11000
 bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, struct svc_req *rqstp)
 {
+#if CUDART_VERSION >= 11000
     LOGE(LOG_DEBUG, "cudaArrayGetSparseProperties");
     result->mem_result_u.data.mem_data_len =
       sizeof(struct cudaArraySparseProperties);
@@ -808,8 +825,11 @@ bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, str
 
     result->err = cudaArrayGetSparseProperties(sparseProperties, (void*)array);
     return 1;
-}
+#else
+    LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
+    return 1;
 #endif
+}
 
 bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 {
@@ -1276,6 +1296,12 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     }
 out:
     RECORD_RESULT(integer, *result);
+    return 1;
+}
+#else
+bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_ERROR, "compiled without infiniband support");
     return 1;
 }
 #endif //WITH_IB
