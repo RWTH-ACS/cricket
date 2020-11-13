@@ -1,5 +1,5 @@
 #MIT License...
-.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu
+.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu bin/tests
 
 all: gpu cpu tests install
 
@@ -30,15 +30,22 @@ cpu: libtirpc
 tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
+	@echo -e "\033[36m----> Building test programs\033[0m"
+	$(MAKE) -C tests/cpu
+
 
 install-cpu: bin/cricket-client.so bin/cricket-server.so bin/test_kernel bin/libtirpc.so bin/libtirpc.so.3
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
-install: install-cpu bin/cricket
+install: install-cpu bin/cricket bin/tests
 	@echo -e "\033[36m----> Copying to build/bin\033[0m"
 
 bin:
 	mkdir bin
+
+bin/tests: tests
+	mkdir -p bin/tests
+	cp tests/cpu/*.test bin/tests
 
 bin/cricket-client.so: bin cpu
 	cp cpu/cricket-client.so bin

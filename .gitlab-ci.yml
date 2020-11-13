@@ -73,7 +73,9 @@ build:
       - gpu/build
       - cpu/*.o
       - tests/*.o
+      - tests/cpu/*.o
       - submodules/libtirpc/install
+      - submodules/cuda-gdb/build
       - bin
     key: build
   tags:
@@ -95,7 +97,9 @@ build:cuda10:
       - gpu/build
       - cpu/*.o
       - tests/*.o
+      - tests/cpu/*.o
       - submodules/libtirpc/install
+      - submodules/cuda-gdb/build
       - bin
     key: build_cuda10
   tags:
@@ -124,11 +128,23 @@ build:cuda10:
   after_script:
     - ssh $GPU_TARGET rm -rf $RDIR
     - ssh $GPU_TARGET pkill -fe -2 $RDIR/test_kernel
-  image: ${DOCKER_IMAGE_DEV}_docker10:${DOCKER_TAG}
+  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   dependencies:
-    - build
+    - build:cuda10
   tags:
     - docker
+
+test:test_programs:
+  stage: test
+  script:
+      - echo $LD_LIBRARY_PATH
+      - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_list.test
+  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  dependencies:
+    - build:cuda10
+  tags:
+    - docker
+
 
 test:test_kernel:
     extends: .remote-gpu

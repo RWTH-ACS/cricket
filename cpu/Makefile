@@ -98,7 +98,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
-	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS)
+	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
 	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)

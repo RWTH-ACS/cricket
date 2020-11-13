@@ -3,7 +3,7 @@
 #include <unistd.h>
 
 typedef struct list_t {
-    void **elements;
+    void *elements;
     size_t length;
     size_t capacity;
     size_t element_size;
@@ -27,7 +27,7 @@ int list_append(list *l, void **new_element);
  * @new_element element from which to copy
  * @return 0 on success; 1 if l is NULL or allocation failed
  */
-int list_append_coyp(list *l, void *new_element);
+int list_append_copy(list *l, void *new_element);
 
 /** return list element at the specified index.
  * @l the list
@@ -54,6 +54,6 @@ void *list_get(list *l, size_t at);
  * @return 0 on success; 1 if l is NULL or at is larger then the list
  *         length
  */
-int list_rm(list *l, size_t at, void **element);
+int list_rm(list *l, size_t at);
 
 #endif //_LIST_H_

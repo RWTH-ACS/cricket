@@ -18,16 +18,17 @@ RUN dnf -y update && \
 RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \
                    ncurses-devel zlib-devel binutils-devel mesa-libGL-devel \
                    libvdpau-devel mesa-libEGL-devel openssl-devel rpcbind \
-                   texinfo bison flex python3 which libibverbs
+                   texinfo bison flex python3 which libibverbs libasan cppcheck
 
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 
 RUN dnf -y config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
-    dnf --refresh -y install cuda-compiler-11-1 cuda-libraries-devel-11-1 cuda-samples-11-1 && \
+    dnf --refresh -y install cuda-compiler-11-1 cuda-libraries-devel-11-1 cuda-samples-11-1 cuda-driver-devel-11-1 && \
     ln -s cuda-11.1 /usr/local/cuda
 
 ENV PATH="/usr/local/cuda/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+ENV LIBRARY_PATH="/usr/local/cuda/targets/x86_64-linux/lib/stubs:$(LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/targets/x86_64-linux/lib/stubs:${LD_LIBRARY_PATH}"
 
 #COPY --chown=root .ssh /root/.ssh
 
