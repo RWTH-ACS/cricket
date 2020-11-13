@@ -58,6 +58,11 @@ void __attribute__ ((constructor)) cricketd_main(void)
         exit(0);
     }
 
+    if (getenv("CRICKET_DISABLE_RPC")) {
+        LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
+        return;
+    }
+
     switch (socktype) {
     case UNIX:
         LOG(LOG_INFO, "using UNIX...\n");
@@ -134,4 +139,5 @@ int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
     if (b == (xdrproc_t) xdr_str_result) {
         free( ((str_result*)c)->str_result_u.str);
     }
+    return 0;
 }
