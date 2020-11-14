@@ -11,7 +11,12 @@
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
     record->function = rqstp->rq_proc; \
-    record->arguments = NULL;
+    record->arguments = NULL; \
+    for (size_t i = 0; i < api_records.length; i++) { \
+        if (list_at(&api_records, i, (void**)&record) != 0) {\
+            LOGE(LOG_ERROR, "list_at returned an error.");\
+        }\
+        printf("api: %u ", record->function);}printf("\n");
 #define RECORD_API(ARG_TYPE) \
     api_record_t *record; \
     ARG_TYPE *arguments; \
@@ -22,7 +27,12 @@
         LOGE(LOG_ERROR, "list arguments allocation failed"); \
     } \
     record->function = rqstp->rq_proc; \
-    record->arguments = arguments;
+    record->arguments = arguments; \
+    for (size_t i = 0; i < api_records.length; i++) { \
+        if (list_at(&api_records, i, (void**)&record) != 0) {\
+            LOGE(LOG_ERROR, "list_at returned an error.");\
+        }\
+        printf("api: %u ", record->function);}printf("\n");
 #define RECORD_RESULT(TYPE, RES) \
     record->result.TYPE = RES
 #define RECORD_SINGLE_ARG(ARG) \

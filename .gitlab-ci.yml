@@ -137,7 +137,6 @@ build:cuda10:
 test:test_programs:
   stage: test
   script:
-      - echo $LD_LIBRARY_PATH
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_list.test
   image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   dependencies:
