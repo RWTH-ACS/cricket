@@ -134,10 +134,20 @@ build:cuda10:
   tags:
     - docker
 
-test:test_programs:
+test:test_programs(1/2):
   stage: test
   script:
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_list.test
+  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  dependencies:
+    - build:cuda10
+  tags:
+    - docker
+
+test:test_programs(2/2):
+  stage: test
+  script:
+      - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_resource_mg.test
   image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   dependencies:
     - build:cuda10

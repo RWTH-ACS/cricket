@@ -1,6 +1,7 @@
 build/
 *~
 .clang_complete
+.clangd
 .project
 .cproject
 .settings/
@@ -16,6 +17,7 @@ build/
 *.cubin
 cricket
 bin
+*.test
 
 # YouCompleteMe
 .ycm_extra_conf.py

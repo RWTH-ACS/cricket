@@ -4,7 +4,7 @@ LIBTIRPC_PREFIX = ../../submodules/libtirpc/install
 CC = gcc
 LD = gcc
 
-SRC_SERVER_TESTS = test_list.c
+SRC_SERVER_TESTS = test_list.c test_resource_mg.c
 
 OBJ_SERVER_TESTS = $(SRC_SERVER_TESTS:%.c=%.o)
 BIN_SERVER_TESTS = $(SRC_SERVER_TESTS:%.c=%.test)
