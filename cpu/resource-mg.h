@@ -33,6 +33,7 @@ typedef struct resource_mg_t {
 int resource_mg_init(resource_mg *mg, int bypass);
 void resource_mg_free(resource_mg *mg);
 
+int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address);
 int resource_mg_create(resource_mg *mg, void* cuda_address);
 int resource_mg_restore(resource_mg *mg, void* cuda_address, void* client_address);
 

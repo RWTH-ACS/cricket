@@ -7,10 +7,12 @@ int resource_mg_init(resource_mg *mg, int bypass)
 {
     int ret = 0;
     if ((ret = list_init(&mg->new_res, sizeof(void*))) != 0) {
+        LOGE(LOG_ERROR, "error initializing new_res list");
         goto out;
     }
     if (bypass == 0) {
         if ((ret = list_init(&mg->map_res, sizeof(resource_mg_map_elem))) != 0) {
+            LOGE(LOG_ERROR, "error initializing map_res list");
             goto out;
         }
     }
@@ -69,4 +71,37 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
         return resource_mg_search_map(mg, client_address);
     }
     return 0;
+}
+
+int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
+{
+    size_t start = 0;
+    size_t end = mg->map_res.length;
+    size_t mid;
+    struct resource_mg_map_elem_t new_elem = {.client_address = client_address,
+                                              .cuda_address = cuda_address};
+    if (mg->bypass) {
+        LOGE(LOG_ERROR, "cannot add to bypassed resource manager");
+        return 1;
+    }
+    
+    while (end >= start) {
+        mid = start + (end-start)/2;
+        resource_mg_map_elem *mid_elem = list_get(&mg->map_res, mid);
+        if (mid_elem == NULL) {
+            LOG(LOG_ERROR, "list state of map_res is inconsistent\n");
+            return 1;
+        }
+
+        if (mid_elem->client_address > client_address) {
+            end = mid-1;
+        } else if (mid_elem->client_address < client_address) {
+            start = mid+1;
+        } else /*if (mid_elem->client_address == client_address)*/ {
+            LOGE(LOG_WARNING, "duplicate resource! The first resource will be overwritten");
+            mid_elem->cuda_address = cuda_address;
+            return 0;
+        }
+    }
+    return list_insert(&mg->map_res, end, &new_elem);
 }
