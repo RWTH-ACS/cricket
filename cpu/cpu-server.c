@@ -9,6 +9,7 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "cpu-server-runtime.h"
+#include "rpc/xdr.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -137,7 +138,17 @@ void __attribute__ ((constructor)) cricketd_main(void)
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
 {
     if (b == (xdrproc_t) xdr_str_result) {
-        free( ((str_result*)c)->str_result_u.str);
+        str_result *res = (str_result*)c;
+        if (res->err == 0) {
+            free( res->str_result_u.str);
+        }
     }
-    return 0;
+    else if (b == (xdrproc_t) xdr_mem_result) {
+        mem_result *res = (mem_result*)c;
+        if (res->err == 0) {
+            free( (void*)res->mem_result_u.data.mem_data_val);
+        }
+    }
+    return 1;
 }
+

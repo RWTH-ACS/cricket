@@ -281,6 +281,9 @@ bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct s
     }
     result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
     result->err = cudaGetDeviceProperties((void*)result->mem_result_u.data.mem_data_val, device);
+    if (result->err != 0) {
+        free(result->mem_result_u.data.mem_data_val);
+    }
     return 1;
 }
 
@@ -356,10 +359,10 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
 bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req *rqstp)
 {
     const char* str;
-    result->str_result_u.str = malloc(256);
+    result->str_result_u.str = malloc(128);
     LOGE(LOG_DEBUG, "cudaGetErrorString");
     str = cudaGetErrorString((cudaError_t)error);
-    strncpy(result->str_result_u.str, str, 256);
+    strncpy(result->str_result_u.str, str, 128);
     result->err = 0;
     return 1;
 }

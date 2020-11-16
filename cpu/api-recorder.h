@@ -48,4 +48,7 @@ typedef struct api_record {
 } api_record_t;
 extern list api_records;
 
+
+void api_records_free_args(void);
+
 #endif
