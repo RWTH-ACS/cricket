@@ -62,14 +62,7 @@ int list_append(list *l, void **new_element)
         return 1;
     }
     if (l->capacity == l->length) {
-for (size_t i=0; i < l->length; ++i) {
-    printf("(%zu:%d) ", i, ((api_record_t*)list_get(l, i))->function);
-} printf("\n");
-printf("%zu -> %zu\n", l->capacity*l->element_size, l->capacity*2*l->element_size);
         l->elements = realloc(l->elements, l->capacity*2*l->element_size);
-for (size_t i=0; i < l->length; ++i) {
-    printf("(%zu:%d) ", i, ((api_record_t*)list_get(l, i))->function);
-} printf("\n");
         if (l->elements == NULL) {
             LOGE(LOG_ERROR, "realloc failed.");
             /* the old pointer remains valid */
@@ -77,7 +70,9 @@ for (size_t i=0; i < l->length; ++i) {
         }
         l->capacity *= 2;
     }
-    *new_element = list_get(l, l->length++);
+    if (new_element != NULL) {
+        *new_element = list_get(l, l->length++);
+    }
 
     return ret;
 }
@@ -114,6 +109,34 @@ inline void* list_get(list *l, size_t at) {
     return (l->elements+at*l->element_size);
 }
 
+int list_insert(list *l, size_t at, void *new_element)
+{
+    if (l == NULL) {
+        LOGE(LOG_ERROR, "list parameter is NULL");
+        return 1;
+    }
+    if (at >= l->length) {
+        LOGE(LOG_ERROR, "accessing list out of bounds");
+        return 1;
+    }
+    if (at == l->length-1) {
+        return list_append_copy(l, new_element);
+    }
+
+    if (list_append(l, NULL) != 0) {
+        LOGE(LOG_ERROR, "error while lengthening list");
+        return 1;
+    }
+    memmove(list_get(l, at+1), list_get(l, at), (l->length-1-at)*l->element_size);
+
+    if (new_element != NULL) {
+        memcpy(list_get(l, at), new_element, l->element_size);
+    }
+
+    l->length += 1;
+    return 0;
+}
+
 int list_rm(list *l, size_t at)
 {
     if (l == NULL) {
@@ -125,7 +148,6 @@ int list_rm(list *l, size_t at)
         return 1;
     }
     if (at < l->length-1) {
-        printf("%p -> %p, size: %zu\n", list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
         memmove(list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
     }
     l->length -= 1;

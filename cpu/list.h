@@ -21,7 +21,7 @@ int list_free_elements(list *l);
  */
 int list_append(list *l, void **new_element);
 
-/** appends an element an copies its content.
+/** appends an element and copies its content.
  * the new element is copied using element_size as set during initialization.
  * @l the list
  * @new_element element from which to copy
@@ -55,5 +55,15 @@ void *list_get(list *l, size_t at);
  *         length
  */
 int list_rm(list *l, size_t at);
+
+/** inserts an element at the given position and copies its content.
+ * the new element is copied using element_size as set during initialization.
+ * Elements with indexes greater than @at are moved by one index.
+ * @l the list
+ * @at the position of the new element
+ * @new_element element from which to copy
+ * @return 0 on success; 1 if l is NULL or allocation failed
+ */
+int list_insert(list *l, size_t at, void *new_element);
 
 #endif //_LIST_H_
