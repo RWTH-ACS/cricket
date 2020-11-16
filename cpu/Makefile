@@ -60,6 +60,10 @@ LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
+ifdef WITH_DEBUG
+CC_FLAGS += -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+endif
+
 ifdef WITH_IB
 LD_FLAGS += -libverbs
 endif

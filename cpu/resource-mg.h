@@ -35,7 +35,6 @@ void resource_mg_free(resource_mg *mg);
 
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address);
 int resource_mg_create(resource_mg *mg, void* cuda_address);
-int resource_mg_restore(resource_mg *mg, void* cuda_address, void* client_address);
 
 void* resource_mg_get(resource_mg *mg, void* client_address);
 

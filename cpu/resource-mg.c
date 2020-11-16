@@ -31,7 +31,7 @@ void resource_mg_free(resource_mg *mg)
 
 int resource_mg_create(resource_mg *mg, void *cuda_address)
 {
-    if (list_append_copy(&mg->new_res, cuda_address) != 0) {
+    if (list_append_copy(&mg->new_res, &cuda_address) != 0) {
         LOGE(LOG_ERROR, "failed to append to new_res");
         return 1;
     }
@@ -41,12 +41,21 @@ int resource_mg_create(resource_mg *mg, void *cuda_address)
 static void* resource_mg_search_map(resource_mg *mg, void *client_address)
 {
     size_t start = 0;
-    size_t end = mg->map_res.length;
+    size_t end;
     size_t mid;
+    resource_mg_map_elem *mid_elem;
+    if (mg == NULL) {
+        LOGE(LOG_ERROR, "resource manager mg is NULL");
+        return NULL;
+    }
+    if (mg->map_res.length == 0) {
+        return client_address;
+    }
+    end = mg->map_res.length-1;
     
     while (end >= start) {
         mid = start + (end-start)/2;
-        resource_mg_map_elem *mid_elem = list_get(&mg->map_res, mid);
+        mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent\n");
             return NULL;
@@ -54,13 +63,16 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
 
         if (mid_elem->client_address > client_address) {
             end = mid-1;
+            if (mid == 0) {
+                break;
+            }
         } else if (mid_elem->client_address < client_address) {
             start = mid+1;
         } else /*if (mid_elem->client_address == client_address)*/ {
             return mid_elem->cuda_address;
         }
     }
-    return NULL;
+    return client_address;
 }
 
 inline void* resource_mg_get(resource_mg *mg, void* client_address)
@@ -76,14 +88,22 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
 {
     size_t start = 0;
-    size_t end = mg->map_res.length;
+    size_t end = mg->map_res.length-1;
     size_t mid;
     struct resource_mg_map_elem_t new_elem = {.client_address = client_address,
                                               .cuda_address = cuda_address};
+    if (mg == NULL) {
+        LOGE(LOG_ERROR, "resource manager mg is NULL");
+        return 1;
+    }
     if (mg->bypass) {
         LOGE(LOG_ERROR, "cannot add to bypassed resource manager");
         return 1;
     }
+    if (mg->map_res.length == 0) {
+        return list_append_copy(&mg->map_res, &new_elem);
+    }
+    end = mg->map_res.length-1;
     
     while (end >= start) {
         mid = start + (end-start)/2;
