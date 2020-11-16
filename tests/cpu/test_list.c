@@ -15,6 +15,11 @@ void remove_tuple_elements(list *l)
     int ret;
 
     int initial_len = l->length;
+    for (int i = 0; i < 4; i++) {
+        ret = list_rm(l, 0);
+        assert(ret == 0 && etuple != NULL && l->length == initial_len-i-1);
+    }
+    initial_len = l->length;
     for (int i = 0; i < l->length; i++) {
         ret = list_rm(l, i);
         assert(ret == 0 && etuple != NULL && l->length == initial_len-i-1);
@@ -35,6 +40,7 @@ void add_tuple_elements(list *l)
     struct tuple enew;
     int cap = l->capacity;
     int ret;
+    int length;
 
     for (int i = l->length; i < cap+1; ++i) {
         ret = list_append(l, (void**)&etuple);
@@ -54,7 +60,7 @@ void add_tuple_elements(list *l)
         enew.a = i;
         enew.b = i*100.;
         ret = list_append_copy(l, &enew);
-        assert(ret == 0 && etuple != NULL && l->length == i+1);
+        assert(ret == 0 && l->length == i+1);
     }
     assert(l->capacity > cap);
     for (int i = 0; i < l->length; ++i) {
@@ -62,6 +68,20 @@ void add_tuple_elements(list *l)
         assert(ret == 0 && etuple != NULL);
         assert(list_get(l, i) == etuple);
         assert(etuple->a == i && etuple->b == i*100.);
+    }
+
+    length = l->length;
+    for (int i = 0; i < 4; ++i) {
+        enew.a = i;
+        enew.b = i*100.;
+        ret = list_insert(l, i, &enew);
+        assert(ret == 0 && l->length == length+i+1);
+    }
+    for (int i = 0; i < 4; ++i) {
+        ret = list_at(l, i, (void**)&etuple);
+        assert(ret == 0 && etuple != NULL);
+        assert(list_get(l, i) == etuple);
+        assert(etuple->a == i && etuple->b == i*100);
     }
 }
 
@@ -72,15 +92,18 @@ void remove_int_elements(list *l)
     int ret;
 
     int initial_len = l->length;
+    for (int i = 0; i < 4; i++) {
+        ret = list_rm(l, 0);
+        assert(ret == 0 && eint != NULL && l->length == initial_len-i-1);
+    }
+    initial_len = l->length;
     for (int i = 0; i < l->length; i++) {
-        printf("rm\n");
         ret = list_rm(l, i);
         assert(ret == 0 && eint != NULL && l->length == initial_len-i-1);
     }
     assert(l->length == initial_len/2);
     for (int i = 0; i < l->length; ++i) {
         ret = list_at(l, i, (void**)&eint);
-        printf("ck: %p->%d\n", eint, *eint);
         assert(ret == 0 && eint != NULL);
         assert(list_get(l, i) == eint);
         assert(*eint == i*2+1);
@@ -92,6 +115,7 @@ void add_int_elements(list *l)
 {
     int *eint;
     int cap = l->capacity;
+    int length;
     int ret;
 
     for (int i = l->length; i < cap+1; ++i) {
@@ -113,6 +137,18 @@ void add_int_elements(list *l)
     }
     assert(l->capacity > cap);
     for (int i = 0; i < l->length; ++i) {
+        ret = list_at(l, i, (void**)&eint);
+        assert(ret == 0 && eint != NULL);
+        assert(list_get(l, i) == eint);
+        assert(*eint == i);
+    }
+
+    length = l->length;    
+    for (int i = 0; i < 4; ++i) {
+        ret = list_insert(l, i, &i);
+        assert(ret == 0 && l->length == length+i+1);
+    }
+    for (int i = 0; i < 4; ++i) {
         ret = list_at(l, i, (void**)&eint);
         assert(ret == 0 && eint != NULL);
         assert(list_get(l, i) == eint);
