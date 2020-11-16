@@ -85,6 +85,7 @@ int server_runtime_deinit(void)
         }
         printf("\n");
     }
+    api_records_free_args();
     list_free(&api_records);
     resource_mg_free(&rm_streams);
     resource_mg_free(&rm_events);
@@ -817,6 +818,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
       cuda_args,
       sharedMem,
       resource_mg_get(&rm_events, (void*)stream));
+    free(cuda_args);
     RECORD_RESULT(integer, *result);
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
     return 1;
@@ -1460,6 +1462,9 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(result->mem_result_u.data.mem_data_val);
 #endif
+    if (result->err != 0) {
+        free(result->mem_result_u.data.mem_data_val);
+    }
 out:
     return 1;
 }

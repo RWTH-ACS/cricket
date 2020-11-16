@@ -168,14 +168,18 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
     int read = 0;
     char key[32];
     char val[256] = {0};
+    size_t val_len = 0;
     enum attr_t cur_attr = ATTR_T_LAST; // current state of state machine
     info->param_num = 0;
     info->param_offsets = NULL;
     info->param_sizes = NULL;
     while (getline(&line, &linelen, fdesc) != -1) {
         memset(val, 0, 256);
-        read = sscanf(line, "%32s %255c\n", key, val);
-        val[strlen(val)-1] = '\0';
+        read = sscanf(line, "%31s %255c\n", key, val);
+        val_len = strlen(val);
+        if (val_len > 0) {
+            val[strlen(val)-1] = '\0';
+        }
         if (read == -1 || read == 0) {
             break; //empty line means there is no more info for this kernel
         } else if (read == 1) {

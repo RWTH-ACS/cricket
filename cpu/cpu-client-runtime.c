@@ -407,7 +407,6 @@ const char* cudaGetErrorName(cudaError_t error)
     }
     if (result.err != 0) {
         LOGE(LOG_ERROR, "something went wrong");
-        free(result.str_result_u.str);
     }
     return result.str_result_u.str;
 }
@@ -426,7 +425,6 @@ const char* cudaGetErrorString(cudaError_t error)
     }
     if (result.err != 0) {
         LOGE(LOG_ERROR, "something went wrong");
-        free(result.str_result_u.str);
     }
     return result.str_result_u.str;
 }

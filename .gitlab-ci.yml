@@ -62,7 +62,7 @@ build:
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
-   - make -j 1 LOG=INFO WITH_DEBUG=yes
+   - make -j 1 LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:
@@ -86,7 +86,7 @@ build:cuda10:
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
-   - make -j 1 LOG=INFO WITH_DEBUG=yes
+   - make -j 1 LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:
@@ -105,6 +105,29 @@ build:cuda10:
   tags:
     - docker
 
+build:debug:
+  stage: build
+  script:
+   - make -j 32 libtirpc
+   - make -j 32 cuda-gdb
+   - make -j 1 LOG=INFO WITH_DEBUG=yes
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - bin
+  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  cache:
+    paths:
+      - gpu/build
+      - cpu/*.o
+      - tests/*.o
+      - tests/cpu/*.o
+      - submodules/libtirpc/install
+      - submodules/cuda-gdb/build
+      - bin
+    key: build_debug
+  tags:
+    - docker
 
 .remote-gpu:
   stage: test
@@ -122,9 +145,9 @@ build:cuda10:
       echo $KNOWN_HOSTS > ~/.ssh/known_hosts && chmod 600 ~/.ssh/id_rsa
     - ssh $GPU_TARGET mkdir -p $RDIR
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
-    - ssh $GPU_TARGET "LD_PRELOAD=/lib64/libasan.so.5:$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/$TEST_BINARY" &
+    - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/$TEST_BINARY" &
     - sleep 2
-    - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=/lib64/libasan.so.5:$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY
+    - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY
   after_script:
     - ssh $GPU_TARGET rm -rf $RDIR
     - ssh $GPU_TARGET pkill -fe -2 $RDIR/test_kernel
@@ -140,7 +163,7 @@ test:test_programs(1/2):
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_list.test
   image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   dependencies:
-    - build:cuda10
+    - build:debug
   tags:
     - docker
 
@@ -150,7 +173,7 @@ test:test_programs(2/2):
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_resource_mg.test
   image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   dependencies:
-    - build:cuda10
+    - build:debug
   tags:
     - docker
 
