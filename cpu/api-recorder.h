@@ -50,5 +50,6 @@ extern list api_records;
 
 
 void api_records_free_args(void);
+void api_records_print(void);
 
 #endif
