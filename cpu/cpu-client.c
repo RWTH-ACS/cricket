@@ -103,7 +103,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         exit (1);
     }
 
-    retval_1 = printmessage_1(printmessage_1_arg1, &result_1, clnt);
+    retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
     printf("return:%d\n", result_1);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");

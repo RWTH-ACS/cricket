@@ -145,8 +145,9 @@ struct rpc_fatCubin {
 
 program RPC_CD_PROG {
     version RPC_CD_VERS {
-        int          rpc_deinit(void)                                     = 0;
-        int          PRINTMESSAGE(string)                                 = 1;
+        int          rpc_checkpoint(void)                                 = 0;
+        int          rpc_deinit(void)                                     = 1;
+        int          rpc_printmessage(string)                             = 2;
 /* RUNTIME API */
         /* ### Device Management ### */
         int_result   CUDA_CHOOSE_DEVICE(mem_data)                       = 101;

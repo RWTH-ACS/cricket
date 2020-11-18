@@ -11,6 +11,7 @@
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
     record->function = rqstp->rq_proc; \
+    record->arg_size = 0; \
     record->arguments = NULL;
 #define RECORD_API(ARG_TYPE) \
     api_record_t *record; \
@@ -22,6 +23,7 @@
         LOGE(LOG_ERROR, "list arguments allocation failed"); \
     } \
     record->function = rqstp->rq_proc; \
+    record->arg_size = sizeof(ARG_TYPE); \
     record->arguments = arguments;
 #define RECORD_RESULT(TYPE, RES) \
     record->result.TYPE = RES
@@ -36,9 +38,11 @@
 #define RECORD_SINGLE_ARG(ARG)
 #endif //WITH_RECORDER
 
+#include <stdio.h>
 
 typedef struct api_record {
     unsigned int function;
+    size_t arg_size;
     void *arguments;
     union {
         uint64_t u64;
@@ -51,5 +55,8 @@ extern list api_records;
 
 void api_records_free_args(void);
 void api_records_print(void);
+
+int api_records_dump(FILE *file);
+int api_records_restore(FILE *file);
 
 #endif

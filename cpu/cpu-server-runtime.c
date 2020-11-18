@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
@@ -25,6 +26,7 @@
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "resource-mg.h"
+#include "cpu-server-runtime.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -44,6 +46,7 @@ int server_runtime_init(void)
 {
     int ret = 0;
     ret = list_init(&api_records, sizeof(api_record_t));
+    //ret &= server_runtime_restore("ckp");
     ret &= resource_mg_init(&rm_streams, 1);
     ret &= resource_mg_init(&rm_events, 1);
     ret &= resource_mg_init(&rm_arrays, 1);
@@ -62,6 +65,64 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_memory);
     return 0;
 
+}
+
+int server_runtime_checkpoint(const char *path)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "api_record";
+    int res = 1;
+    api_records_print();
+    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+    if ((fp = fopen(file_name, "w+b")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+    if (api_records_dump(fp) != 0) {
+        LOGE(LOG_ERROR, "error writing api_records to \"%s\"",
+                file_name);
+        goto cleanup;
+    }
+    res = 0;
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return res;
+}
+
+int server_runtime_restore(const char *path)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "api_record";
+    int res = 1;
+    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+    if ((fp = fopen(file_name, "rb")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+    if (api_records_restore(fp) != 0) {
+        LOGE(LOG_ERROR, "error reading api_records to \"%s\"",
+                file_name);
+        goto cleanup;
+    }
+    api_records_print();
+    res = 0;
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return res;
 }
 
 /* ############### RUNTIME API ############### */

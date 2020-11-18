@@ -26,7 +26,7 @@ void int_handler(int signal) {
     svc_exit();
 }
 
-bool_t printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
+bool_t rpc_printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "string: \"%s\"\n", argp);
     *result = 42;
@@ -37,6 +37,42 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "RPC deinit requested.");
     svc_exit();
+    return 1;
+}
+
+#include <sys/types.h>
+#include <sys/stat.h>
+bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
+{
+    int ret;
+    struct stat path_stat = { 0 };
+    const char *ckp_path = "ckp";
+    LOG(LOG_INFO, "rpc_checkpoint requested.");
+
+    if (!ckp_path) {
+        LOGE(LOG_ERROR, "ckp_path is NULL");
+        goto error;
+    }
+    if (stat(ckp_path, &path_stat) != 0) {
+        LOG(LOG_DEBUG, "directory \"%s\" does not exist. Let's create it.", ckp_path);
+        if (mkdir(ckp_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0) {
+            LOGE(LOG_ERROR, "failed to create directory \"%s\"", ckp_path);
+            goto error;
+        }
+    } else if (!S_ISDIR(path_stat.st_mode)) {
+        LOG(LOG_ERROR, "file \"%s\" is not a directory", ckp_path);
+        goto error;
+    }
+    
+    if ((ret = server_runtime_checkpoint(ckp_path)) != 0) {
+        LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
+        goto error;
+    }
+
+    LOG(LOG_INFO, "checkpoint successfully created.");
+    return 1;
+ error:
+    LOG(LOG_INFO, "checkpoint creation failed.");
     return 1;
 }
 
@@ -85,7 +121,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
         protocol = IPPROTO_TCP;
         break;
     case UDP:
-        /* From RPCEGEN documentation:
+        /* From RPCGEN documentation:
          * Warning: since UDP-based RPC messages can only hold up to 8 Kbytes
          * of encoded data, this transport cannot be used for procedures that
          * take large arguments or return huge results.
