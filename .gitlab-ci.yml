@@ -81,6 +81,30 @@ build:
   tags:
     - docker
 
+build:ib:
+  stage: build
+  script:
+   - make -j 32 libtirpc
+   - make -j 32 cuda-gdb
+   - make -j 1 LOG=INFO WITH_IB=yes
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - bin
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
+  cache:
+    paths:
+      - gpu/build
+      - cpu/*.o
+      - tests/*.o
+      - tests/cpu/*.o
+      - submodules/libtirpc/install
+      - submodules/cuda-gdb/build
+      - bin
+    key: buildib
+  tags:
+    - docker
+
 build:cuda10:
   stage: build
   script:
