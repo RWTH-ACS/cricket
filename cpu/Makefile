@@ -30,7 +30,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-cusolver.c 		\
 			 list.c                     \
 			 api-recorder.c 			\
-			 resource-mg.c
+			 resource-mg.c 			    \
+			 cr.c
 
 SRC_CLIENT = $(RPC_XDR)                 \
 			 $(RPC_CLIENT)              \

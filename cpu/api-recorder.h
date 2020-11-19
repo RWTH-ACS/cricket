@@ -39,6 +39,7 @@
 #endif //WITH_RECORDER
 
 #include <stdio.h>
+#include "cpu_rpc_prot.h"
 
 typedef struct api_record {
     unsigned int function;
@@ -48,6 +49,7 @@ typedef struct api_record {
         uint64_t u64;
         void* ptr;
         int integer;
+        ptr_result ptr_result_u;
     } result;
 } api_record_t;
 extern list api_records;
@@ -55,8 +57,6 @@ extern list api_records;
 
 void api_records_free_args(void);
 void api_records_print(void);
-
-int api_records_dump(FILE *file);
-int api_records_restore(FILE *file);
+void api_records_print_records(api_record_t *record);
 
 #endif
