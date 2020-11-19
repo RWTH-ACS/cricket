@@ -27,6 +27,7 @@
 #include "api-recorder.h"
 #include "resource-mg.h"
 #include "cpu-server-runtime.h"
+#include "cr.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -69,60 +70,20 @@ int server_runtime_deinit(void)
 
 int server_runtime_checkpoint(const char *path)
 {
-    FILE *fp = NULL;
-    char *file_name;
-    const char *suffix = "api_record";
-    int res = 1;
-    api_records_print();
-    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
-        LOGE(LOG_ERROR, "memory allocation failed");
-        goto out;
+    if (cr_dump(path) != 0) {
+        LOGE(LOG_ERROR, "error dumping api_records");
+        return 1;
     }
-    if ((fp = fopen(file_name, "w+b")) == NULL) {
-        LOGE(LOG_ERROR, "error while opening file");
-        free(file_name);
-        goto out;
-    }
-    if (api_records_dump(fp) != 0) {
-        LOGE(LOG_ERROR, "error writing api_records to \"%s\"",
-                file_name);
-        goto cleanup;
-    }
-    res = 0;
-cleanup:
-    free(file_name);
-    fclose(fp);
-out:
-    return res;
+    return 0;
 }
 
 int server_runtime_restore(const char *path)
 {
-    FILE *fp = NULL;
-    char *file_name;
-    const char *suffix = "api_record";
-    int res = 1;
-    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
-        LOGE(LOG_ERROR, "memory allocation failed");
-        goto out;
+    if (cr_restore(path) != 0) {
+        LOGE(LOG_ERROR, "error dumping api_records");
+        return 1;
     }
-    if ((fp = fopen(file_name, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "error while opening file");
-        free(file_name);
-        goto out;
-    }
-    if (api_records_restore(fp) != 0) {
-        LOGE(LOG_ERROR, "error reading api_records to \"%s\"",
-                file_name);
-        goto cleanup;
-    }
-    api_records_print();
-    res = 0;
-cleanup:
-    free(file_name);
-    fclose(fp);
-out:
-    return res;
+    return 0;
 }
 
 /* ############### RUNTIME API ############### */
@@ -1173,7 +1134,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
     resource_mg_create(&rm_memory, (void*)result->ptr_result_u.ptr);
 
-    RECORD_RESULT(integer, result->err);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -1362,7 +1323,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
 }
 
 
-#if WITH_IB
+#ifdef WITH_IB
 struct ib_thread_info {
     int index;
     void* host_ptr;
@@ -1382,7 +1343,7 @@ void* ib_thread(void* arg)
 
 bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_to_symbol_ib_1_argument);
+    RECORD_API(cuda_memcpy_ib_1_argument);
     RECORD_ARG(1, index);
     RECORD_ARG(2, device_ptr);
     RECORD_ARG(3, size);
