@@ -33,18 +33,14 @@ INIT_SOCKTYPE
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif //WITH_API_CNT
 
-void __attribute__ ((constructor)) init_rpc(void)
+static void rpc_connect(void)
 {
-    enum clnt_stat retval_1;
-    int result_1;
-    int_result result_2;
-    char *printmessage_1_arg1 = "hello";
     int isock;
     struct sockaddr_un sock_un = {0};
     struct sockaddr_in sock_in = {0};
     struct hostent *hp;
+    unsigned long prog=0, vers=0;
 
-    init_log(LOG_LEVEL, __FILE__);
     char server[256];
     char envvar[] = "REMOTE_GPU_ADDRESS";
 
@@ -58,7 +54,6 @@ void __attribute__ ((constructor)) init_rpc(void)
     }
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
-    unsigned long prog=0, vers=0;
     if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum\n");
         exit(0);
@@ -101,6 +96,38 @@ void __attribute__ ((constructor)) init_rpc(void)
     if (clnt == NULL) {
         clnt_pcreateerror("[rpc] Error");
         exit (1);
+    }
+}
+
+static void repair_connection(int signo) {
+    enum clnt_stat retval_1;
+    int result_1;
+    LOGE(LOG_INFO, "Trying connection...");
+    char *printmessage_1_arg1 = "connection test";
+    retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
+    printf("return:%d\n", result_1);
+    if (retval_1 == RPC_SUCCESS) {
+        LOG(LOG_INFO, "connection still okay.");
+        return;
+    }
+    LOG(LOG_INFO, "connection dead. Reconnecting...");
+    rpc_connect();
+    LOG(LOG_INFO, "reconnected");
+}
+
+void __attribute__ ((constructor)) init_rpc(void)
+{
+    enum clnt_stat retval_1;
+    int result_1;
+    int_result result_2;
+    char *printmessage_1_arg1 = "hello";
+
+    init_log(LOG_LEVEL, __FILE__);
+    rpc_connect();
+
+    if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
+        LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+        exit(1);
     }
 
     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);

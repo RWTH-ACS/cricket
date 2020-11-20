@@ -3,6 +3,8 @@
 #include <sys/socket.h>
 #include <unistd.h> //unlink()
 #include <signal.h> //sigaction
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
@@ -40,8 +42,6 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
-#include <sys/types.h>
-#include <sys/stat.h>
 bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
 {
     int ret;
@@ -83,6 +83,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
     register SVCXPRT *transp;
 
     int protocol = 0;
+    int restore = 0;
     struct sigaction act;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
@@ -98,6 +99,10 @@ void __attribute__ ((constructor)) cricketd_main(void)
     if (getenv("CRICKET_DISABLE_RPC")) {
         LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
         return;
+    }
+    if (getenv("CRICKET_RESTORE")) {
+        LOG(LOG_INFO, "restoring previous state was enabled by setting CRICKET_RESTORE");
+            restore = 1;
     }
 
     switch (socktype) {
@@ -137,7 +142,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
         exit(1);
     }
 
-    if (server_runtime_init() != 0) {
+    if (server_runtime_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         exit(1);
     }

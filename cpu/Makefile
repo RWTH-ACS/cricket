@@ -12,6 +12,7 @@ RPCGEN = rpcgen
 
 # rpcgen files
 RPC_SERVER = cpu_rpc_prot_svc.c
+RPC_SERVER_MOD = cpu_rpc_prot_svc_mod.c
 RPC_CLIENT = cpu_rpc_prot_clnt.c
 RPC_XDR = cpu_rpc_prot_xdr.c
 RPC_DEF = cpu_rpc_prot.x
@@ -19,7 +20,7 @@ RPC_H = $(RPC_DEF:%.x=%.h)
 
 
 SRC_SERVER = $(RPC_XDR)                 \
-			 $(RPC_SERVER)              \
+			 $(RPC_SERVER_MOD)          \
 			 cpu-server.c               \
 			 cpu-utils.c                \
 			 cpu-server-runtime.c       \
@@ -99,6 +100,9 @@ $(RPC_CLIENT) : $(RPC_DEF)
 $(RPC_SERVER) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
 
+$(RPC_SERVER_MOD) : $(RPC_SERVER)
+	./generate_dispatch.sh
+
 $(RPC_XDR) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
@@ -106,7 +110,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
 
 
 

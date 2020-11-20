@@ -28,7 +28,7 @@ void api_records_print_records(api_record_t *record)
     sprintf(str, "function: %u ", record->function);
     switch (record->function) {
     case CUDA_MALLOC:
-        sprintf(str+strlen(str), "(cuda_malloc), arg=%zu, result=%lx", *(size_t*)record->arguments, record->result.u64);
+        sprintf(str+strlen(str), "(cuda_malloc), arg=%zu, result=%lx", *(size_t*)record->arguments, record->result.ptr_result_u.ptr_result_u.ptr);
         break;
     case CUDA_SET_DEVICE:
         sprintf(str+strlen(str), "(cuda_set_device)");

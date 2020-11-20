@@ -43,15 +43,22 @@ static resource_mg rm_events;
 static resource_mg rm_arrays;
 static resource_mg rm_memory;
 
-int server_runtime_init(void)
+int server_runtime_init(int restore)
 {
     int ret = 0;
     ret = list_init(&api_records, sizeof(api_record_t));
-    //ret &= server_runtime_restore("ckp");
-    ret &= resource_mg_init(&rm_streams, 1);
-    ret &= resource_mg_init(&rm_events, 1);
-    ret &= resource_mg_init(&rm_arrays, 1);
-    ret &= resource_mg_init(&rm_memory, 1);
+    if (!restore) {
+        ret &= resource_mg_init(&rm_streams, 1);
+        ret &= resource_mg_init(&rm_events, 1);
+        ret &= resource_mg_init(&rm_arrays, 1);
+        ret &= resource_mg_init(&rm_memory, 1);
+    } else {
+        ret &= resource_mg_init(&rm_streams, 0);
+        ret &= resource_mg_init(&rm_events, 0);
+        ret &= resource_mg_init(&rm_arrays, 0);
+        ret &= resource_mg_init(&rm_memory, 0);
+        ret &= server_runtime_restore("ckp");
+    }
     return ret;
 }
 
@@ -79,7 +86,7 @@ int server_runtime_checkpoint(const char *path)
 
 int server_runtime_restore(const char *path)
 {
-    if (cr_restore(path) != 0) {
+    if (cr_restore(path, &rm_memory) != 0) {
         LOGE(LOG_ERROR, "error dumping api_records");
         return 1;
     }
@@ -289,7 +296,7 @@ bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
 {
     RECORD_API(int);
     RECORD_SINGLE_ARG(device);
-    LOGE(LOG_DEBUG, "cudaSetDevice");
+    LOGE(LOG_DEBUG, "cudaSetDevice(%d)", device);
     *result = cudaSetDevice(device);
     RECORD_RESULT(integer, *result);
     return 1;
@@ -797,7 +804,8 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+        cuda_args[i] = resource_mg_get(&rm_memory, cuda_args[i]);
+        LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
     LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);

@@ -4,7 +4,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <cuda_runtime.h>
+#include <arpa/inet.h>
+#include <rpc/clnt.h>
 
+#include "cpu-common.h"
 #include "api-recorder.h"
 #include "resource-mg.h"
 #include "log.h"
@@ -61,6 +64,10 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
         return 1;
     }
 
+    LOG(LOG_DEBUG, "restored mapping %p -> %p", 
+                               (void*)result.ptr_result_u.ptr, 
+                               cuda_ptr);
+
     if (resource_mg_add_sorted(rm_memory, 
                                (void*)result.ptr_result_u.ptr, 
                                cuda_ptr) != 0) {
@@ -68,14 +75,14 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
         return 1;
     }
 
-    if ( (ret = cudaMemcpy(mem_data,
-           (void*)result.ptr_result_u.ptr,
+    if ( (ret = cudaMemcpy(cuda_ptr,
+           mem_data,
            mem_size,
-           cudaMemcpyDeviceToHost)) != 0) {
+           cudaMemcpyHostToDevice)) != 0) {
         LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
         return 0;
     }
-    LOG(LOG_DEBUG, "dumped memory of size %zu to %s", mem_size, file_name);
+    LOG(LOG_DEBUG, "restored memory of size %zu from %s", mem_size, file_name);
     ret = 0;
 cleanup:
     free(file_name);
@@ -226,6 +233,7 @@ static int cr_restore_api_record(FILE *fp, api_record_t *record)
                1, size, fp) != size) {
         if (feof(fp)) {
             res = 2;
+            goto cleanup;
         }
         LOGE(LOG_ERROR, "error reading record->function");
         goto cleanup;
@@ -252,18 +260,40 @@ static int cr_restore_api_record(FILE *fp, api_record_t *record)
         LOGE(LOG_ERROR, "error reading record->function");
         goto cleanup;
     }
+    
     res = 0;
 cleanup:
     return res;
 }
 
-int cr_restore(const char *path)
+extern void rpc_dispatch(struct svc_req *rqstp, xdrproc_t *ret_arg, xdrproc_t *ret_res, size_t *res_sz, bool_t (**ret_fun)(char *, void *, struct svc_req *));
+
+int cr_call_record(api_record_t *record)
+{
+    struct svc_req rqstp;
+    xdrproc_t arg;
+    xdrproc_t res;
+    size_t res_sz;
+    bool_t retval;
+    void *result;
+    bool_t (*fun)(char *, void *, struct svc_req *);
+
+    rqstp.rq_proc = record->function;
+    rpc_dispatch(&rqstp, &arg, &res, &res_sz, &fun);
+    result = malloc(res_sz);
+	retval = (bool_t) (*fun)((char *)record->arguments, result, &rqstp);
+
+    return (retval==1 ? 0 : 1);
+}
+
+int cr_restore(const char *path, resource_mg *rm_memory)
 {
     FILE *fp = NULL;
     char *file_name;
     const char *suffix = "api_records";
     int res = 1;
     api_record_t *record;
+    struct svc_req rqstp;
     int function;
     if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
         LOGE(LOG_ERROR, "memory allocation failed");
@@ -294,7 +324,20 @@ int cr_restore(const char *path)
                 goto cleanup;
             }
         }
-
+        if (record->function == CUDA_MALLOC) {
+            if (cr_restore_memory(path, record, rm_memory) != 0) {
+                LOGE(LOG_ERROR, "error dumping memory");
+                goto cleanup;
+            }
+        } else if (record->function == CUDA_MEMCPY_HTOD) {
+        } else {
+            rqstp.rq_proc = record->function;
+            if (cr_call_record(record) != 0) {
+                LOGE(LOG_ERROR, "calling record function failed");
+                goto cleanup;
+            }
+        }
+        
         api_records_print_records(record);
     }
     res = 0;
