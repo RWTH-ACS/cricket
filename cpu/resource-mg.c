@@ -72,6 +72,7 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
             return mid_elem->cuda_address;
         }
     }
+    LOGE(LOG_DEBUG, "no find: %p", client_address);
     return client_address;
 }
 
