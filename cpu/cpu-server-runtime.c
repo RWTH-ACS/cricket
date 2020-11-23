@@ -86,7 +86,7 @@ int server_runtime_checkpoint(const char *path)
 
 int server_runtime_restore(const char *path)
 {
-    if (cr_restore(path, &rm_memory) != 0) {
+    if (cr_restore(path, &rm_memory, &rm_streams) != 0) {
         LOGE(LOG_ERROR, "error dumping api_records");
         return 1;
     }
@@ -432,7 +432,7 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     if (resource_mg_create(&rm_streams, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 

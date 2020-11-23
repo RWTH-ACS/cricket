@@ -13,6 +13,39 @@
 #include "log.h"
 #include "cpu_rpc_prot.h"
 
+
+static int cr_restore_streams(api_record_t *record, resource_mg *rm_streams)
+{
+    cudaStream_t new_stream = NULL;
+    cudaError_t err;
+    ptr_result res = record->result.ptr_result_u;
+    if (record->function == CUDA_STREAM_CREATE) {
+        if ((err = cudaStreamCreate(&new_stream)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "CUDA error while restoring stream: %s", cudaGetErrorString(err));
+            return 1;
+        }
+    } else if (record->function == CUDA_STREAM_CREATE_WITH_FLAGS) {
+        if ((err = cudaStreamCreateWithFlags(&new_stream, *(int*)record->arguments)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "CUDA error while restoring stream: %s", cudaGetErrorString(err));
+            return 1;
+        }
+    } else if (record->function == CUDA_STREAM_CREATE_WITH_PRIORITY) {
+        cuda_stream_create_with_priority_1_argument *arg = record->arguments;
+        if ((err = cudaStreamCreateWithPriority(&new_stream, arg->arg1, arg->arg2)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "CUDA error while restoring stream: %s", cudaGetErrorString(err));
+            return 1;
+        }
+    } else {
+        LOGE(LOG_ERROR, "cannot restore a stream from a record that is not a stream_create record");
+        return 1;
+    }
+    if (resource_mg_add_sorted(rm_streams, (void*)res.ptr_result_u.ptr, new_stream) != 0) {
+        LOGE(LOG_ERROR, "error adding to stream resource manager");
+        return 1;
+    }
+    return 0;
+}
+
 static int cr_restore_memory(const char *path, api_record_t *record, resource_mg *rm_memory)
 {
     FILE *fp = NULL;
@@ -286,14 +319,44 @@ int cr_call_record(api_record_t *record)
     return (retval==1 ? 0 : 1);
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory)
+static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams)
+{
+    int ret = 1;
+    switch (record->function) {
+    case CUDA_MALLOC:
+        if (cr_restore_memory(path, record, rm_memory) != 0) {
+            LOGE(LOG_ERROR, "error dumping memory");
+            goto cleanup;
+        }
+        break;
+    case CUDA_MEMCPY_HTOD:
+        break;
+    case CUDA_STREAM_CREATE:
+    case CUDA_STREAM_CREATE_WITH_FLAGS:
+    case CUDA_STREAM_CREATE_WITH_PRIORITY:
+        if (cr_restore_streams(record, rm_streams) != 0) {
+            LOGE(LOG_ERROR, "error restoring streams");
+            goto cleanup;
+        }
+        break;
+    default:
+        if (cr_call_record(record) != 0) {
+            LOGE(LOG_ERROR, "calling record function failed");
+            goto cleanup;
+        }
+    }
+    ret = 0;
+ cleanup:
+    return ret;
+}
+
+int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams)
 {
     FILE *fp = NULL;
     char *file_name;
     const char *suffix = "api_records";
     int res = 1;
     api_record_t *record;
-    struct svc_req rqstp;
     int function;
     if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
         LOGE(LOG_ERROR, "memory allocation failed");
@@ -324,20 +387,10 @@ int cr_restore(const char *path, resource_mg *rm_memory)
                 goto cleanup;
             }
         }
-        if (record->function == CUDA_MALLOC) {
-            if (cr_restore_memory(path, record, rm_memory) != 0) {
-                LOGE(LOG_ERROR, "error dumping memory");
-                goto cleanup;
-            }
-        } else if (record->function == CUDA_MEMCPY_HTOD) {
-        } else {
-            rqstp.rq_proc = record->function;
-            if (cr_call_record(record) != 0) {
-                LOGE(LOG_ERROR, "calling record function failed");
-                goto cleanup;
-            }
+        if (cr_restore_resources(path, record, rm_memory, rm_streams) != 0) {
+            LOGE(LOG_ERROR, "error restoring resources");
+            goto cleanup;
         }
-        
         api_records_print_records(record);
     }
     res = 0;
