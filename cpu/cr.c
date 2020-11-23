@@ -13,6 +13,31 @@
 #include "log.h"
 #include "cpu_rpc_prot.h"
 
+static int cr_restore_events(api_record_t *record, resource_mg *rm_events)
+{
+    cudaEvent_t new_event = NULL;
+    cudaError_t err;
+    ptr_result res = record->result.ptr_result_u;
+    if (record->function == CUDA_EVENT_CREATE) {
+        if ((err = cudaEventCreate(&new_event)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
+            return 1;
+        }
+    } else if (record->function == CUDA_EVENT_CREATE_WITH_FLAGS) {
+        if ((err = cudaEventCreateWithFlags(&new_event, *(int*)record->arguments)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
+            return 1;
+        }
+    } else {
+        LOGE(LOG_ERROR, "cannot restore an event from a record that is not an event_create record");
+        return 1;
+    }
+    if (resource_mg_add_sorted(rm_events, (void*)res.ptr_result_u.ptr, new_event) != 0) {
+        LOGE(LOG_ERROR, "error adding to event resource manager");
+        return 1;
+    }
+    return 0;
+}
 
 static int cr_restore_streams(api_record_t *record, resource_mg *rm_streams)
 {
@@ -319,7 +344,7 @@ int cr_call_record(api_record_t *record)
     return (retval==1 ? 0 : 1);
 }
 
-static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams)
+static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays)
 {
     int ret = 1;
     switch (record->function) {
@@ -339,6 +364,12 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
             goto cleanup;
         }
         break;
+    case CUDA_EVENT_CREATE:
+    case CUDA_EVENT_CREATE_WITH_FLAGS:
+        if (cr_restore_events(record, rm_events) != 0) {
+            LOGE(LOG_ERROR, "error restoring events");
+            goto cleanup;
+        }
     default:
         if (cr_call_record(record) != 0) {
             LOGE(LOG_ERROR, "calling record function failed");
@@ -350,7 +381,7 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     return ret;
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams)
+int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -387,7 +418,8 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
                 goto cleanup;
             }
         }
-        if (cr_restore_resources(path, record, rm_memory, rm_streams) != 0) {
+        if (cr_restore_resources(path, record, rm_memory, rm_streams,
+                                 rm_events, rm_arrays) != 0) {
             LOGE(LOG_ERROR, "error restoring resources");
             goto cleanup;
         }

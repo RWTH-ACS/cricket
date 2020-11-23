@@ -86,7 +86,7 @@ int server_runtime_checkpoint(const char *path)
 
 int server_runtime_restore(const char *path)
 {
-    if (cr_restore(path, &rm_memory, &rm_streams) != 0) {
+    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays) != 0) {
         LOGE(LOG_ERROR, "error dumping api_records");
         return 1;
     }
