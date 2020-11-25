@@ -13,6 +13,108 @@
 #include "log.h"
 #include "cpu_rpc_prot.h"
 
+static int cr_restore_arrays(const char *path, api_record_t *record, resource_mg *rm_arrays)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "mem";
+    size_t mem_size;
+    void *mem_data;
+    void *cuda_ptr;
+    ptr_result result;
+    int ret;
+    if (record->function != CUDA_MALLOC_ARRAY ||
+        record->function != CUDA_MALLOC_3D_ARRAY) {
+        LOGE(LOG_ERROR, "got a record that is not of type cudaMallocArray");
+        return 0;
+    }
+    mem_size = *(size_t*)record->arguments;
+    result = record->result.ptr_result_u;
+
+   // if ( (mem_data = malloc(mem_size)) == NULL) {
+   //     LOGE(LOG_ERROR, "could not allocate memory");
+   //     return 0;
+   // }
+
+   // if (asprintf(&file_name, "%s/%s-0x%lx",
+   //              path, suffix, result.ptr_result_u.ptr) < 0) {
+   //     LOGE(LOG_ERROR, "memory allocation failed");
+   //     goto out;
+   // }
+
+   // if ((fp = fopen(file_name, "rb")) == NULL) {
+   //     LOGE(LOG_ERROR, "error while opening file");
+   //     free(file_name);
+   //     goto out;
+   // }
+
+   // if (ferror(fp) || feof(fp)) {
+   //     LOGE(LOG_ERROR, "file descriptor is invalid");
+   //     goto cleanup;
+   //     return 1;
+   // }
+
+   // if (fread(mem_data,
+   //            1, mem_size, fp) != mem_size) {
+   //     LOGE(LOG_ERROR, "error reading mem_data");
+   //     goto cleanup;
+   // }
+
+   // if ( (ret = cudaMalloc(&cuda_ptr, mem_size)) != cudaSuccess) {
+   //     LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
+   //     return 1;
+   // }
+
+   // LOG(LOG_DEBUG, "restored mapping %p -> %p", 
+   //                            (void*)result.ptr_result_u.ptr, 
+   //                            cuda_ptr);
+
+   // if (resource_mg_add_sorted(rm_memory, 
+   //                            (void*)result.ptr_result_u.ptr, 
+   //                            cuda_ptr) != 0) {
+   //     LOGE(LOG_ERROR, "error adding memory resource to resource manager");
+   //     return 1;
+   // }
+
+   // if ( (ret = cudaMemcpy(cuda_ptr,
+   //        mem_data,
+   //        mem_size,
+   //        cudaMemcpyHostToDevice)) != 0) {
+   //     LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
+   //     return 0;
+   // }
+   // LOG(LOG_DEBUG, "restored memory of size %zu from %s", mem_size, file_name);
+   // ret = 0;
+//cleanup:
+   // free(file_name);
+   // fclose(fp);
+//out:
+   // return ret;
+//}
+   // cudaEvent_t new_array = NULL;
+   // cudaError_t err;
+   // ptr_result res = record->result.ptr_result_u;
+   // if (record->function == CUDA_MALLOC_ARRAY) {
+   //     if ((err = cudaEventCreate(&new_event)) != cudaSuccess) {
+   //         LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
+   //         return 1;
+   //     }
+   // } else if (record->function == CUDA_EVENT_CREATE_WITH_FLAGS) {
+   //     if ((err = cudaEventCreateWithFlags(&new_event, *(int*)record->arguments)) != cudaSuccess) {
+   //         LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
+   //         return 1;
+   //     }
+   // } else {
+   //     LOGE(LOG_ERROR, "cannot restore an event from a record that is not an event_create record");
+   //     return 1;
+   // }
+   // if (resource_mg_add_sorted(rm_events, (void*)res.ptr_result_u.ptr, new_event) != 0) {
+   //     LOGE(LOG_ERROR, "error adding to event resource manager");
+   //     return 1;
+   // }
+   return 0;
+}
+
 static int cr_restore_events(api_record_t *record, resource_mg *rm_events)
 {
     cudaEvent_t new_event = NULL;
@@ -368,6 +470,12 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     case CUDA_EVENT_CREATE_WITH_FLAGS:
         if (cr_restore_events(record, rm_events) != 0) {
             LOGE(LOG_ERROR, "error restoring events");
+            goto cleanup;
+        }
+    case CUDA_MALLOC_ARRAY:
+    case CUDA_MALLOC_3D_ARRAY:
+        if (cr_restore_arrays(path, record, rm_arrays) != 0) {
+            LOGE(LOG_ERROR, "error restoring arrays");
             goto cleanup;
         }
     default:
