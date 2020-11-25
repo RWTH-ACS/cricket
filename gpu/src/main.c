@@ -29,14 +29,6 @@
 
 #define CRICKET_PROFILE 1
 
-struct ui_file *gdb_stdout;
-struct ui_file *gdb_stderr;
-struct ui_file *gdb_stdlog;
-struct ui_file *gdb_stdin;
-struct ui_file *gdb_stdtarg;
-struct ui_file *gdb_stdtargerr;
-struct ui_file *gdb_stdtargin;
-
 CUDBGAPI cudbgAPI = NULL;
 
 bool cricket_print_lane_states(CUDBGAPI cudbgAPI, CricketDeviceProp *dev_prop)
@@ -118,14 +110,9 @@ cuda_error:
 bool cricket_init_gdb(char *name)
 {
     /* initialize gdb streams, necessary for gdb_init */
-    gdb_stdout = ui_file_new();
-    gdb_stderr = stdio_fileopen(stderr);
-    gdb_stdlog = gdb_stderr;
     gdb_stdtarg = gdb_stderr;
-    gdb_stdin = stdio_fileopen(stdin);
     gdb_stdtargerr = gdb_stderr;
     gdb_stdtargin = gdb_stdin;
-    instream = fopen("/dev/null", "r");
 
     /* initialize gdb paths */
     gdb_sysroot = strdup("");
@@ -142,9 +129,8 @@ bool cricket_init_gdb(char *name)
     printf("gdb_init...\n");
     gdb_init(name);
 
-    char *interpreter_p = strdup(INTERP_CONSOLE);
-    struct interp *interp = interp_lookup(interpreter_p);
-    interp_set(interp, 1);
+    char *interpreter_p = xstrdup(INTERP_CONSOLE);
+    set_top_level_interpreter(interpreter_p);
     return true;
 }
 
@@ -168,7 +154,6 @@ int cricket_info(int argc, char *argv[])
     bfd *cudabfd = NULL;
     asection *section;
     asection *cudasection;
-    Elf_Internal_Shdr *shdr = NULL;
     size_t fatbin_pos, fatbin_size;
     FILE *hostbfd_fd = NULL;
     FILE *cudabfd_fd = NULL;
@@ -395,6 +380,17 @@ cleanup:
     return ret;
 }
 
+static void
+symbol_file_add_main_adapter (const char *arg, int from_tty)
+{
+  symfile_add_flags add_flags = 0;
+
+  if (from_tty)
+    add_flags |= SYMFILE_VERBOSE;
+
+  symbol_file_add_main (arg, add_flags);
+}
+
 int cricket_restore(int argc, char *argv[])
 {
     CUDBGResult res;
@@ -466,7 +462,7 @@ int cricket_restore(int argc, char *argv[])
 
     // load the patched binary
     exec_file_attach(patched_binary, !batch_flag);
-    symbol_file_add_main(patched_binary, !batch_flag);
+    symbol_file_add_main_adapter(patched_binary, !batch_flag);
 
     // break when the kernel launches
     struct cmd_list_element *cl;
@@ -665,7 +661,7 @@ int cricket_restore(int argc, char *argv[])
                     }
                 }
                 // Enter the jumptable
-                res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                 if (res != CUDBG_SUCCESS) {
                     printf("%d:", __LINE__);
                     goto cuda_error;
@@ -700,7 +696,7 @@ int cricket_restore(int argc, char *argv[])
                             }
                         }
                     }
-                    res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                    res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                     if (res != CUDBG_SUCCESS) {
                         printf("%d:", __LINE__);
                         goto cuda_error;
@@ -774,7 +770,7 @@ int cricket_restore(int argc, char *argv[])
                             }
                         }
 
-                        res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                        res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                         if (res != CUDBG_SUCCESS) {
                             printf("%d:", __LINE__);
                             goto cuda_error;
@@ -820,12 +816,12 @@ int cricket_restore(int argc, char *argv[])
                             }
                         }
                     }
-                    res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                    res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                     if (res != CUDBG_SUCCESS) {
                         printf("%d:", __LINE__);
                         goto cuda_error;
                     }
-                    res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                    res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                     if (res != CUDBG_SUCCESS) {
                         printf("%d:", __LINE__);
                         goto cuda_error;
@@ -863,7 +859,7 @@ int cricket_restore(int argc, char *argv[])
                             }
                         }
                     }
-                    res = cudbgAPI->singleStepWarp(0, sm, warp, &sswarps);
+                    res = cudbgAPI->singleStepWarp(0, sm, warp, 1, &sswarps);
                     if (res != CUDBG_SUCCESS) {
                         printf("%d:", __LINE__);
                         goto cuda_error;
@@ -1349,7 +1345,7 @@ int cricket_start(int argc, char *argv[])
 
     /* load files */
     exec_file_attach(argv[2], !batch_flag);
-    symbol_file_add_main(argv[2], !batch_flag);
+    symbol_file_add_main_adapter(argv[2], !batch_flag);
 
     struct cmd_list_element *c;
     char *pset = "set cuda break_on_launch all";

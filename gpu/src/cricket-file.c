@@ -1,4 +1,5 @@
-#define _GNU_SOURCE
+#include "cricket-types.h"
+#include "cricket-util.h"
 #include "cricket-file.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,6 +1,7 @@
 #ifndef _CRICKET_TYPES_H_
 #define _CRICKET_TYPES_H_
 
+#include <build-gnulib/config.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdbool.h>

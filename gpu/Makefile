@@ -2,20 +2,28 @@
 BINARY = cricket
 
 CUDA_SRC = /usr/local/cuda
+CUDA_GDB_PATH = /home/eiling/tmp/cuda-gdb-11.1
 
-CC = gcc
-LD = gcc
+CC = g++
+LD = g++
 
 SRC_DIR := src
-INC_DIRS := -Iinclude/bfd -Iinclude/gdb -Iinclude/include -Iinclude/gdb/common -Iinclude
+INC_DIRS := -I$(CUDA_GDB_PATH)/bfd \
+			-I$(CUDA_GDB_PATH)/gdb \
+			-I$(CUDA_GDB_PATH)/include \
+			-I$(CUDA_GDB_PATH)/gdb/common \
+			-I$(CUDA_GDB_PATH)/build/gdb \
+			-I$(CUDA_GDB_PATH)/gdb/gnulib/import \
+			-I$(CUDA_GDB_PATH)/build/gdb/build-gnulib/import \
+			-Iinclude
 LIB_DIR := ../submodules/lib
 BUILD_DIR := build
 
-DLIBS = -lncurses -lpthread -lm -lz -ldl -Wl,--dynamic-list=utils/proc-service.list
+DLIBS = -lncurses -lpthread -lm -lz -ldl -lexpat -llzma -Wl,--dynamic-list=utils/proc-service.list
 # Order of .a files is important!
-SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a
+SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a libgnu.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
-CFLAGS = -std=gnu99
+CFLAGS = -std=gnu++11 -fpermissive
 LDFLAGS = $(CFLAGS)
 # generate the names like src/main.o src/main.d
 SRCS_C := $(wildcard $(SRC_DIR)/*.c)

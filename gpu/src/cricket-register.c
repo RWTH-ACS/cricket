@@ -44,7 +44,7 @@ static bool cricket_register_rst_predicate_data(CUDBGAPI cudbgAPI, uint32_t dev,
 {
     CUDBGResult res;
     res = cudbgAPI->writePredicates(dev, sm, warp, lane, register_num,
-                                    register_data);
+                                    (const uint32_t*)register_data);
     if (res != CUDBG_SUCCESS) {
         fprintf(stderr, "cricket_register_predicate_data \"%s\"\n",
                 cudbgGetErrorString(res));

@@ -1,4 +1,5 @@
-
+#include "common-defs.h"
+#include "errors.h"
 #include "cuda-tdep.h"
 #include "objfiles.h"
 #include <bfd.h>
@@ -57,19 +58,19 @@ static void cricket_elf_get_symbols(struct objfile *objfile)
 {
     struct minimal_symbol *msymbol;
     int i = 0;
-    printf("msym num: %d, cuda_objfile:%d\n", objfile->minimal_symbol_count,
+    printf("msym num: %d, cuda_objfile:%d\n", objfile->per_bfd->minimal_symbol_count,
            objfile->cuda_objfile);
-    ALL_OBJFILE_MSYMBOLS(objfile, msymbol)
-    {
-        if (!msymbol) {
+    for (auto msymbol = objfile->msymbols().begin(); msymbol != objfile->msymbols().end(); ++msymbol) {
+        if (!*msymbol) {
             i++;
             continue;
         }
         printf("%d: name: %s, section:%u, size: %lu, type: %u\n", i++,
-               msymbol->ginfo.name, msymbol->ginfo.section, msymbol->size,
-               MSYMBOL_TYPE(msymbol));
-        if (msymbol->ginfo.name[0] != '.') {
-            printf("%p\n", SYMBOL_VALUE_ADDRESS(msymbol));
+               (*msymbol)->mginfo.name, (*msymbol)->mginfo.section, (*msymbol)->size,
+               MSYMBOL_TYPE(*msymbol));
+        if ((*msymbol)->mginfo.name[0] != '.') {
+            printf("%p\n", MSYMBOL_VALUE_ADDRESS(objfile, *msymbol));
+
         }
     }
 }
@@ -83,55 +84,61 @@ bool cricket_elf_get_global_vars_info(cricket_global_var **globals,
     cricket_global_var *arr;
     int i = 0;
     const size_t const_suffix_len = strlen(CRICKET_ELF_CONST_SUFFIX);
-
-    ALL_OBJFILES(objfile)
-    {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
-            !objfile->cuda_objfile)
+    auto objfile_adapter = current_program_space->objfiles();
+    
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile) {
+        if (!*objfile || !(*objfile)->obfd ||
+            !(*objfile)->obfd->tdata.elf_obj_data ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        ALL_OBJFILE_MSYMBOLS(objfile, msymbol)
-        {
-            if (!msymbol) {
+        for (auto msymbol = (*objfile)->msymbols().begin();
+             msymbol != (*objfile)->msymbols().end(); ++msymbol) {
+            if (!*msymbol) {
                 continue;
             }
-            if (MSYMBOL_TYPE(msymbol) == mst_data ||
-                MSYMBOL_TYPE(msymbol) == mst_bss ||
-                MSYMBOL_TYPE(msymbol) == mst_abs) {
+            if (MSYMBOL_TYPE(*msymbol) == mst_data ||
+                MSYMBOL_TYPE(*msymbol) == mst_bss ||
+                MSYMBOL_TYPE(*msymbol) == mst_abs) {
                 i++;
             }
         }
     }
 
-    if ((arr = malloc(i * sizeof(cricket_global_var))) == NULL) {
+    if ((arr = (cricket_global_var*)malloc(i * sizeof(cricket_global_var))) == NULL) {
         return false;
     }
     *globals_size = i;
     *globals = arr;
     i = 0;
 
-    ALL_OBJFILES(objfile)
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile)
     {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
-            !objfile->cuda_objfile)
+        if (!*objfile || !(*objfile)->obfd ||
+            !(*objfile)->obfd->tdata.elf_obj_data ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        ALL_OBJFILE_MSYMBOLS(objfile, msymbol)
-        {
-            if (!msymbol) {
+        for (auto msymbol = (*objfile)->msymbols().begin();
+             msymbol != (*objfile)->msymbols().end(); ++msymbol) {
+            if (!*msymbol) {
                 continue;
             }
-            if (MSYMBOL_TYPE(msymbol) == mst_data ||
-                MSYMBOL_TYPE(msymbol) == mst_bss ||
-                MSYMBOL_TYPE(msymbol) == mst_abs) {
-                if (strncmp(msymbol->ginfo.name + strlen(msymbol->ginfo.name) -
+            if (MSYMBOL_TYPE(*msymbol) == mst_data ||
+                MSYMBOL_TYPE(*msymbol) == mst_bss ||
+                MSYMBOL_TYPE(*msymbol) == mst_abs) {
+                if (strncmp((*msymbol)->mginfo.name + strlen((*msymbol)->mginfo.name) -
                                 const_suffix_len,
                             CRICKET_ELF_CONST_SUFFIX, const_suffix_len) == 0) {
                     continue;
                 }
-                arr[i].symbol = msymbol->ginfo.name;
-                arr[i].address = SYMBOL_VALUE_ADDRESS(msymbol);
-                arr[i].size = MSYMBOL_SIZE(msymbol);
+                arr[i].symbol = (*msymbol)->mginfo.name;
+                arr[i].address = MSYMBOL_VALUE_ADDRESS(*objfile, *msymbol);
+                arr[i].size = MSYMBOL_SIZE(*msymbol);
                 i++;
             }
         }
@@ -190,7 +197,7 @@ bool cricket_elf_extract_multiple_attributes(bfd *obfd,
     *data_size = 0;
     *data = NULL;
 
-    char *contents = malloc(section->size);
+    char *contents = (char*)malloc(section->size);
     if (contents == NULL) {
         goto cleanup;
     }
@@ -240,7 +247,7 @@ bool cricket_elf_extract_attribute(bfd *obfd,
     bool res = false;
     cuda_magic_cast_t trav, range;
 
-    char *contents = malloc(section->size);
+    char *contents = (char*)malloc(section->size);
     if (contents == NULL) {
         goto cleanup;
     }
@@ -310,23 +317,25 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
     char *attrs;
     info->shared_size = 0;
 
-    ALL_OBJFILES(objfile)
-    {
-        if (!objfile || !objfile->obfd ||
-            !objfile->cuda_objfile)
+    auto objfile_adapter = current_program_space->objfiles();
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile) {
+        if (!*objfile || !(*objfile)->obfd ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        if (!cricket_elf_get_symindex(objfile->obfd, function_name,
+        if (!cricket_elf_get_symindex((*objfile)->obfd, function_name,
                                       &kernel_index))
             continue;
 
 
-        for (section = objfile->obfd->sections; section != NULL;
+        for (section = (*objfile)->obfd->sections; section != NULL;
              section = section->next) {
             if (strncmp(section->name, CRICKET_ELF_NV_INFO_PREFIX,
                         prefixlen + 1) == 0) {
                 if (!cricket_elf_extract_attribute(
-                         objfile->obfd, section, EIATTR_MIN_STACK_SIZE, 8, data,
+                         (*objfile)->obfd, section, EIATTR_MIN_STACK_SIZE, 8, data,
                          stack_size_filter, &kernel_index)) {
                     fprintf(stderr,
                             "error: found .nv.info section but could not find "
@@ -339,14 +348,14 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                        strncmp(section->name + prefixlen + 1, function_name,
                                strlen(function_name)) == 0) {
                 if (!cricket_elf_extract_multiple_attributes(
-                         objfile->obfd, section, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
+                         (*objfile)->obfd, section, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
                          &attr_num)) {
                     fprintf(stderr, "error: found .nv.info.%s section but "
                                     "could not find "
                                     "any EIATTR_KPARAM_INFO attributes\n",
                             function_name);
                 }
-                info->params = malloc(attr_num * sizeof(cricket_param_info));
+                info->params = (cricket_param_info*)malloc(attr_num * sizeof(cricket_param_info));
                 info->param_num = attr_num;
                 for (int i = 0; i != attr_num; ++i) {
                     info->params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
@@ -355,7 +364,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                         *(uint8_t *)(attrs + 10 + i * 12) >> 2;
                 }
                 free(attrs);
-                if (!cricket_elf_extract_attribute(objfile->obfd, section,
+                if (!cricket_elf_extract_attribute((*objfile)->obfd, section,
                                                    EIATTR_PARAM_CBANK, 8, data,
                                                    NULL, NULL)) {
                     fprintf(stderr, "error: found .nv.info.%s section but "
@@ -628,7 +637,6 @@ bool cricket_elf_get_fun_info(cricket_function_info *function_info,
 bool cricket_elf_build_fun_info(cricket_function_info **function_info,
                                 size_t *fi_num)
 {
-    struct objfile *objfile;
     asection *section = NULL;
     void *contents = NULL;
     bool ret = false;
@@ -641,13 +649,15 @@ bool cricket_elf_build_fun_info(cricket_function_info **function_info,
     size_t i = 0;
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
 
-    ALL_OBJFILES(objfile)
-    {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
-            !objfile->cuda_objfile)
+    auto objfile_adapter = current_program_space->objfiles();
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile) {
+        if (!*objfile || !(*objfile)->obfd || !(*objfile)->obfd->tdata.elf_obj_data ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        for (section = objfile->obfd->sections; section != NULL;
+        for (section = (*objfile)->obfd->sections; section != NULL;
              section = section->next) {
             if (strncmp(section->name, CRICKET_ELF_TEXT_PREFIX,
                         text_prefixlen) != 0) {
@@ -657,17 +667,18 @@ bool cricket_elf_build_fun_info(cricket_function_info **function_info,
         }
     }
 
-    if ((fun_i = malloc(fun_num * sizeof(cricket_function_info))) == NULL) {
+    if ((fun_i = (cricket_function_info*)malloc(fun_num * sizeof(cricket_function_info))) == NULL) {
         goto cleanup;
     }
 
-    ALL_OBJFILES(objfile)
-    {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
-            !objfile->cuda_objfile)
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile) {
+        if (!*objfile || !(*objfile)->obfd || !(*objfile)->obfd->tdata.elf_obj_data ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        for (section = objfile->obfd->sections; section != NULL;
+        for (section = (*objfile)->obfd->sections; section != NULL;
              section = section->next) {
             if (strncmp(section->name, CRICKET_ELF_TEXT_PREFIX,
                         text_prefixlen) != 0) {
@@ -679,7 +690,7 @@ bool cricket_elf_build_fun_info(cricket_function_info **function_info,
                 goto cleanup;
             }
 
-            if (!bfd_get_section_contents(objfile->obfd, section, contents, 0,
+            if (!bfd_get_section_contents((*objfile)->obfd, section, contents, 0,
                                           section->size)) {
                 fprintf(stderr, "cricket-elf: getting section failed\n");
                 goto cleanup;
@@ -748,25 +759,26 @@ cleanup:
 bool cricket_elf_pc_info(const char *function_name, uint64_t relative_pc,
                          uint64_t *relative_ssy, uint64_t *relative_pbk)
 {
-    struct objfile *objfile;
     char *section_name = NULL;
     asection *section = NULL;
     uint32_t i;
     void *contents = NULL;
     bool ret = false;
     uint64_t ssy, pbk;
+    auto objfile_adapter = current_program_space->objfiles();
 
     if (asprintf(&section_name, ".text.%s", function_name) == -1) {
         fprintf(stderr, "cricket-elf: asprintf failed\n");
         goto cleanup;
     }
-    ALL_OBJFILES(objfile)
-    {
-        if (!objfile || !objfile->obfd || !objfile->obfd->tdata.elf_obj_data ||
-            !objfile->cuda_objfile)
+    for (auto objfile = objfile_adapter.begin();
+         objfile != objfile_adapter.end();
+         ++objfile) {
+        if (!*objfile || !(*objfile)->obfd || !(*objfile)->obfd->tdata.elf_obj_data ||
+            !(*objfile)->cuda_objfile)
             continue;
 
-        if ((section = bfd_get_section_by_name(objfile->obfd, section_name)) ==
+        if ((section = bfd_get_section_by_name((*objfile)->obfd, section_name)) ==
             NULL) {
             continue;
         }
@@ -776,7 +788,7 @@ bool cricket_elf_pc_info(const char *function_name, uint64_t relative_pc,
             goto cleanup;
         }
 
-        if (!bfd_get_section_contents(objfile->obfd, section, contents, 0,
+        if (!bfd_get_section_contents((*objfile)->obfd, section, contents, 0,
                                       section->size)) {
             fprintf(stderr, "cricket-elf: getting section failed\n");
             goto cleanup;
@@ -950,7 +962,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         func_num++;
     }
 
-    if ((jmptbl = calloc(func_num, sizeof(cricket_jmptable_index))) == NULL) {
+    if ((jmptbl = (cricket_jmptable_index*)calloc(func_num, sizeof(cricket_jmptable_index))) == NULL) {
         goto cleanup;
     }
 
@@ -1004,11 +1016,11 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         }
 
         if ((jmptbl[jmptbl_i].ssy =
-                 malloc(ssy_num * sizeof(cricket_jmptable_entry))) == NULL) {
+                 (cricket_jmptable_entry*)malloc(ssy_num * sizeof(cricket_jmptable_entry))) == NULL) {
             goto cleanup;
         }
         if ((jmptbl[jmptbl_i].cal =
-                 malloc(cal_num * sizeof(cricket_jmptable_entry))) == NULL) {
+                 (cricket_jmptable_entry*)malloc(cal_num * sizeof(cricket_jmptable_entry))) == NULL) {
             goto cleanup;
         }
 
@@ -1030,7 +1042,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
             sizeof(uint64_t) * ((ssy_num * 2 + cal_num * 2 + 3) +
                                 (ssy_num * 2 + cal_num * 2 + 3) / 3 + 2);
         data_i = 0;
-        if ((data = malloc(data_size)) == NULL) {
+        if ((data = (uint64_t*)malloc(data_size)) == NULL) {
             goto cleanup;
         }
         data[data_i++] = CRICKET_SASS_BRX(0);
@@ -1237,10 +1249,10 @@ bool cricket_elf_analyze(const char *filename)
             goto cleanup;
         }
 
-        if ((ssy = malloc(ssy_num * sizeof(cricket_jmptable_entry))) == NULL) {
+        if ((ssy = (cricket_jmptable_entry*)malloc(ssy_num * sizeof(cricket_jmptable_entry))) == NULL) {
             goto cleanup;
         }
-        if ((cal = malloc(cal_num * sizeof(cricket_jmptable_entry))) == NULL) {
+        if ((cal = (cricket_jmptable_entry*)malloc(cal_num * sizeof(cricket_jmptable_entry))) == NULL) {
             goto cleanup;
         }
 
