@@ -1,9 +1,7 @@
-#include "cricket-cr.h"
-
-#include <stdio.h>
 #include "cuda-tdep.h"
-
+#include <stdio.h>
 #include <sys/time.h>
+#include "cricket-cr.h"
 #include "cricket-elf.h"
 #include "cricket-file.h"
 #include "cricket-heap.h"

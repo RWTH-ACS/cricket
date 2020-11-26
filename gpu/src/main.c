@@ -1,3 +1,4 @@
+#include "../gdb/config.h"
 #include "defs.h"
 #include <stdio.h>
 #include "cudadebugger.h"
@@ -17,6 +18,7 @@
 #include "main.h"
 #include <dlfcn.h>
 #include <sys/time.h>
+#include "signals-state-save-restore.h"
 
 #include "cricket-util.h"
 #include "cricket-cr.h"
@@ -107,27 +109,48 @@ cuda_error:
     return false;
 }
 
+extern char *gdb_program_name;
+
 bool cricket_init_gdb(char *name)
 {
+    lim_at_start = (char *) sbrk (0);
     /* initialize gdb streams, necessary for gdb_init */
-    gdb_stdtarg = gdb_stderr;
+    notice_open_fds();
+    saved_command_line = (char*) xstrdup("");
+    main_ui = new ui(stdin, stdout, stderr);
+    current_ui = main_ui;
     gdb_stdtargerr = gdb_stderr;
     gdb_stdtargin = gdb_stdin;
 
+    /* initialize BFD, the binary file descriptor library */
+    if (bfd_init() != BFD_INIT_MAGIC) {
+        printf("error bfd init\n");
+        return false;
+    }
+
+    gdb_program_name = xstrdup (name);
+    current_directory = getcwd (NULL, 0);
+    if (current_directory == NULL)
+        printf("error finding working directory\n");
+
     /* initialize gdb paths */
-    gdb_sysroot = strdup("");
-    debug_file_directory = strdup(DEBUGDIR);
-    gdb_datadir = strdup(GDB_DATADIR);
+    gdb_sysroot = relocate_gdb_directory(TARGET_SYSTEM_ROOT,
+                                         TARGET_SYSTEM_ROOT_RELOCATABLE);
+    if (gdb_sysroot == NULL || *gdb_sysroot == '\0') {
+        xfree(gdb_sysroot);
+        gdb_sysroot = xstrdup (TARGET_SYSROOT_PREFIX);
+    }
+    debug_file_directory = relocate_gdb_directory (DEBUGDIR, DEBUGDIR_RELOCATABLE);
+    gdb_datadir = relocate_gdb_directory (GDB_DATADIR, GDB_DATADIR_RELOCATABLE);
 
     /* tell gdb that we do not want to run an interactive shell */
     batch_flag = 1;
 
-    /* initialize BFD, the binary file descriptor library */
-    bfd_init();
 
+    save_original_signals_state(batch_flag);
     /* initialize GDB */
     printf("gdb_init...\n");
-    gdb_init(name);
+    gdb_init(gdb_program_name);
 
     char *interpreter_p = xstrdup(INTERP_CONSOLE);
     set_top_level_interpreter(interpreter_p);
@@ -1335,6 +1358,9 @@ detach:
 
 int cricket_start(int argc, char *argv[])
 {
+    struct cmd_list_element *alias = NULL;
+    struct cmd_list_element *prefix_cmd = NULL;
+    struct cmd_list_element *cmd = NULL;
     CUDBGResult res;
     if (argc != 3) {
         printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
@@ -1348,13 +1374,14 @@ int cricket_start(int argc, char *argv[])
     symbol_file_add_main_adapter(argv[2], !batch_flag);
 
     struct cmd_list_element *c;
-    char *pset = "set cuda break_on_launch all";
-    c = lookup_cmd(&pset, cmdlist, "", 0, 1);
-    do_set_command(pset, !batch_flag, c);
+    //char *pset = "set cuda break_on_launch all";
+    //c = lookup_cmd(&pset, cmdlist, "", 0, 1);
+    //do_set_command(pset, !batch_flag, c);
 
-    char *prun = "run";
-    c = lookup_cmd(&prun, cmdlist, "", 0, 1);
-    cmd_func(c, prun, !batch_flag);
+    if (!lookup_cmd_composition("run", &alias, &prefix_cmd, &cmd)) {
+        printf("error looking up command run");
+    }
+    cmd_func(cmd, "", 0);
 
 detach:
     /* Detach from process (CPU and GPU) */

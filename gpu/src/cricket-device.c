@@ -1,6 +1,6 @@
-#include <string.h>
 #include "defs.h"
 #include "cricket-device.h"
+#include <string.h>
 
 bool cricket_device_get_num(CUDBGAPI cudbgAPI, uint32_t *dev_num)
 {
