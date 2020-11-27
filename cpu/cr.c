@@ -13,11 +13,138 @@
 #include "log.h"
 #include "cpu_rpc_prot.h"
 
+static int cr_restore_array_3d(const char *path, api_record_t *record, size_t *mem_size, void *mem_data, uint64_t result_ptr, void **cuda_ptr)
+{
+    char *file_name;
+    FILE *fp = NULL;
+    const char *suffix = "array";
+    cuda_malloc_3d_array_1_argument *arg;
+    cuda_channel_format_desc desc;
+    struct cudaExtent extent;
+    struct cudaChannelFormatDesc cudaDesc;
+    int flags;
+    int ret = 1;
+
+    arg = (cuda_malloc_3d_array_1_argument*)record->arguments;
+    desc = arg->arg1;
+    extent.depth = arg->arg2;
+    extent.height = arg->arg3;
+    extent.width = arg->arg4;
+    flags = arg->arg5;
+    cudaDesc.f = desc.f;
+    cudaDesc.w = desc.w;
+    cudaDesc.x = desc.x;
+    cudaDesc.y = desc.y;
+    cudaDesc.z = desc.z;
+    *mem_size = extent.width * extent.height * extent.depth;
+
+    if ( (mem_data = malloc(*mem_size)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        return 0;
+    }
+
+    if (asprintf(&file_name, "%s/%s-0x%lx",
+                 path, suffix, result_ptr) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+
+    if ((fp = fopen(file_name, "rb")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+
+    if (ferror(fp) || feof(fp)) {
+        LOGE(LOG_ERROR, "file descriptor is invalid");
+        goto cleanup;
+    }
+
+    if (fread(mem_data,
+               1, *mem_size, fp) != *mem_size) {
+        LOGE(LOG_ERROR, "error reading mem_data");
+        goto cleanup;
+    }
+
+    if ( (ret = cudaMalloc3DArray((cudaArray_t*)cuda_ptr, &cudaDesc,
+                                extent, flags)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaMalloc3DArray returned an error: %s", cudaGetErrorString(ret));
+        return 1;
+    }
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return ret;
+}
+
+static int cr_restore_array_1d(const char *path, api_record_t *record, size_t *mem_size, void *mem_data, uint64_t result_ptr, void **cuda_ptr)
+{
+    char *file_name;
+    FILE *fp = NULL;
+    const char *suffix = "array";
+    cuda_malloc_array_1_argument *arg;
+    cuda_channel_format_desc desc;
+    struct cudaChannelFormatDesc cudaDesc;
+    size_t width;
+    size_t height;
+    int flags;
+    int ret = 1;
+
+    arg = (cuda_malloc_array_1_argument*)record->arguments;
+    desc = arg->arg1;
+    width = arg->arg2;
+    height = arg->arg3;
+    flags = arg->arg4;
+    cudaDesc.f = desc.f;
+    cudaDesc.w = desc.w;
+    cudaDesc.x = desc.x;
+    cudaDesc.y = desc.y;
+    cudaDesc.z = desc.z;
+    *mem_size = width * height;
+
+    if ( (mem_data = malloc(*mem_size)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        return 0;
+    }
+
+    if (asprintf(&file_name, "%s/%s-0x%lx",
+                 path, suffix, result_ptr) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+
+    if ((fp = fopen(file_name, "rb")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+
+    if (ferror(fp) || feof(fp)) {
+        LOGE(LOG_ERROR, "file descriptor is invalid");
+        goto cleanup;
+    }
+
+    if (fread(mem_data,
+               1, *mem_size, fp) != *mem_size) {
+        LOGE(LOG_ERROR, "error reading mem_data");
+        goto cleanup;
+    }
+
+    if ( (ret = cudaMallocArray((cudaArray_t*)cuda_ptr, &cudaDesc,
+                                width, height, flags)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaMallocArray returned an error: %s", cudaGetErrorString(ret));
+        return 1;
+    }
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return ret;
+}
+
 static int cr_restore_arrays(const char *path, api_record_t *record, resource_mg *rm_arrays)
 {
-    FILE *fp = NULL;
-    char *file_name;
-    const char *suffix = "mem";
     size_t mem_size;
     void *mem_data;
     void *cuda_ptr;
@@ -28,91 +155,44 @@ static int cr_restore_arrays(const char *path, api_record_t *record, resource_mg
         LOGE(LOG_ERROR, "got a record that is not of type cudaMallocArray");
         return 0;
     }
-    mem_size = *(size_t*)record->arguments;
     result = record->result.ptr_result_u;
 
-   // if ( (mem_data = malloc(mem_size)) == NULL) {
-   //     LOGE(LOG_ERROR, "could not allocate memory");
-   //     return 0;
-   // }
+    if (record->function == CUDA_MALLOC_ARRAY) {
+        if (cr_restore_array_1d(path, record, &mem_size,
+                                mem_data, result.ptr_result_u.ptr, &cuda_ptr) != 0) {
+            LOGE(LOG_ERROR, "error restoring 1D array");
+            goto out;
+        }
+    } else if (record->function == CUDA_MALLOC_3D_ARRAY) {
+        if (cr_restore_array_3d(path, record, &mem_size,
+                                mem_data, result.ptr_result_u.ptr, &cuda_ptr) != 0) {
+            LOGE(LOG_ERROR, "error restoring 1D array");
+            goto out;
+        }
+    }
 
-   // if (asprintf(&file_name, "%s/%s-0x%lx",
-   //              path, suffix, result.ptr_result_u.ptr) < 0) {
-   //     LOGE(LOG_ERROR, "memory allocation failed");
-   //     goto out;
-   // }
+    LOG(LOG_DEBUG, "restored array mapping %p -> %p",
+                               (void*)result.ptr_result_u.ptr,
+                               cuda_ptr);
 
-   // if ((fp = fopen(file_name, "rb")) == NULL) {
-   //     LOGE(LOG_ERROR, "error while opening file");
-   //     free(file_name);
-   //     goto out;
-   // }
+    if (resource_mg_add_sorted(rm_arrays,
+                              (void*)result.ptr_result_u.ptr,
+                              cuda_ptr) != 0) {
+        LOGE(LOG_ERROR, "error adding memory resource to resource manager");
+        return 1;
+    }
 
-   // if (ferror(fp) || feof(fp)) {
-   //     LOGE(LOG_ERROR, "file descriptor is invalid");
-   //     goto cleanup;
-   //     return 1;
-   // }
-
-   // if (fread(mem_data,
-   //            1, mem_size, fp) != mem_size) {
-   //     LOGE(LOG_ERROR, "error reading mem_data");
-   //     goto cleanup;
-   // }
-
-   // if ( (ret = cudaMalloc(&cuda_ptr, mem_size)) != cudaSuccess) {
-   //     LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
-   //     return 1;
-   // }
-
-   // LOG(LOG_DEBUG, "restored mapping %p -> %p", 
-   //                            (void*)result.ptr_result_u.ptr, 
-   //                            cuda_ptr);
-
-   // if (resource_mg_add_sorted(rm_memory, 
-   //                            (void*)result.ptr_result_u.ptr, 
-   //                            cuda_ptr) != 0) {
-   //     LOGE(LOG_ERROR, "error adding memory resource to resource manager");
-   //     return 1;
-   // }
-
-   // if ( (ret = cudaMemcpy(cuda_ptr,
-   //        mem_data,
-   //        mem_size,
-   //        cudaMemcpyHostToDevice)) != 0) {
-   //     LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
-   //     return 0;
-   // }
-   // LOG(LOG_DEBUG, "restored memory of size %zu from %s", mem_size, file_name);
-   // ret = 0;
-//cleanup:
-   // free(file_name);
-   // fclose(fp);
-//out:
-   // return ret;
-//}
-   // cudaEvent_t new_array = NULL;
-   // cudaError_t err;
-   // ptr_result res = record->result.ptr_result_u;
-   // if (record->function == CUDA_MALLOC_ARRAY) {
-   //     if ((err = cudaEventCreate(&new_event)) != cudaSuccess) {
-   //         LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
-   //         return 1;
-   //     }
-   // } else if (record->function == CUDA_EVENT_CREATE_WITH_FLAGS) {
-   //     if ((err = cudaEventCreateWithFlags(&new_event, *(int*)record->arguments)) != cudaSuccess) {
-   //         LOGE(LOG_ERROR, "CUDA error while restoring event: %s", cudaGetErrorString(err));
-   //         return 1;
-   //     }
-   // } else {
-   //     LOGE(LOG_ERROR, "cannot restore an event from a record that is not an event_create record");
-   //     return 1;
-   // }
-   // if (resource_mg_add_sorted(rm_events, (void*)res.ptr_result_u.ptr, new_event) != 0) {
-   //     LOGE(LOG_ERROR, "error adding to event resource manager");
-   //     return 1;
-   // }
-   return 0;
+    if ( (ret = cudaMemcpy(cuda_ptr,
+           mem_data,
+           mem_size,
+           cudaMemcpyHostToDevice)) != 0) {
+        LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
+        return 0;
+    }
+    LOG(LOG_DEBUG, "restored memory of size %zu from ptr 0x%lx", mem_size, result.ptr_result_u.ptr);
+    ret = 0;
+out:
+    return ret;
 }
 
 static int cr_restore_events(api_record_t *record, resource_mg *rm_events)
