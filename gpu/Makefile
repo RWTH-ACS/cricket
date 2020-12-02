@@ -14,6 +14,7 @@ INC_DIRS := -I$(CUDA_GDB_PATH)/bfd \
 			-I$(CUDA_GDB_PATH)/gdb/common \
 			-I$(CUDA_GDB_PATH)/build/gdb \
 			-I$(CUDA_GDB_PATH)/gdb/gnulib/import \
+			-I$(CUDA_GDB_PATH)/build/bfd \
 			-I$(CUDA_GDB_PATH)/build/gdb/build-gnulib/import \
 			-Iinclude
 LIB_DIR := ../submodules/lib

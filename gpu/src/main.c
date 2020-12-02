@@ -28,6 +28,7 @@
 #include "cricket-file.h"
 #include "cricket-heap.h"
 #include "cricket-elf.h"
+#include "gdb.h"
 
 #define CRICKET_PROFILE 1
 
@@ -1101,11 +1102,11 @@ int cricket_checkpoint(int argc, char *argv[])
         return -1;
     }
 
-    cricket_init_gdb(argv[0]);
+    gdb_init(argc, argv, NULL, argv[2]);
 
     /* attach to process (both CPU and GPU) */
-    printf("attaching...\n");
-    attach_command(argv[2], !batch_flag);
+   // printf("attaching...\n");
+   // attach_command(argv[2], !batch_flag);
 
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
         printf("Cuda api not initialized!\n");
@@ -1367,21 +1368,14 @@ int cricket_start(int argc, char *argv[])
         return -1;
     }
 
-    cricket_init_gdb(argv[0]);
+    gdb_init(argc, argv, argv[2], NULL);
 
     /* load files */
-    exec_file_attach(argv[2], !batch_flag);
-    symbol_file_add_main_adapter(argv[2], !batch_flag);
-
-    struct cmd_list_element *c;
-    //char *pset = "set cuda break_on_launch all";
-    //c = lookup_cmd(&pset, cmdlist, "", 0, 1);
-    //do_set_command(pset, !batch_flag, c);
-
-    if (!lookup_cmd_composition("run", &alias, &prefix_cmd, &cmd)) {
-        printf("error looking up command run");
-    }
-    cmd_func(cmd, "", 0);
+    //exec_file_attach(argv[2], !batch_flag);
+    //symbol_file_add_main_adapter(argv[2], !batch_flag);
+    //
+    execute_command("break main", !batch_flag);
+    execute_command("run", !batch_flag);
 
 detach:
     /* Detach from process (CPU and GPU) */
