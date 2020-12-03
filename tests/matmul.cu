@@ -8,7 +8,7 @@
 #include "cricket-cuda.h"
 
 #define N 32
-#define ITERATIONS 1024*128*8
+#define ITERATIONS 1024*128*8*16
 const int blocksize = 32;
 
 #ifndef RANDOM_INIT

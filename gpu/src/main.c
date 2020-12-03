@@ -1109,7 +1109,7 @@ int cricket_checkpoint(int argc, char *argv[])
    // attach_command(argv[2], !batch_flag);
 
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
-        printf("Cuda api not initialized!\n");
+        printf("Cuda api not initialized! Attach state: %d\n", cuda_api_get_attach_state());
         return -1;
     } else if (cuda_api_get_attach_state() != CUDA_ATTACH_STATE_COMPLETE) {
         printf("Cuda api not attached!\n");

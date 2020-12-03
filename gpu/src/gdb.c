@@ -97,7 +97,7 @@ struct ui_file *gdb_stdtarg;
 struct ui_file *gdb_stdtargerr;
 
 /* True if --batch or --batch-silent was seen.  */
-int batch_flag = 0;
+int batch_flag = 1;
 
 /* Support for the --batch-silent option.  */
 int batch_silent = 0;
@@ -662,12 +662,4 @@ int gdb_init (int argc, char **argv, char *execarg, char* pidarg)
      read.  */
   init_history ();
 
-  if (batch_flag)
-    {
-      int error_status = EXIT_FAILURE;
-      int *exit_arg = ret == 0 ? &error_status : NULL;
-
-      /* We have hit the end of the batch file.  */
-      quit_force (exit_arg, 0);
-    }
 }
