@@ -943,19 +943,11 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         goto cleanup;
     }
 
-    if ((cudabfd = bfd_openstreamr(filename, NULL, cudabfd_fd)) == NULL) {
+    if ((cudabfd = bfd_openstreamr(filename, "elf64-little", cudabfd_fd)) == NULL) {
         fprintf(stderr, "cricket-elf: bfd_openstreamr failed\n");
         fclose(cudabfd_fd);
         goto cleanup;
     }
-
-    printf("arch: %s\n", cudabfd->arch_info->arch_name);
-    const struct bfd_arch_info *arch_info;
-    arch_info = bfd_lookup_arch (bfd_arch_m68k, 0);
-    cudabfd->arch_info = arch_info;
-    printf("arch: %s\n", cudabfd->arch_info->arch_name);
-    printf("target: %s\n", bfd_find_target(NULL, cudabfd)->name);
-    
     
     if (!bfd_check_format(cudabfd, bfd_object)) {
         fprintf(stderr, "cricket-elf: wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());

@@ -482,20 +482,18 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&b, NULL);
 #endif
 
-    cricket_init_gdb(patched_binary);
+    gdb_init(argc, argv, patched_binary, NULL);
 
     // load the patched binary
-    exec_file_attach(patched_binary, !batch_flag);
-    symbol_file_add_main_adapter(patched_binary, !batch_flag);
+    //exec_file_attach(patched_binary, !batch_flag);
+    //symbol_file_add_main_adapter(patched_binary, !batch_flag);
 
     // break when the kernel launches
     struct cmd_list_element *cl;
     tbreak_command((char *)kernel_name, !batch_flag);
 
     // launch program until breakpoint is reached
-    char *prun = "run";
-    cl = lookup_cmd(&prun, cmdlist, "", 0, 1);
-    cmd_func(cl, prun, !batch_flag);
+    execute_command("run", !batch_flag);
 
     // Use the waiting period to get the CUDA debugger API.
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
@@ -1062,7 +1060,7 @@ int cricket_restore(int argc, char *argv[])
     printf("resuming device...\n");
 detach:
     cricket_elf_free_jumptable(&jmptbl, jmptbl_len);
-    cricket_cr_free_callstack(&callstack);
+    //cricket_cr_free_callstack(&callstack);
     /* Detach from process (CPU and GPU) */
     detach_command(NULL, !batch_flag);
     /* finalize, i.e. clean up CUDA debugger API */
@@ -1308,14 +1306,14 @@ int cricket_checkpoint(int argc, char *argv[])
     gettimeofday(&e, NULL);
 #endif
 
-    if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
+  /*  if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
     if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
         printf("cricket_cr_ckp_globals unsuccessful\n");
-    }
+    }*/
 
 #ifdef CRICKET_PROFILE
     gettimeofday(&f, NULL);
@@ -1374,8 +1372,10 @@ int cricket_start(int argc, char *argv[])
     //exec_file_attach(argv[2], !batch_flag);
     //symbol_file_add_main_adapter(argv[2], !batch_flag);
     //
+    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
     execute_command("break main", !batch_flag);
     execute_command("run", !batch_flag);
+    execute_command("unset exec-wrapper", !batch_flag);
 
 detach:
     /* Detach from process (CPU and GPU) */

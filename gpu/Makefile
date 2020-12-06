@@ -24,7 +24,7 @@ DLIBS = -lncurses -lpthread -lm -lz -ldl -lexpat -llzma -Wl,--dynamic-list=utils
 # Order of .a files is important!
 SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a libgnu.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
-CFLAGS = -std=gnu++11 -fpermissive #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+CFLAGS = -std=gnu++11 -fpermissive -g#-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 LDFLAGS = $(CFLAGS)
 # generate the names like src/main.o src/main.d
 SRCS_C := $(wildcard $(SRC_DIR)/*.c)
