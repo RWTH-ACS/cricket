@@ -918,8 +918,9 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         goto cleanup;
     }
 
+#define _CRICKET_ELF_DEBUG_
 #ifdef _CRICKET_ELF_DEBUG_
-    printf("name: %s, index: %d, size %lx, pos:%p\n", section->name,
+    printf("name: %s, index: %d, size 0x%lx, pos:%p\n", section->name,
            section->index, section->size, (void *)section->filepos);
 #endif
     fatbin_pos = section->filepos + 0x50;
@@ -948,13 +949,22 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         goto cleanup;
     }
 
+    printf("arch: %s\n", cudabfd->arch_info->arch_name);
+    const struct bfd_arch_info *arch_info;
+    arch_info = bfd_lookup_arch (bfd_arch_m68k, 0);
+    cudabfd->arch_info = arch_info;
+    printf("arch: %s\n", cudabfd->arch_info->arch_name);
+    printf("target: %s\n", bfd_find_target(NULL, cudabfd)->name);
+    
+    
     if (!bfd_check_format(cudabfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf: wrong bfd format\n");
-        goto cleanup;
+        fprintf(stderr, "cricket-elf: wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());
+       // goto cleanup;
     }
 
     for (section = cudabfd->sections; section != NULL;
          section = section->next) {
+        printf("section: %s\n", section->name);
         if (strncmp(section->name, CRICKET_ELF_TEXT_PREFIX, text_prefixlen) !=
             0) {
             continue;

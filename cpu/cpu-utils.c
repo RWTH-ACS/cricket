@@ -22,6 +22,35 @@
 #define CRICKET_ELF_FATBIN ".nv_fatbin"
 #define CRICKET_ELF_REGFUN "_ZL24__sti____cudaRegisterAllv"
 
+int cpu_utils_command(char **command)
+{
+    FILE* fd;
+    char str[128];
+    size_t comm_len = 0;
+    int ret = -1;
+    if ((fd = fopen("/proc/self/comm", "r")) == NULL) {
+        LOGE(LOG_ERROR, "%s can't be opened.", "/proc/self/comm");
+        return -1;
+    }
+
+    if ((comm_len = fread(str, 1, 128, fd)) == 0) {
+        LOGE(LOG_ERROR, "could not read from /proc/self/comm");
+        goto cleanup;
+    }
+
+    if ((*command = realloc(*command, comm_len-1)) == NULL) {
+        LOGE(LOG_ERROR, "realloc failed");
+        goto cleanup;
+    }
+    
+    strncpy(*command, str, strlen(str)-1);
+    ret = 0;
+ cleanup:
+    fclose(fd);
+    return ret;
+
+}
+
 int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
 {
     unsigned char c[MD5_DIGEST_LENGTH];
@@ -57,9 +86,23 @@ void* cricketd_utils_symbol_address(char *symbol)
     void *ret = NULL;
     size_t symtab_size, symtab_length;
     asymbol **symtab = NULL;
+    char path[256];
+    size_t length;
 
 
     bfd_init();
+
+    length = readlink("/proc/self/exe", path, sizeof(path));
+
+    /* Catch some errors: */
+    if (length < 0) {
+        LOGE(LOG_WARNING, "error resolving symlink /proc/self/exe.");
+    } else if (length >= 256) {
+        LOGE(LOG_WARNING, "path was too long and was truncated.");
+    } else {
+        path[length] = '\0';
+        LOG(LOG_DEBUG, "opening '%s'", path);
+    }
 
     if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
         LOGE(LOG_ERROR, "fopen failed");
@@ -68,14 +111,14 @@ void* cricketd_utils_symbol_address(char *symbol)
 
     if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
         LOGE(LOG_ERROR, "bfd_openr failed on %s",
-                "/proc/self/exe");
+             "/proc/self/exe");
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
         LOGE(LOG_ERROR, "%s has wrong bfd format",
-                "/proc/self/exe");
+             "/proc/self/exe");
         goto cleanup;
     }
 
@@ -105,7 +148,7 @@ void* cricketd_utils_symbol_address(char *symbol)
     }
 
 
-cleanup:
+ cleanup:
     free(symtab);
     if (hostbfd != NULL)
         bfd_close(hostbfd);
@@ -156,12 +199,12 @@ kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum
 static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
 {
     static const char* attr_str[] = {"EIATTR_KPARAM_INFO",
-                                     "EIATTR_CBANK_PARAM_SIZE",
-                                     "EIATTR_PARAM_CBANK"};
+        "EIATTR_CBANK_PARAM_SIZE",
+        "EIATTR_PARAM_CBANK"};
     enum attr_t {KPARAM_INFO = 0,
-                 CBANK_PARAM_SIZE = 1,
-                 PARAM_CBANK = 2,
-                 ATTR_T_LAST}; // states for state machine
+        CBANK_PARAM_SIZE = 1,
+        PARAM_CBANK = 2,
+        ATTR_T_LAST}; // states for state machine
     char *line = NULL;
     size_t linelen = 0;
     int ret = 1;
@@ -170,6 +213,7 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
     char val[256] = {0};
     size_t val_len = 0;
     enum attr_t cur_attr = ATTR_T_LAST; // current state of state machine
+    int consecutive_empty_lines = 0;
     info->param_num = 0;
     info->param_offsets = NULL;
     info->param_sizes = NULL;
@@ -181,10 +225,17 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
             val[strlen(val)-1] = '\0';
         }
         if (read == -1 || read == 0) {
-            break; //empty line means there is no more info for this kernel
-        } else if (read == 1) {
-            continue; // some lines have no key-value pair.
-                      // We are not interested in those lines.
+            if (++consecutive_empty_lines >= 2) {
+                break; //two empty line means there is no more info for this kernel
+            } else {
+                continue;
+            }
+        } else {
+            consecutive_empty_lines = 0;
+            if (read == 1) {
+                continue; // some lines have no key-value pair.
+                // We are not interested in those lines.
+            }
         }
         if (strcmp(key, "Attribute:") == 0) { // state change
             LOG(LOG_DBG(3), "\"%s\", \"%s\"", key, val);
@@ -207,11 +258,11 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
                 }
                 if (ordinal >= info->param_num) {
                     info->param_offsets = realloc(
-                                info->param_offsets,
-                                (ordinal+1)*sizeof(uint16_t));
+                                                  info->param_offsets,
+                                                  (ordinal+1)*sizeof(uint16_t));
                     info->param_sizes = realloc(
-                                info->param_sizes,
-                                (ordinal+1)*sizeof(uint16_t));
+                                                info->param_sizes,
+                                                (ordinal+1)*sizeof(uint16_t));
                     info->param_num = ordinal+1;
                 }
                 info->param_offsets[ordinal] = offset;
@@ -308,7 +359,7 @@ int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
         //copy string and remove trailing \n
         strncpy(buf->name, kernelname, strlen(kernelname)-1);
         buf->name[strlen(kernelname)-1] = '\0';
-    
+
         if (cpu_utils_read_pars(buf, fdesc) != 0) {
             LOGE(LOG_ERROR, "reading paramter infos failed.\n");
             goto cleanup2;

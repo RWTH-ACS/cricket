@@ -85,12 +85,23 @@ void __attribute__ ((constructor)) cricketd_main(void)
     int protocol = 0;
     int restore = 0;
     struct sigaction act;
+    unsigned long prog=0, vers=0;
+    char *command = NULL;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
     init_log(LOG_LEVEL, __FILE__);
 
-    unsigned long prog=0, vers=0;
+    if (cpu_utils_command(&command) != 0) {
+        LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
+    } else {
+        LOG(LOG_DEBUG, "the command is '%s'", command);
+        if (strcmp(command, "cudbgprocess") == 0) {
+            LOG(LOG_DEBUG, "skipping RPC server");
+            return;
+        }
+    }
+
     if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum\n");
         exit(0);
@@ -152,9 +163,9 @@ void __attribute__ ((constructor)) cricketd_main(void)
      */
     void (*cudaRegisterAllv)(void) =
         (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
-    LOG(LOG_INFO, "found CUDA initialization function at %p\n", cudaRegisterAllv);
+    LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_WARNING, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!\n");
+        LOGE(LOG_WARNING, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
     } else {
         cudaRegisterAllv();
     }
