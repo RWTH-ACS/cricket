@@ -22,6 +22,23 @@ void api_records_free_args(void)
 
 }
 
+size_t api_records_malloc_get_size(void *ptr)
+{
+    api_record_t *record;
+    for (size_t i = 0; i < api_records.length; i++) {
+        if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at returned an error.");
+        }
+        if (record->function != CUDA_MALLOC) {
+            continue;
+        }
+        if (ptr == (void*)record->result.ptr_result_u.ptr_result_u.ptr) {
+            return *(size_t*)record->arguments;
+        }
+    }
+    return 0;
+}
+
 void api_records_print_records(api_record_t *record)
 {
     char str[128];

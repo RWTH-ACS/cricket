@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <openssl/md5.h>
 #include <linux/limits.h>
+#include "rpc/types.h"
 
 #include <bfd.h>
 
@@ -196,6 +197,22 @@ kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum
     return NULL;
 }
 
+int cpu_utils_is_local_connection(struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%p", rqstp);
+    LOGE(LOG_DEBUG, "%p", rqstp->rq_xprt);
+    LOGE(LOG_DEBUG, "%p", rqstp->rq_xprt->xp_fd);
+
+    struct sockaddr_in remote_addr = {0};
+    struct sockaddr_in local_addr = {0};
+    struct hostent *hp;
+    socklen_t sockaddr_len = sizeof(struct sockaddr_in);
+    getpeername(rqstp->rq_xprt->xp_fd, &remote_addr, &sockaddr_len);
+    getsockname(rqstp->rq_xprt->xp_fd, &local_addr, &sockaddr_len);
+    return (local_addr.sin_addr.s_addr == remote_addr.sin_addr.s_addr);
+}
+
+
 static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
 {
     static const char* attr_str[] = {"EIATTR_KPARAM_INFO",
@@ -299,7 +316,7 @@ int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
 {
     int ret = 1;
     char linktarget[PATH_MAX] = {0};
-    char *args[] = {"cuobjdump", "--dump-elf", NULL, NULL};
+    char *args[] = {"/usr/local/cuda/bin/cuobjdump", "--dump-elf", NULL, NULL};
     int output;
     FILE *fdesc; //fd to read subcommands output from
     int child_exit = 0;

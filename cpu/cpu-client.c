@@ -28,6 +28,8 @@ size_t kernelnum = 0;
 kernel_info_t *infos = NULL;
 
 INIT_SOCKTYPE
+int connection_is_local = 0;
+int shm_enabled = 1;
 
 #ifdef WITH_API_CNT
 extern void cpu_runtime_print_api_call_cnt(void);
@@ -38,7 +40,9 @@ static void rpc_connect(void)
     int isock;
     struct sockaddr_un sock_un = {0};
     struct sockaddr_in sock_in = {0};
+    struct sockaddr_in local_addr = {0};
     struct hostent *hp;
+    socklen_t sockaddr_len = sizeof(struct sockaddr_in);
     unsigned long prog=0, vers=0;
 
     char server[256];
@@ -66,6 +70,7 @@ static void rpc_connect(void)
         sock_un.sun_family = AF_UNIX;
         strcpy(sock_un.sun_path, CD_SOCKET_PATH);
         clnt = clntunix_create(&sock_un, prog, vers, &isock, 0, 0);
+        connection_is_local = 1;
         break;
     case TCP:
         printf("connecting via TCP...\n");
@@ -80,6 +85,8 @@ static void rpc_connect(void)
         //inet_aton("137.226.133.199", &sock_in.sin_addr);
 
         clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
+        getsockname(isock, &local_addr, &sockaddr_len);
+        connection_is_local = (local_addr.sin_addr.s_addr == sock_in.sin_addr.s_addr);
         break;
     case UDP:
         /* From RPCEGEN documentation: 
@@ -102,17 +109,21 @@ static void rpc_connect(void)
 static void repair_connection(int signo) {
     enum clnt_stat retval_1;
     int result_1;
-    LOGE(LOG_INFO, "Trying connection...");
+    /*LOGE(LOG_INFO, "Trying connection...");
     char *printmessage_1_arg1 = "connection test";
     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
     printf("return:%d\n", result_1);
     if (retval_1 == RPC_SUCCESS) {
         LOG(LOG_INFO, "connection still okay.");
         return;
-    }
+    }*/
     LOG(LOG_INFO, "connection dead. Reconnecting...");
     rpc_connect();
     LOG(LOG_INFO, "reconnected");
+    retval_1 = cuda_device_synchronize_1(&result_1, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "error calling cudaDeviceSynchronize");
+    }
 }
 
 void __attribute__ ((constructor)) init_rpc(void)
@@ -139,7 +150,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
     }
 #ifdef WITH_IB
-    if (ib_init(1) != 0) {
+    if (ib_init(0) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif //WITH_IB

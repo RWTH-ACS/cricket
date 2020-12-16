@@ -6,12 +6,14 @@
 #include <cuda_runtime.h>
 #include <arpa/inet.h>
 #include <rpc/clnt.h>
+#include <cusolverDn.h>
 
 #include "cpu-common.h"
 #include "api-recorder.h"
 #include "resource-mg.h"
 #include "log.h"
 #include "cpu_rpc_prot.h"
+#include "list.h"
 
 static int cr_restore_array_3d(const char *path, api_record_t *record, size_t *mem_size, void *mem_data, uint64_t result_ptr, void **cuda_ptr)
 {
@@ -195,6 +197,27 @@ out:
     return ret;
 }
 
+static int cr_restore_cusolver(api_record_t *record, resource_mg *rm_cusolver)
+{
+    cusolverDnHandle_t new_handle = NULL;
+    cusolverStatus_t err;
+    ptr_result res = record->result.ptr_result_u;
+    if (record->function == rpc_cusolverDnCreate) {
+        if ((err = cusolverDnCreate(&new_handle)) != CUSOLVER_STATUS_SUCCESS) {
+            LOGE(LOG_ERROR, "CUSOLVER error while restoring event");
+            return 1;
+        }
+    } else {
+        LOGE(LOG_ERROR, "cannot restore an cusolver handle from a record that is not an cusolver_create record");
+        return 1;
+    }
+    if (resource_mg_add_sorted(rm_cusolver, (void*)res.ptr_result_u.ptr, new_handle) != 0) {
+        LOGE(LOG_ERROR, "error adding to event resource manager");
+        return 1;
+    }
+    return 0;
+}
+
 static int cr_restore_events(api_record_t *record, resource_mg *rm_events)
 {
     cudaEvent_t new_event = NULL;
@@ -250,6 +273,7 @@ static int cr_restore_streams(api_record_t *record, resource_mg *rm_streams)
         LOGE(LOG_ERROR, "error adding to stream resource manager");
         return 1;
     }
+    LOGE(LOG_DEBUG, "add stream mapping %p->%p", (void*)res.ptr_result_u.ptr, new_stream);
     return 0;
 }
 
@@ -263,16 +287,17 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
     void *cuda_ptr;
     ptr_result result;
     int ret;
+    int restore_memory = 1;
     if (record->function != CUDA_MALLOC) {
         LOGE(LOG_ERROR, "got a record that is not of type cudaMalloc");
-        return 0;
+        return 1;
     }
     mem_size = *(size_t*)record->arguments;
     result = record->result.ptr_result_u;
 
     if ( (mem_data = malloc(mem_size)) == NULL) {
         LOGE(LOG_ERROR, "could not allocate memory");
-        return 0;
+        return 1;
     }
 
     if (asprintf(&file_name, "%s/%s-0x%lx",
@@ -281,22 +306,22 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
         goto out;
     }
 
-    if ((fp = fopen(file_name, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "error while opening file");
-        free(file_name);
-        goto out;
-    }
+    if ((fp = fopen(file_name, "rb")) != NULL) {
 
-    if (ferror(fp) || feof(fp)) {
-        LOGE(LOG_ERROR, "file descriptor is invalid");
-        goto cleanup;
-        return 1;
-    }
+        if (ferror(fp) || feof(fp)) {
+            LOGE(LOG_ERROR, "file descriptor is invalid");
+            goto cleanup;
+            return 1;
+        }
 
-    if (fread(mem_data,
-               1, mem_size, fp) != mem_size) {
-        LOGE(LOG_ERROR, "error reading mem_data");
-        goto cleanup;
+        if (fread(mem_data,
+                   1, mem_size, fp) != mem_size) {
+            LOGE(LOG_ERROR, "error reading mem_data");
+            goto cleanup;
+        }
+    } else {
+        LOGE(LOG_WARNING, "could not open memory file: %s", file_name);
+        restore_memory = 0;
     }
 
     if ( (ret = cudaMalloc(&cuda_ptr, mem_size)) != cudaSuccess) {
@@ -315,23 +340,26 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
         return 1;
     }
 
-    if ( (ret = cudaMemcpy(cuda_ptr,
+    if ( restore_memory == 1 && 
+         (ret = cudaMemcpy(cuda_ptr,
            mem_data,
            mem_size,
            cudaMemcpyHostToDevice)) != 0) {
         LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
-        return 0;
+        return 1;
     }
     LOG(LOG_DEBUG, "restored memory of size %zu from %s", mem_size, file_name);
     ret = 0;
 cleanup:
     free(file_name);
-    fclose(fp);
+    if (restore_memory == 1) {
+        fclose(fp);
+    }
 out:
     return ret;
 }
 
-static int cr_dump_memory(const char *path, api_record_t *record)
+static int cr_dump_memory_entry(const char *path, api_record_t *record)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -398,24 +426,148 @@ static int cr_dump_api_record(FILE *fp, api_record_t *record)
     size = sizeof(record->arg_size);
     if (fwrite(&record->arg_size,
                1, size, fp) != size) {
-        LOGE(LOG_ERROR, "error writing record->function");
+        LOGE(LOG_ERROR, "error writing record->arg_size");
         goto cleanup;
     }
     size = record->arg_size;
     if (fwrite(record->arguments,
                1, size, fp) != size) {
-        LOGE(LOG_ERROR, "error writing record->function");
+        LOGE(LOG_ERROR, "error writing record->arguments");
         goto cleanup;
     }
     size = sizeof(record->result);
     if (fwrite(&record->result,
                1, size, fp) != size) {
-        LOGE(LOG_ERROR, "error writing record->function");
+        LOGE(LOG_ERROR, "error writing record->result");
         goto cleanup;
+    }
+    size = sizeof(record->data_size);
+    if (fwrite(&record->data_size,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error writing record->data_size");
+        goto cleanup;
+    }
+    size = record->data_size;
+    if (size > 0 && record->data != NULL) {
+        if (fwrite(record->data,
+                   1, size, fp) != size) {
+            LOGE(LOG_ERROR, "error writing record->data");
+            goto cleanup;
+        }
     }
     ret = 0;
  cleanup:
     return ret;
+}
+
+int cr_dump_memory(const char *path)
+{
+    int res = 1;
+    api_record_t *record;
+    LOG(LOG_DEBUG, "dumping memory records to %s", path);
+    for (size_t i = 0; i < api_records.length; i++) {
+        if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            goto cleanup;
+        }
+        api_records_print_records(record);
+        if (record->function == CUDA_MALLOC) {
+            if (cr_dump_memory_entry(path, record) != 0) {
+                LOGE(LOG_ERROR, "error dumping memory");
+                goto cleanup;
+            }
+        }
+    }
+    res = 0;
+cleanup:
+    return res;
+}
+
+int cr_restore_rpc_id(const char *path, unsigned long *prog, unsigned long *vers)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "rpc_id";
+    int res = 1;
+    size_t size;
+    if (prog == NULL || vers == NULL) {
+        goto out;
+    }
+    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+    if ((fp = fopen(file_name, "rb")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+    if (ferror(fp)) {
+        LOGE(LOG_ERROR, "file descriptor is invalid");
+        goto cleanup;
+    }
+    LOG(LOG_DEBUG, "restoring rpc_id from %s", file_name);
+    size = sizeof(prog);
+    if (fread(prog,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error reading prog");
+        goto cleanup;
+    }
+    size = sizeof(vers);
+    if (fread(vers,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error reading vers");
+        goto cleanup;
+    }
+
+    res = 0;
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return res;
+}
+
+int cr_dump_rpc_id(const char *path, unsigned long prog, unsigned long vers)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "rpc_id";
+    int res = 1;
+    size_t size;
+    if (asprintf(&file_name, "%s/%s", path, suffix) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+    if ((fp = fopen(file_name, "w+b")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+    if (ferror(fp)) {
+        LOGE(LOG_ERROR, "file descriptor is invalid");
+        goto cleanup;
+    }
+    LOG(LOG_DEBUG, "dumping rpc_id to %s", file_name);
+    size = sizeof(prog);
+    if (fwrite(&prog,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error writing prog");
+        goto cleanup;
+    }
+    size = sizeof(vers);
+    if (fwrite(&vers,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error writing vers");
+        goto cleanup;
+    }
+
+    res = 0;
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return res;
 }
 
 int cr_dump(const char *path)
@@ -449,12 +601,6 @@ int cr_dump(const char *path)
             goto cleanup;
         }
         api_records_print_records(record);
-        if (record->function == CUDA_MALLOC) {
-            if (cr_dump_memory(path, record) != 0) {
-                LOGE(LOG_ERROR, "error dumping memory");
-                goto cleanup;
-            }
-        }
     }
     res = 0;
 cleanup:
@@ -500,6 +646,26 @@ static int cr_restore_api_record(FILE *fp, api_record_t *record)
         LOGE(LOG_ERROR, "error reading record->function");
         goto cleanup;
     }
+    size = sizeof(record->data_size);
+    if (fread(&record->data_size,
+               1, size, fp) != size) {
+        LOGE(LOG_ERROR, "error reading record->data_size");
+        goto cleanup;
+    }
+    size = record->data_size;
+    if (size > 0) {
+        if ( (record->data = malloc(size)) == NULL) {
+            LOGE(LOG_ERROR, "malloc failed");
+            goto cleanup;
+        }
+        if (fread(record->data,
+                   1, size, fp) != size) {
+            LOGE(LOG_ERROR, "error reading record->data");
+            goto cleanup;
+        }
+    } else {
+        record->data = NULL;
+    }
     
     res = 0;
 cleanup:
@@ -526,7 +692,7 @@ int cr_call_record(api_record_t *record)
     return (retval==1 ? 0 : 1);
 }
 
-static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays)
+static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver)
 {
     int ret = 1;
     switch (record->function) {
@@ -537,6 +703,9 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
         }
         break;
     case CUDA_MEMCPY_HTOD:
+    case CUDA_MEMCPY_DTOD:
+    case CUDA_MEMCPY_DTOH:
+    case CUDA_MEMCPY_TO_SYMBOL:
         break;
     case CUDA_STREAM_CREATE:
     case CUDA_STREAM_CREATE_WITH_FLAGS:
@@ -552,12 +721,24 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
             LOGE(LOG_ERROR, "error restoring events");
             goto cleanup;
         }
+        break;
     case CUDA_MALLOC_ARRAY:
     case CUDA_MALLOC_3D_ARRAY:
         if (cr_restore_arrays(path, record, rm_arrays) != 0) {
             LOGE(LOG_ERROR, "error restoring arrays");
             goto cleanup;
         }
+        break;
+    case CUDA_LAUNCH_KERNEL:
+    case CUDA_LAUNCH_COOPERATIVE_KERNEL:
+    case CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE:
+        if (cr_restore_cusolver(record, rm_cusolver) != 0) {
+            LOGE(LOG_ERROR, "error restoring cusolver");
+            goto cleanup;
+        }
+        break;
+    case rpc_cusolverDnCreate:
+        break;
     default:
         if (cr_call_record(record) != 0) {
             LOGE(LOG_ERROR, "calling record function failed");
@@ -569,7 +750,55 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     return ret;
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays)
+int cr_launch_kernel(void)
+{
+    api_record_t *record;
+    size_t arg_num;
+    uint64_t **arg_ptr = NULL;
+    static uint64_t zero = 0LL;
+    int ret = 1;
+
+    for (size_t i = api_records.length-1; i > 0; --i) {
+        record = list_get(&api_records, i);
+        if (record->function == CUDA_LAUNCH_KERNEL) {
+            cuda_launch_kernel_1_argument *arg = 
+              ((cuda_launch_kernel_1_argument*)record->arguments);
+            arg->arg4.mem_data_len = record->data_size;
+            arg->arg4.mem_data_val = record->data;
+            if ((ret = cr_call_record(record)) != 0) {
+                LOGE(LOG_ERROR, "calling record function failed");
+            }
+            free(record->data);
+            /*dim3 cuda_gridDim = {arg.arg2.x, arg.arg2.y, arg.arg2.z};
+            dim3 cuda_blockDim = {arg.arg3.x, arg.arg3.y, arg.arg3.z};
+            LOGE(LOG_DEBUG, "launching kernel with address %p", arg.arg1);
+
+            ret = cudaLaunchKernel(
+              (void*)arg.arg1,
+              cuda_gridDim,
+              cuda_blockDim,
+              (void**)arg_ptr,
+              arg.arg5,
+              (void*)arg.arg6);
+            //TODO: use resource manager for stream!
+            if (ret != cudaSuccess) {
+                LOGE(LOG_ERROR, "error launching kernel");
+            } else {
+                ret = 0;
+            }*/
+            goto cleanup;
+        } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL) {
+
+        } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE) {
+        }
+    }
+    ret = 0;
+ cleanup:
+    free(arg_ptr);
+    return ret;
+}
+
+int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -606,13 +835,14 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
                 goto cleanup;
             }
         }
+        api_records_print_records(record);
         if (cr_restore_resources(path, record, rm_memory, rm_streams,
-                                 rm_events, rm_arrays) != 0) {
+                                 rm_events, rm_arrays, rm_cusolver) != 0) {
             LOGE(LOG_ERROR, "error restoring resources");
             goto cleanup;
         }
-        api_records_print_records(record);
     }
+    //cr_launch_kernel();
     res = 0;
 cleanup:
     free(file_name);

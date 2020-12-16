@@ -88,11 +88,12 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
 
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
 {
-    size_t start = 0;
-    size_t end = mg->map_res.length-1;
-    size_t mid;
+    ssize_t start = 0;
+    ssize_t end = mg->map_res.length-1;
+    ssize_t mid;
     struct resource_mg_map_elem_t new_elem = {.client_address = client_address,
                                               .cuda_address = cuda_address};
+    resource_mg_map_elem *mid_elem;
     if (mg == NULL) {
         LOGE(LOG_ERROR, "resource manager mg is NULL");
         return 1;
@@ -108,7 +109,7 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
     
     while (end >= start) {
         mid = start + (end-start)/2;
-        resource_mg_map_elem *mid_elem = list_get(&mg->map_res, mid);
+        mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent\n");
             return 1;
@@ -123,6 +124,12 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
             mid_elem->cuda_address = cuda_address;
             return 0;
         }
+    }
+    if (end < 0) {
+        end = 0;
+    }
+    if (mid_elem->client_address < client_address) {
+        end++;
     }
     return list_insert(&mg->map_res, end, &new_elem);
 }

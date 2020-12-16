@@ -12,7 +12,9 @@
     } \
     record->function = rqstp->rq_proc; \
     record->arg_size = 0; \
-    record->arguments = NULL;
+    record->arguments = NULL; \
+    record->data_size = 0; \
+    record->data = NULL;
 #define RECORD_API(ARG_TYPE) \
     api_record_t *record; \
     ARG_TYPE *arguments; \
@@ -24,13 +26,19 @@
     } \
     record->function = rqstp->rq_proc; \
     record->arg_size = sizeof(ARG_TYPE); \
-    record->arguments = arguments;
+    record->arguments = arguments; \
+    record->data_size = 0; \
+    record->data = NULL;
 #define RECORD_RESULT(TYPE, RES) \
     record->result.TYPE = RES
 #define RECORD_SINGLE_ARG(ARG) \
     *arguments = ARG
 #define RECORD_ARG(NUM, ARG) \
     arguments->arg##NUM = ARG
+#define RECORD_DATA(SIZE, PTR) \
+    record->data_size = SIZE; \
+    record->data = malloc(SIZE); \
+    memcpy(record->data, PTR, SIZE);
 #else
 #define RECORD_API(ARG_TYPE) 
 #define RECORD_RESULT(TYPE, RES)
@@ -51,6 +59,8 @@ typedef struct api_record {
         int integer;
         ptr_result ptr_result_u;
     } result;
+    void *data;
+    size_t data_size;
 } api_record_t;
 extern list api_records;
 

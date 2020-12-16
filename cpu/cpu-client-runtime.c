@@ -28,10 +28,12 @@
 
 
 #ifdef WITH_API_CNT
-static int api_call_cnt = 0;
+int api_call_cnt = 0;
+size_t memcpy_cnt = 0;
 void cpu_runtime_print_api_call_cnt(void)
 {
-    LOG(LOG_INFO, "api-call-cnt: %d\n", api_call_cnt);
+    LOG(LOG_INFO, "api-call-cnt: %d", api_call_cnt);
+    LOG(LOG_INFO, "memcpy-cnt: %d", memcpy_cnt);
 }
 #endif //WITH_API_CNT
 
@@ -263,11 +265,13 @@ cudaError_t cudaDeviceSynchronize(void)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    int result = -1;
     enum clnt_stat retval_1;
-    retval_1 = cuda_device_synchronize_1(&result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
+    for (int i=0; result != 0 && i < 10; ++i) {
+        retval_1 = cuda_device_synchronize_1(&result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
     }
     return result;
 }
@@ -291,6 +295,7 @@ cudaError_t cudaGetDevice(int* device)
 
 cudaError_t cudaGetDeviceCount(int* count)
 {
+    LOG(LOG_DEBUG, "start cgdc");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
@@ -303,6 +308,7 @@ cudaError_t cudaGetDeviceCount(int* count)
     if (result.err == 0) {
         *count = result.int_result_u.data;
     }
+    LOG(LOG_DEBUG, "end cgdc");
     return result.err;
 }
 
@@ -729,11 +735,13 @@ cudaError_t cudaEventSynchronize(cudaEvent_t event)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    int result = -1;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
+    for (int i=0; result < 0 && i < 10; ++i) {
+        retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
     }
     return result;
 }
@@ -1071,19 +1079,7 @@ cudaError_t cudaFreeHost(void* ptr)
     int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
     int i = -1;
-    if (socktype == TCP) {
-#ifdef WITH_IB //Use infiniband
-        i = hainfo_getindex(ptr);
-        if (i == -1) {
-            goto out;
-        }
-        //ib_free_memreg(ptr, i);
-        //TODO: Free on Serverside
-#else
-        free(ptr);
-        return cudaSuccess;
-#endif //WITH_IB
-    } else if (socktype == UNIX) { //Use local shared memory
+    if (shm_enabled && connection_is_local == 1) { //Use local shared memory
         i = hainfo_getindex(ptr);
         if (i == -1) {
             goto out;
@@ -1099,6 +1095,18 @@ cudaError_t cudaFreeHost(void* ptr)
             LOGE(LOG_ERROR, "cudaFreeHost failed on server-side.");
             goto out;
         }
+    } else if (socktype == TCP) {
+#ifdef WITH_IB //Use infiniband
+        i = hainfo_getindex(ptr);
+        if (i == -1) {
+            goto out;
+        }
+        //ib_free_memreg(ptr, i);
+        //TODO: Free on Serverside
+#else
+        free(ptr);
+        return cudaSuccess;
+#endif //WITH_IB
     } else {
         free(ptr);
         return cudaSuccess;
@@ -1155,37 +1163,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
     char shm_name[128];
     enum clnt_stat retval_1;
     
-    if (socktype == TCP) { //Use infiniband
-#ifdef WITH_IB
-        if (ib_allocate_memreg(pHost, size, hainfo_cnt) != 0) {
-            LOGE(LOG_ERROR, "failed to register infiniband memory region");
-            goto out;
-        }
-        hainfo[hainfo_cnt].cnt = hainfo_cnt;
-        hainfo[hainfo_cnt].size = size;
-        hainfo[hainfo_cnt].client_ptr = *pHost;
-
-        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-        if (ret == cudaSuccess) {
-            hainfo_cnt++;
-        } else {
-            ib_free_memreg(*pHost, hainfo_cnt);
-            *pHost = NULL;
-        }
-#else
-        LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
-        *pHost = malloc(size);
-        if (*pHost == NULL) {
-            goto out;
-        } else {
-            ret = cudaSuccess;
-            goto out;
-        }
-#endif //WITH_IB
-    } else if (socktype == UNIX) { //Use local shared memory
+    if (shm_enabled && connection_is_local == 1) { //Use local shared memory
 
         snprintf(shm_name, 128, "/crickethostalloc-%zu", hainfo_cnt);
         if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
@@ -1219,6 +1197,36 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             *pHost = NULL;
         }
         shm_unlink(shm_name);
+    } else if (socktype == TCP) { //Use infiniband
+#ifdef WITH_IB
+        if (ib_allocate_memreg(pHost, size, hainfo_cnt) != 0) {
+            LOGE(LOG_ERROR, "failed to register infiniband memory region");
+            goto out;
+        }
+        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].size = size;
+        hainfo[hainfo_cnt].client_ptr = *pHost;
+
+        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+        if (ret == cudaSuccess) {
+            hainfo_cnt++;
+        } else {
+            ib_free_memreg(*pHost, hainfo_cnt);
+            *pHost = NULL;
+        }
+#else
+        LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
+        *pHost = malloc(size);
+        if (*pHost == NULL) {
+            goto out;
+        } else {
+            ret = cudaSuccess;
+            goto out;
+        }
+#endif //WITH_IB
     } else {
         LOGE(LOG_ERROR, "unknown transport.");
         goto out;
@@ -1485,6 +1493,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
+    memcpy_cnt += count;
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
@@ -1497,7 +1506,9 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             src_mem.mem_data_val = (void*)src;
             retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
         } else {
-            if (socktype == TCP) { //Use infiniband
+            if (shm_enabled && connection_is_local == 1) { //Use local shared memory
+                retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+            } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
                 ib_client_send((void*)src, index, count, "ghost");
@@ -1506,8 +1517,6 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 LOGE(LOG_ERROR, "infiniband is disabled.");
                 goto cleanup;
 #endif //WITH_IB
-            } else if (socktype == UNIX) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
             }
         }
         if (retval != RPC_SUCCESS) {
@@ -1532,7 +1541,9 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 goto cleanup;
             }
         } else {
-            if (socktype == TCP) { //Use infiniband
+            if (shm_enabled && connection_is_local) { //Use local shared memory
+                retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+            } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 pthread_t thread = {0};
                 struct ib_thread_info info = {
@@ -1550,10 +1561,8 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 LOGE(LOG_ERROR, "infiniband is disabled.");
                 goto cleanup;
 #endif //WITH_IB
-
-            } else if (socktype == UNIX) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
             }
+
         }
         if (retval != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "RPC failed.");
@@ -1597,6 +1606,7 @@ cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
+    memcpy_cnt += count;
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;

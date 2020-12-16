@@ -63,7 +63,7 @@ CC_FLAGS += -std=gnu99 $(INC_FLAGS)
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
 ifdef WITH_DEBUG
-CC_FLAGS += -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+CC_FLAGS += -g -ggdb #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 endif
 
 ifdef WITH_IB

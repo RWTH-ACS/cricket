@@ -115,11 +115,11 @@ int list_insert(list *l, size_t at, void *new_element)
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
     }
-    if (at >= l->length) {
+    if (at > l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
         return 1;
     }
-    if (at == l->length-1) {
+    if (at == l->length) {
         return list_append_copy(l, new_element);
     }
 
@@ -127,13 +127,13 @@ int list_insert(list *l, size_t at, void *new_element)
         LOGE(LOG_ERROR, "error while lengthening list");
         return 1;
     }
-    memmove(list_get(l, at+1), list_get(l, at), (l->length-1-at)*l->element_size);
+    memmove(list_get(l, at+1), list_get(l, at), (l->length-at)*l->element_size);
 
     if (new_element != NULL) {
         memcpy(list_get(l, at), new_element, l->element_size);
     }
 
-    l->length += 1;
+    l->length += 1; //appending a NULL element does not increase list length
     return 0;
 }
 

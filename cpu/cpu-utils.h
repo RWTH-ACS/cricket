@@ -7,6 +7,7 @@
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum);
 
 
+int cpu_utils_is_local_connection(struct svc_req *rqstp);
 int cpu_utils_command(char **command);
 int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low);
 void* cricketd_utils_symbol_address(char *symbol);

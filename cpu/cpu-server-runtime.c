@@ -28,6 +28,7 @@
 #include "resource-mg.h"
 #include "cpu-server-runtime.h"
 #include "cr.h"
+#include "cpu-server-cusolver.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -52,11 +53,13 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= resource_mg_init(&rm_memory, 1);
+        ret &= cusolver_init(1, &rm_streams, &rm_memory);
     } else {
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
         ret &= resource_mg_init(&rm_memory, 0);
+        ret &= cusolver_init(0, &rm_streams, &rm_memory);
         ret &= server_runtime_restore("ckp");
     }
     return ret;
@@ -71,25 +74,44 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
     resource_mg_free(&rm_memory);
+    cusolver_deinit();
     return 0;
 
 }
 
-int server_runtime_checkpoint(const char *path)
+int server_runtime_checkpoint(const char *path, int dump_memory, unsigned long prog, unsigned long vers)
 {
+    if (cr_dump_rpc_id(path, prog, vers) != 0) {
+        LOGE(LOG_ERROR, "error dumping api_records");
+        return 1;
+    }
     if (cr_dump(path) != 0) {
         LOGE(LOG_ERROR, "error dumping api_records");
         return 1;
+    }
+    if (dump_memory == 1) {
+        if (cr_dump_memory(path) != 0) {
+            LOGE(LOG_ERROR, "error dumping memory");
+            return 1;
+        }
     }
     return 0;
 }
 
 int server_runtime_restore(const char *path)
 {
-    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays) != 0) {
-        LOGE(LOG_ERROR, "error dumping api_records");
+    struct timeval start, end;
+    double time = 0;
+    gettimeofday(&start, NULL);
+    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm()) != 0) {
+        LOGE(LOG_ERROR, "error restoring api_records");
         return 1;
     }
+    gettimeofday(&end, NULL);
+    time = ((double)((end.tv_sec * 1e6 + end.tv_usec) -
+                     (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
+    LOGE(LOG_INFO, "time: %f\n", time);
+
     return 0;
 }
 
@@ -445,8 +467,9 @@ bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct
     if (resource_mg_create(&rm_streams, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
+    LOG(LOG_DEBUG, "add to stream rm: %p", result->ptr_result_u.ptr);
 
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -462,7 +485,7 @@ bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_resul
         LOGE(LOG_ERROR, "error in resource manager");
     }
 
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -562,7 +585,7 @@ bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -575,7 +598,7 @@ bool_t cuda_event_create_with_flags_1_svc(int flags, ptr_result *result, struct 
     if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
-    RECORD_RESULT(u64, result->ptr_result_u.ptr);
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -779,7 +802,7 @@ bool_t cuda_launch_cooperative_kernel_multi_device_1_svc(ptr func, rpc_dim3 grid
 }
 
 /* This would require RPCs in the opposite direction.
- * __host__ ​cudaError_t cudaLaunchHostFunc ( cudaStream_t stream, cudaHostFn_t fn, void* userData )
+ * __host__ cudaError_t cudaLaunchHostFunc ( cudaStream_t stream, cudaHostFn_t fn, void* userData )
  *   Enqueues a host function call in a stream.
  */
 
@@ -791,8 +814,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     RECORD_ARG(1, func);
     RECORD_ARG(2, gridDim);
     RECORD_ARG(3, blockDim);
-    //TODO: Store parameters explicitly
-    //RECORD_ARG(4, args);
+    RECORD_DATA(args.mem_data_len, args.mem_data_val);
     RECORD_ARG(5, sharedMem);
     RECORD_ARG(6, stream);
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
@@ -816,7 +838,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
       cuda_blockDim,
       cuda_args,
       sharedMem,
-      resource_mg_get(&rm_events, (void*)stream));
+      resource_mg_get(&rm_streams, (void*)stream));
     free(cuda_args);
     RECORD_RESULT(integer, *result);
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
@@ -1033,7 +1055,39 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
         return 1;
     }
 
-    if (socktype == TCP) { //Use infiniband
+    if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
+        snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
+        if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
+            LOGE(LOG_ERROR, "could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
+            goto out;
+        }
+        if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
+            LOGE(LOG_ERROR, "mmap returned unexpected pointer: %p", shm_addr);
+            goto cleanup;
+        }
+
+        if (flags & cudaHostAllocPortable) {
+            register_flags |= cudaHostRegisterPortable;
+        }
+        if (flags & cudaHostAllocMapped) {
+            register_flags |= cudaHostRegisterMapped;
+        }
+        if (flags & cudaHostAllocWriteCombined) {
+            register_flags |= cudaHostRegisterMapped;
+        }
+
+        if ((*result = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaHostRegister failed.");
+            munmap(shm_addr, size);
+            goto cleanup;
+        }
+
+        hainfo[hainfo_cnt].cnt = client_cnt;
+        hainfo[hainfo_cnt].size = size;
+        hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
+        hainfo[hainfo_cnt].server_ptr = shm_addr;
+        hainfo_cnt++;
+    } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
         void *server_ptr = NULL;
         if (ib_allocate_memreg(&server_ptr, size, hainfo_cnt) == 0) {
@@ -1067,38 +1121,6 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
                 goto cleanup;
 #endif //WITH_IB
 
-    } else if (socktype == UNIX) { //Use local shared memory
-        snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
-        if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
-            LOGE(LOG_ERROR, "could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
-            goto out;
-        }
-        if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
-            LOGE(LOG_ERROR, "mmap returned unexpected pointer: %p", shm_addr);
-            goto cleanup;
-        }
-
-        if (flags & cudaHostAllocPortable) {
-            register_flags |= cudaHostRegisterPortable;
-        }
-        if (flags & cudaHostAllocMapped) {
-            register_flags |= cudaHostRegisterMapped;
-        }
-        if (flags & cudaHostAllocWriteCombined) {
-            register_flags |= cudaHostRegisterMapped;
-        }
-
-        if ((*result = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
-            LOGE(LOG_ERROR, "cudaHostRegister failed.");
-            munmap(shm_addr, size);
-            goto cleanup;
-        }
-
-        hainfo[hainfo_cnt].cnt = client_cnt;
-        hainfo[hainfo_cnt].size = size;
-        hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
-        hainfo[hainfo_cnt].server_ptr = shm_addr;
-        hainfo_cnt++;
     } else {
         LOGE(LOG_ERROR, "cudaHostAlloc is not supported for other transports than UNIX. This error means cricket_server and cricket_client are not compiled correctly (different transports)");
         goto out;

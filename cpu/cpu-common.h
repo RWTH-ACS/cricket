@@ -19,8 +19,11 @@ typedef struct kernel_info {
 
 enum socktype_t {UNIX, TCP, UDP} socktype;
 #define INIT_SOCKTYPE enum socktype_t socktype = TCP;
+
+int connection_is_local;
+int shm_enabled;
 //#define INIT_SOCKTYPE enum socktype_t socktype = UNIX;
-//#define WITH_API_CNT
+#define WITH_API_CNT
 //#define WITH_IB
 
 

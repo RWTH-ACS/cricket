@@ -12,11 +12,17 @@
 #include "log.h"
 #include "cpu-server-runtime.h"
 #include "rpc/xdr.h"
+#include "cr.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
 
 INIT_SOCKTYPE
+
+int connection_is_local = 0;
+int shm_enabled = 1;
+
+unsigned long prog=0, vers=0;
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
@@ -42,7 +48,7 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
+int cricket_server_checkpoint(int dump_memory)
 {
     int ret;
     struct stat path_stat = { 0 };
@@ -64,16 +70,32 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
         goto error;
     }
     
-    if ((ret = server_runtime_checkpoint(ckp_path)) != 0) {
+    if ((ret = server_runtime_checkpoint(ckp_path, dump_memory, prog, vers)) != 0) {
         LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
         goto error;
     }
 
     LOG(LOG_INFO, "checkpoint successfully created.");
-    return 1;
+    return 0;
  error:
     LOG(LOG_INFO, "checkpoint creation failed.");
     return 1;
+}
+
+static void signal_checkpoint(int signo)
+{
+    if (cricket_server_checkpoint(1) != 0) {
+        LOGE(LOG_ERROR, "failed to create checkpoint");
+    }
+}
+
+bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
+{
+    int ret;
+    if ((ret = cricket_server_checkpoint(1)) != 0) {
+        LOGE(LOG_ERROR, "failed to create checkpoint");
+    }
+    return ret == 0;
 }
 
 
@@ -85,27 +107,11 @@ void __attribute__ ((constructor)) cricketd_main(void)
     int protocol = 0;
     int restore = 0;
     struct sigaction act;
-    unsigned long prog=0, vers=0;
     char *command = NULL;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
 
     init_log(LOG_LEVEL, __FILE__);
-
-    if (cpu_utils_command(&command) != 0) {
-        LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
-    } else {
-        LOG(LOG_DEBUG, "the command is '%s'", command);
-        if (strcmp(command, "cudbgprocess") == 0) {
-            LOG(LOG_DEBUG, "skipping RPC server");
-            return;
-        }
-    }
-
-    if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
-        LOGE(LOG_ERROR, "error while creating binary checksum\n");
-        exit(0);
-    }
 
     if (getenv("CRICKET_DISABLE_RPC")) {
         LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
@@ -116,6 +122,27 @@ void __attribute__ ((constructor)) cricketd_main(void)
             restore = 1;
     }
 
+    if (cpu_utils_command(&command) != 0) {
+        LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
+    } else {
+        LOG(LOG_DEBUG, "the command is '%s'", command);
+        const char *cmp = "cudbgprocess";
+        if (strncmp(command, cmp, strlen(cmp)) == 0) {
+            LOG(LOG_DEBUG, "skipping RPC server");
+            return;
+        }
+    }
+
+    if (restore == 1) {
+        if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
+            LOGE(LOG_ERROR, "error while restoring rpc id");
+        }
+    } else if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+        LOGE(LOG_ERROR, "error while creating binary checksum");
+        exit(0);
+    }
+
+
     switch (socktype) {
     case UNIX:
         LOG(LOG_INFO, "using UNIX...\n");
@@ -124,6 +151,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         }
+        connection_is_local = 1;
         break;
     case TCP:
         LOG(LOG_INFO, "using TCP...\n");
@@ -153,11 +181,6 @@ void __attribute__ ((constructor)) cricketd_main(void)
         exit(1);
     }
 
-    if (server_runtime_init(restore) != 0) {
-        LOGE(LOG_ERROR, "initializing server_runtime failed.");
-        exit(1);
-    }
-
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
@@ -169,11 +192,22 @@ void __attribute__ ((constructor)) cricketd_main(void)
     } else {
         cudaRegisterAllv();
     }
+
+    if (server_runtime_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        exit(1);
+    }
+
 #ifdef WITH_IB
-    if (ib_init(1) != 0) {
+    if (ib_init(0) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif //WITH_IB
+
+    if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
+        LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+        exit(1);
+    }
 
     LOG(LOG_INFO, "waiting for RPC requests...\n");
 
