@@ -47,7 +47,7 @@ bool cricket_heap_memreg_size(void *addr, size_t *size)
     if (size == NULL)
         return false;
 
-    if (asprintf(&callstr, "getSize(0x%llx)", addr) == -1)
+    if (asprintf(&callstr, "(size_t)api_records_malloc_get_size(0x%llx)", addr) == -1)
         return false;
 
     if (callstr == NULL) {

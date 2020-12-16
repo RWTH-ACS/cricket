@@ -155,16 +155,16 @@ void kernel_no_param(void)
     printf("i am working\n");
 }
 
-/*size_t getSize(void *address)
+size_t getSize(void *address)
 {
-    CUdeviceptr ptr=0;
-    size_t ptrs;
-    CUresult res = cuMemGetAddressRange(&ptr, &ptrs, (CUdeviceptr)address);
-    if (res != CUDA_SUCCESS)
-        return 0;
-    else
+   // CUdeviceptr ptr=0;
+    size_t ptrs = 8;
+   //CUresult res; // = cuMemGetAddressRange(&ptr, &ptrs, (CUdeviceptr)address);
+   // if (res != CUDA_SUCCESS)
+   //     return 0;
+   // else
         return ptrs;
-}*/
+}
 
 int main()
 {
@@ -175,13 +175,18 @@ int main()
     uint16_t *dev_A, *dev_x, *dev_res;
     uint16_t *dev_ptr;
     struct timeval begin, end;
-    struct timeval messb, messe;
+    struct timeval messb, messa;
     const int A_size = N*N*sizeof(uint16_t);
     const int x_size = N*sizeof(uint16_t);
 
     int cnt = 5;
     //cuInit(0);
-    //cuDeviceGetCount(&cnt);
+
+    gettimeofday(&messa, NULL);
+    cudaGetDeviceCount(&cnt);
+
+    gettimeofday(&messb, NULL);
+    printf("elapsed time: %0u.%06u\n", (messb.tv_sec - messa.tv_sec), (messb.tv_usec - messa.tv_usec));
     printf("found %d devices\n", cnt);
     //CUdevice cuDevice;
     //cuDeviceGet(&cuDevice, 0);
@@ -220,7 +225,6 @@ int main()
 #endif //TEST_CPU
 
     printf("About to initialize CUDA context...\n");
-
     cudaMalloc( (void**)&dev_A, A_size );
 
     printf("dev_A = %p\n", dev_A);
@@ -239,14 +243,14 @@ int main()
     printf("continuing...\n");
 #endif //TEST_API
 
-    int a = 0;
+    /*int a = 0;
     gettimeofday(&messb, NULL);
-    for (int i=0; i != 100; i++)
+    for (int i=0; i != 1000000; i++)
         cudaGetDeviceCount(&a);
     gettimeofday(&messe, NULL);
     printf("elapsed time: %0u.%06u\n", (messe.tv_sec - messb.tv_sec),
                                        (messe.tv_usec - messb.tv_usec));
-   
+   */
     cudaMalloc( (void**)&dev_x, x_size );
     cudaMalloc( (void**)&dev_res, x_size );
     cudaMalloc( (void**)&dev_ptr, A_size );

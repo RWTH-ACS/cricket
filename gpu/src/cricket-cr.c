@@ -276,7 +276,6 @@ void cricket_cr_free_callstack(cricket_callstack *callstack)
     callstack->_packed_ptr = NULL;
 }
 
-#define _CRICKET_DEBUG_CR_ 1
 bool cricket_cr_read_pc(cricketWarpInfo *wi, uint32_t lane, const char *ckp_dir,
                         cricket_callstack *callstack)
 {
@@ -1474,7 +1473,6 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             printf("cricket error while reading heap param data\n");
             goto cleanup;
         }
-
 #ifdef _CRICKET_DEBUG_CR_
         printf("heap param %u: %llx (%u)\n", i,
                *(void **)(param_mem + elf_info->params[i].offset), heapsize);

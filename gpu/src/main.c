@@ -483,6 +483,7 @@ int cricket_restore(int argc, char *argv[])
 #endif
 
     gdb_init(argc, argv, patched_binary, NULL);
+    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so' 'CRICKET_RESTORE=1'", !batch_flag);
 
     // load the patched binary
     //exec_file_attach(patched_binary, !batch_flag);
@@ -1128,6 +1129,7 @@ int cricket_checkpoint(int argc, char *argv[])
     }
     printf("got API\n");
 
+
     if (!cricket_device_get_num(cudbgAPI, &numDev)) {
         printf("error getting device num\n");
         goto detach;
@@ -1305,15 +1307,19 @@ int cricket_checkpoint(int argc, char *argv[])
 #ifdef CRICKET_PROFILE
     gettimeofday(&e, NULL);
 #endif
+    cricket_focus_host(!batch_flag);
+    execute_command("call (int)cricket_server_checkpoint(0)", !batch_flag);
+    //cricket_focus_kernel(!batch_flag);
 
-  /*  if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
+
+    if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
     if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
         printf("cricket_cr_ckp_globals unsuccessful\n");
-    }*/
+    }
 
 #ifdef CRICKET_PROFILE
     gettimeofday(&f, NULL);
@@ -1373,14 +1379,14 @@ int cricket_start(int argc, char *argv[])
     //symbol_file_add_main_adapter(argv[2], !batch_flag);
     //
     execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
-    execute_command("break main", !batch_flag);
-    execute_command("run", !batch_flag);
-    execute_command("unset exec-wrapper", !batch_flag);
+    //execute_command("break main", !batch_flag);
+    execute_command("starti", !batch_flag);
+    //execute_command("unset exec-wrapper", !batch_flag);
 
 detach:
     /* Detach from process (CPU and GPU) */
     detach_command(NULL, !batch_flag);
-    /* quit GDB. TODO: Why is this necccessary? */
+    /* quit GDB. */
     quit_force(NULL, 0);
     return 0;
 }
