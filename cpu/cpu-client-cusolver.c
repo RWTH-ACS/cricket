@@ -15,8 +15,16 @@
 #include "cpu-utils.h"
 #include "log.h"
 
+#ifdef WITH_API_CNT
+extern int api_call_cnt;
+extern size_t memcpy_cnt;
+#endif //WITH_API_CNT
+
 cusolverStatus_t cusolverDnCreate(cusolverDnHandle_t* handle)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdncreate_1(&result, clnt);
@@ -30,6 +38,9 @@ cusolverStatus_t cusolverDnCreate(cusolverDnHandle_t* handle)
 }
 cusolverStatus_t cusolverDnDestroy(cusolverDnHandle_t handle)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdndestroy_1((ptr)handle, &result, clnt);
@@ -40,6 +51,9 @@ cusolverStatus_t cusolverDnDestroy(cusolverDnHandle_t handle)
 }
 cusolverStatus_t cusolverDnSetStream(cusolverDnHandle_t handle, cudaStream_t streamId)
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdnsetstream_1((ptr)handle, (ptr)streamId, &result, clnt);
@@ -908,6 +922,9 @@ cusolverStatus_t cusolverDnDgetrf_bufferSize(
     int lda,
     int* Lwork )
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdndgetrf_buffersize_1((ptr)handle, m, n, (ptr)A, lda, &result, clnt);
@@ -957,6 +974,9 @@ cusolverStatus_t cusolverDnDgetrf(
     int* devIpiv, 
     int* devInfo )
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdndgetrf_1((ptr)handle, m, n, (ptr)A, lda, (ptr)Workspace, (ptr)devIpiv, (ptr)devInfo, &result, clnt);
@@ -1050,6 +1070,9 @@ cusolverStatus_t cusolverDnDgetrs(
     int ldb, 
     int* devInfo )
 {
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
     retval_1 = rpc_cusolverdndgetrs_1((ptr)handle, (int)trans, n, nrhs, (ptr)A, lda, (ptr)devIpiv, (ptr)B, ldb, (ptr)devInfo, &result, clnt);
