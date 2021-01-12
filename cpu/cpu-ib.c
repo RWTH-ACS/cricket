@@ -17,7 +17,6 @@
  * limitations under the License.
  *
  */
-
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -29,6 +28,8 @@
 #include <infiniband/verbs.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 #define PAGE_ROUND_UP(x) ( (((x)) + 0x1000-1)  & (~(0x1000-1)) )
 #define PAGE_SIZE       (0x1000)
@@ -50,6 +51,7 @@
 #define MAX_RECV_SGE    (1)
 
 #define TCP_PORT    (4211)
+
 
 /*
  * Helper data types
@@ -335,7 +337,7 @@ ib_pp_barrier(int mr_id, int32_t server)
             (int)wc.wr_id);
     }
 }
-
+//do we need this? 
 size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
 {
     /* allocate memory and register it with the protection domain */
@@ -357,33 +359,61 @@ size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
     return 0;
 }
 
-size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id)
+size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gpumemreg)
 {
     /* allocate memory and register it with the protection domain */
     int res;
-    size_t real_size = PAGE_ROUND_UP(memsize+2);
-    if (mem_address == NULL) return 0;
-    //fprintf(stderr, "[INFO] Communication buffer size: %u KiB\n", real_size/1024);
-    if ((res = posix_memalign((void*)mem_address,
-                  0x1000,
-                  real_size)) < 0) {
-        fprintf(stderr,
-                "ERROR: Could not allocate mem for communication bufer "
-                " - %d (%s). Abort!\n", res, strerror(res));
-        exit(-1);
+    size_t real_size = PAGE_ROUND_UP(memsize + 2);
+    if (mem_address == NULL)
+        return 0;
+    fprintf(stderr, "[INFO] Communication buffer size: %u KiB\n", real_size / 1024);
+
+    if (gpumemreg)
+    {
+        printf("gpu path.... \n");
+        if ((res = cudaMalloc(mem_address, real_size)) != cudaSuccess)
+        {
+            fprintf(stderr,
+                    "ERROR: Could not allocate mem for communication bufer "
+                    " - %d (%s). Abort!\n",
+                    res, strerror(res));
+            exit(-1);
+        }
+        if ((res = cudaMemset(*mem_address, 0, real_size)) != cudaSuccess)
+        {
+            fprintf(stderr,
+                    "ERROR: Could not initialize mem for communication bufer "
+                    " - %d (%s). Abort!\n",
+                    res, strerror(res));
+            exit(-1);
+        }
     }
-    memset(*mem_address, 0x0, real_size);
+    else
+    {
+        if ((res = posix_memalign((void *)mem_address,
+                                  0x1000,
+                                  real_size)) < 0)
+        {
+            fprintf(stderr,
+                    "ERROR: Could not allocate mem for communication bufer "
+                    " - %d (%s). Abort!\n",
+                    res, strerror(res));
+            exit(-1);
+        }
+        memset(*mem_address, 0x0, real_size);
+    }
 
     if ((mrs[mr_id] = ibv_reg_mr(ib_pp_com_hndl.pd,
-                                    *mem_address,
-                                    real_size,
+                                 *mem_address,
+                                 real_size,
                         IBV_ACCESS_LOCAL_WRITE |
-                        IBV_ACCESS_REMOTE_WRITE)) == NULL) {
+                        IBV_ACCESS_REMOTE_WRITE)) == NULL)
+{
         fprintf(stderr,
                 "ERROR: Could not register the memory region "
-            "- %d (%s). Abort!\n",
-            errno,
-            strerror(errno));
+                "- %d (%s). Abort!\n",
+                errno,
+                strerror(errno));
         exit(errno);
     }
     return 0;
@@ -567,21 +597,34 @@ void cleanup_send_list(void)
 }
 
 void
-ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id)
+ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
 {
-
+    
     //memset(ib_pp_com_hndl.loc_com_buf.send_buf, 0x42, ib_pp_com_hndl.buf_size);
-
+    static uint8_t one = 1;
     /* create work request */
-    struct ibv_send_wr *send_wr =  prepare_send_list_elem();
-    *((uint8_t*)memreg+length) = 1;
+    struct ibv_send_wr *send_wr = prepare_send_list_elem();
 
-    send_wr->sg_list->addr      = (uintptr_t)memreg;
-    send_wr->sg_list->length    = length+1;
-    send_wr->sg_list->lkey      = mrs[mr_id]->lkey;
+    if (gpumemreg)
+    {
+        printf("gpu path... \n");
+        if (cudaMemcpy(memreg + length, &one, 1, cudaMemcpyHostToDevice) != cudaSuccess)
+        {
+            fprintf(stderr, "error");
+        }
+    }
+    else
+    {
+        *((uint8_t *)memreg + length) = 1;
+    }
 
-    send_wr->wr.rdma.rkey       = ib_pp_com_hndl.rem_com_buf.qp_info.key;
+    send_wr->sg_list->addr = (uintptr_t)memreg;
+    send_wr->sg_list->length = length + 1;
+    send_wr->sg_list->lkey = mrs[mr_id]->lkey;
+
+    send_wr->wr.rdma.rkey = ib_pp_com_hndl.rem_com_buf.qp_info.key;
     send_wr->wr.rdma.remote_addr    = (uintptr_t)ib_pp_com_hndl.rem_com_buf.recv_buf;
+
 
     send_wr->wr_id          = IB_PP_WRITE_WR_ID;
     send_wr->opcode			= IBV_WR_RDMA_WRITE_WITH_IMM;
@@ -589,12 +632,15 @@ ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id)
 	send_wr->imm_data		= htonl(0x1);
 
     ib_pp_com_hndl.send_wr = send_wr;
+
 }
+
 
 /* send data */
 void
 ib_pp_msg_send(ib_pp_com_hndl_t *com_hndl)
 {
+
     /* we have to call ibv_post_send() as long as 'send_list' contains elements  */
     struct ibv_wc wc;
     struct ibv_send_wr *remaining_send_wr = NULL;
@@ -839,9 +885,9 @@ int ib_connect_client(void *memreg, int mr_id, char *server_address)
     return 0;
 }
 
-void ib_free_memreg(void* memreg, int mr_id)
+void ib_free_memreg(void* memreg, int mr_id, bool gpumemreg)
 {
-    /* free memory regions */
+    /* free memory regions*/ 
     printf("Deregistering memory ... \n");
     if (ibv_dereg_mr(mrs[mr_id]) < 0) {
         fprintf(stderr,
@@ -852,8 +898,14 @@ void ib_free_memreg(void* memreg, int mr_id)
             strerror(errno));
         exit(errno);
     }
-    free(memreg);
+
+    if(gpumemreg){
+        cudaFree(memreg);
+    }else{
+        free(memreg);
+    }
 }
+
 
 
 void ib_cleanup(void)
@@ -922,7 +974,7 @@ void ib_final_cleanup(void)
     printf("Done!\n");
 }
 
-int ib_server_recv(void *memptr, int mr_id, size_t length)
+int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
 {
     ib_connect_server(memptr, mr_id);
 
@@ -938,15 +990,20 @@ int ib_server_recv(void *memptr, int mr_id, size_t length)
            ib_pp_com_hndl.rem_com_buf.qp_info.psn,
            (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
            ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
-
-    ib_pp_prepare_run(memptr, length, mr_id);
+    if(togpumem){
+    ib_pp_prepare_run(memptr, length, mr_id, true);
+    }
+    else{
+    ib_pp_prepare_run(memptr, length, mr_id, false);
+    }
     ib_pp_msg_recv(&ib_pp_com_hndl, length, mr_id);
+    
     //ib_pp_msg_send(&ib_pp_com_hndl);
     //printf("received: %s\n", memptr);
     return 0;
 }
 
-int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node)
+int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool fromgpumem)
 {
     ib_connect_client(memptr, mr_id, peer_node);
 
@@ -962,74 +1019,13 @@ int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node)
            ib_pp_com_hndl.rem_com_buf.qp_info.psn,
            (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
            ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
-    //strcpy((char*)memptr, "Hello world from distant shores!");
-    //printf("want to send: %s\n", (char*)memptr);
-    ib_pp_prepare_run(memptr, length, mr_id);
+
+
+    if(fromgpumem){
+    ib_pp_prepare_run(memptr, length, mr_id, true);
+    }
+    else{
+    ib_pp_prepare_run(memptr, length, mr_id, false);
+    }
     ib_pp_msg_send(&ib_pp_com_hndl);
 }
-
-
-#if 0
-int main(int argc, char **argv)
-{
-    int arg             = 0;
-    int32_t server          = -1;
-    char peer_node[NAME_LENGTH]     = { [0 ... NAME_LENGTH-1] = 0 };
-    int device_id_param = 0;
-
-    while ((arg = getopt(argc, argv, "hscbd:p:")) != -1) {
-        switch (arg) {
-        case 's':
-            server = 1;
-            break;
-        case 'c':
-            server = 0;
-            break;
-        case 'p':
-            strcpy(peer_node, optarg);
-            break;
-        case 'd':
-            device_id_param = atoi(optarg);
-            break;
-        case 'h':
-            printf("usage ./%s "
-                   "-s/-c -p <peer_node>\n", argv[0]);
-            break;
-
-        }
-    }
-
-    srand48(getpid() * time(NULL));
-
-    if (server == -1) {
-        fprintf(stderr, "ERROR: You must either specify the "
-                "-s or -c argument. Abort!\n");
-        exit(-1);
-    } else if (!server && (strlen(peer_node) == 0)) {
-        fprintf(stderr, "ERROR: The client must specify the peer_node "
-                "argument. Abort!\n");
-        exit(-1);
-    }
-
-    void *memptr, *memptr2;
-    ib_init(device_id_param);
-    ib_allocate_memreg(&memptr, MAX_LEN, 0);
-    ib_allocate_memreg(&memptr2, MAX_LEN, 1);
-    if (server) {
-        ib_server_recv(memptr, 0, MAX_LEN);
-    } else { //client
-        ib_client_send(memptr, 0, MAX_LEN, peer_node);
-    }
-    /* wait for opponent */
-    printf("Enter barrier ...\n");
-    //ib_pp_barrier(0, server);
-    printf("Benchmark finished!\n");
-
-    ib_cleanup();
-    ib_free_memreg(memptr, 0);
-    ib_free_memreg(memptr2, 1);
-    ib_final_cleanup();
-
-    return 0;
-}
-#endif
