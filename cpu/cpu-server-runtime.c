@@ -1090,7 +1090,7 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
         void *server_ptr = NULL;
-        if (ib_allocate_memreg(&server_ptr, size, hainfo_cnt) == 0) {
+        if (ib_allocate_memreg(&server_ptr, size, hainfo_cnt, false) == 0) {
 
             if (flags & cudaHostAllocPortable) {
                 register_flags |= cudaHostRegisterPortable;
@@ -1364,7 +1364,7 @@ struct ib_thread_info {
 void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    ib_server_recv(info->host_ptr, info->index, info->size);
+    ib_server_recv(info->host_ptr, info->index, info->size, false);
     info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
     //ib_cleanup();
     free (info);
@@ -1410,7 +1410,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
           resource_mg_get(&rm_memory, (void*)device_ptr),
           size, kind);
         //TODO: Replace hardcoded IB destination below (Environment variable?)
-        ib_client_send(hainfo[index].server_ptr, index, size, "epyc4");
+        ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", false);
     }
 out:
     RECORD_RESULT(integer, *result);

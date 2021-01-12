@@ -1197,7 +1197,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         shm_unlink(shm_name);
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-        if (ib_allocate_memreg(pHost, size, hainfo_cnt) != 0) {
+        if (ib_allocate_memreg(pHost, size, hainfo_cnt, false) != 0) {
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
@@ -1212,7 +1212,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         if (ret == cudaSuccess) {
             hainfo_cnt++;
         } else {
-            ib_free_memreg(*pHost, hainfo_cnt);
+            ib_free_memreg(*pHost, hainfo_cnt, false);
             *pHost = NULL;
         }
 #else
@@ -1482,7 +1482,7 @@ struct ib_thread_info {
 void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    ib_server_recv(info->host_ptr, info->index, info->size);
+    ib_server_recv(info->host_ptr, info->index, info->size, false);
     //ib_cleanup();
     return NULL;
 }
@@ -1509,7 +1509,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
-                ib_client_send((void*)src, index, count, "ghost");
+                ib_client_send((void*)src, index, count, "ghost",false);
                 //ib_cleanup();
 #else
                 LOGE(LOG_ERROR, "infiniband is disabled.");
