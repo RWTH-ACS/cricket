@@ -1,6 +1,7 @@
 #include "resource-mg.h"
 #include "list.h"
 #include "log.h"
+#include <stdio.h>
 
 
 int resource_mg_init(resource_mg *mg, int bypass)
@@ -75,10 +76,11 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
     LOGE(LOG_DEBUG, "no find: %p", client_address);
     return client_address;
 }
-
+//??? this gives cricket the device pointer
 inline void* resource_mg_get(resource_mg *mg, void* client_address)
 {
     if (mg->bypass) {
+//this path is taken
         return client_address;
     } else {
         return resource_mg_search_map(mg, client_address);

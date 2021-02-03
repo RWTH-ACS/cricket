@@ -223,6 +223,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
 {
+    printf("### rpc_cd_prog_1_freeresult called...\n");
     if (b == (xdrproc_t) xdr_str_result) {
         str_result *res = (str_result*)c;
         if (res->err == 0) {

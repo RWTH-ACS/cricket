@@ -1096,6 +1096,7 @@ cudaError_t cudaFreeHost(void* ptr)
             goto out;
         }
     } else if (socktype == TCP) {
+//??? whats the use of this
 #ifdef WITH_IB //Use infiniband
         i = hainfo_getindex(ptr);
         if (i == -1) {
@@ -1274,6 +1275,7 @@ DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
 
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
+    printf("### cudaMalloc client was called ######################################################...\n");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
@@ -1491,6 +1493,7 @@ void* ib_thread(void* arg)
 #endif //WITH_IB
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
+    printf("### cudaMemcpy called #######################...\n");
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1498,8 +1501,9 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     int ret = 1;
     enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {
+//get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);
-        /* not a cudaHostAlloc'ed memory */
+        /* not a cudaHostAlloc'ed memory    what is that, not relevant for infiniband */
         if (index == -1) {
             mem_data src_mem;
             src_mem.mem_data_len = count;
@@ -1510,7 +1514,10 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
+                printf("##### cudaMemcpy with IB...\n");
+                //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
+                //this will stay false/cpu srcS
                 ib_client_send((void*)src, index, count, "ghost",false);
                 //ib_cleanup();
 #else
@@ -1524,6 +1531,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             clnt_perror (clnt, "call failed");
         }
     } else if (kind == cudaMemcpyDeviceToHost) {
+        //get the dst, reg cpu mem reg/ buffer
         int index = hainfo_getindex(dst);
         /* not a cudaHostAlloc'ed memory */
         if (index == -1) {
@@ -1551,10 +1559,12 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                     .host_ptr = dst,
                     .size = count,
                 };
+                // initialize server waiting for dev to host transfer
                 if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
                     LOGE(LOG_ERROR, "starting ib thread failed.");
                     goto cleanup;
                 }
+                //this lead to server side function cuda_memcpy_ib_1 and sends server data to initialiced waiting ib server
                 retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
                 pthread_join(thread, NULL);
 #else
@@ -1591,8 +1601,10 @@ DEF_FN(cudaError_t, cudaMemcpy3D, const struct cudaMemcpy3DParms*, p)
 DEF_FN(cudaError_t, cudaMemcpy3DAsync, const struct cudaMemcpy3DParms*, p, cudaStream_t, stream)
 DEF_FN(cudaError_t, cudaMemcpy3DPeer, const struct cudaMemcpy3DPeerParms*, p)
 DEF_FN(cudaError_t, cudaMemcpy3DPeerAsync, const struct cudaMemcpy3DPeerParms*, p, cudaStream_t, stream)
+
 cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
+    printf("### cudaMemcpyAsync called ###########################################...\n");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT

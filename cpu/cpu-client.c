@@ -173,12 +173,14 @@ void __attribute__ ((destructor)) deinit_rpc(void)
 
 void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress, const char *deviceName, int ext, size_t size, int constant, int global)
 {
+    printf("## cudaRegisterVar called...\n");
 }
 
 void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,
                             const char *deviceName, int thread_limit, uint3 *tid,
                             uint3 *bid, dim3 *bDim, dim3 *gDim, int *wSize)
 {
+    printf("## cudaRegisterFunction called...\n");
     int result;
     enum clnt_stat retval_1;
 
