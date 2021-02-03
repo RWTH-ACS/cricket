@@ -1155,14 +1155,22 @@ bool_t cuda_host_get_flags_1_svc(ptr pHost, int_result *result, struct svc_req *
  * maybe we can register infiniband segment though?
  */
 /* cudaHostUnregister ( void* ptr ) same as above */
-
+//here we will register new ib region 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
-{
+{   printf("#### cuda_malloc_1_svc called...\n");
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc");
-    result->err = cudaMalloc((void**)&result->ptr_result_u.ptr, argp);
-    resource_mg_create(&rm_memory, (void*)result->ptr_result_u.ptr);
+    result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
+    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+
+
+#ifdef WITH_IB
+    hainfo_cnt++;
+    printf("the hainfo_cnt is %d ########### \n", hainfo_cnt);
+    ib_register_memreg((void **)&result->ptr_result_u.ptr, argp, hainfo_cnt);
+#endif
+
 
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
@@ -1304,6 +1312,7 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
 
 bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
 {
+    printf("### cuda_memcpy_htd_1_svc #########################################...\n");
     RECORD_API(cuda_memcpy_htod_1_argument);
     RECORD_ARG(1, ptr);
     RECORD_ARG(2, mem);
@@ -1352,6 +1361,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
     return 1;
 }
 
+static size_t manCount = 5;
 
 #ifdef WITH_IB
 struct ib_thread_info {
@@ -1361,18 +1371,25 @@ struct ib_thread_info {
     size_t size;
     int result;
 };
+//is thread needed?
 void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    ib_server_recv(info->host_ptr, info->index, info->size, false);
-    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
+    //host ptr is reg mem region, gpu mem reg
+//    ib_server_recv(info->host_ptr, info->index, info->size, false);
+    //the following memcpy will not be needed
+//    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
     //ib_cleanup();
+
+    ib_server_recv(info->device_ptr, info->index, info->size, true);
+
     free (info);
     return NULL;
 }
-
+//the device ptr points to used device mem as is (as void*)
 bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
+    printf("##### cuda_memcpy_ib_1_svc ##################################..\n");
     RECORD_API(cuda_memcpy_ib_1_argument);
     RECORD_ARG(1, index);
     RECORD_ARG(2, device_ptr);
@@ -1392,25 +1409,33 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     }
 
     if (kind == cudaMemcpyHostToDevice) {
+        printf("######## cudaMemcpyHostToDevice ###########################...\n");
         pthread_t thread = {0};
+        // host ptr is device pointer!
         struct ib_thread_info *info = malloc(sizeof(struct ib_thread_info));
-        info->index = index;
+        info->index = manCount;
         info->host_ptr = hainfo[index].server_ptr;
         info->device_ptr = resource_mg_get(&rm_memory, (void*)device_ptr);
         info->size = size;
         info->result = 0;
+        manCount++;
         if (pthread_create(&thread, NULL, ib_thread, info) != 0) {
             LOGE(LOG_ERROR, "starting ib thread failed.");
             goto out;
         }
         *result = cudaSuccess;
     } else if (kind == cudaMemcpyDeviceToHost) {
-        *result = cudaMemcpy(
+        printf("#### cudaMemcpyDeviceToHost #################################...\n");
+//the following part won't be needed, cudaMemcpy to server_ptr (which will be the registered device mem region) 
+/*       *result = cudaMemcpy(
           hainfo[index].server_ptr,
           resource_mg_get(&rm_memory, (void*)device_ptr),
           size, kind);
+          ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", false);*/
+
         //TODO: Replace hardcoded IB destination below (Environment variable?)
-        ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", false);
+        //first arg will bei ib registered device mem reg
+        ib_client_send((void*)device_ptr, index, size, "epyc4", true);
     }
 out:
     RECORD_RESULT(integer, *result);
