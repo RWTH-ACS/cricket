@@ -44,6 +44,19 @@ static resource_mg rm_events;
 static resource_mg rm_arrays;
 static resource_mg rm_memory;
 
+static int hainfo_getserverindex(void *server_ptr)
+{
+    int i;
+    for (i=0; i < hainfo_cnt; ++i) {
+        if (hainfo[i].server_ptr != 0 &&
+            hainfo[i].server_ptr == server_ptr) {
+
+            return i;
+        }
+    }
+    return -1;
+}
+
 int server_runtime_init(int restore)
 {
     int ret = 0;
@@ -1050,11 +1063,6 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
 
-    if (client_cnt != hainfo_cnt) {
-        LOGE(LOG_ERROR, "number of shm segments on client and server do not agree (client: %d, host: %d)", client_cnt, hainfo_cnt);
-        return 1;
-    }
-
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
         snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
         if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
@@ -1089,33 +1097,7 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
         hainfo_cnt++;
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-        void *server_ptr = NULL;
-        if (ib_allocate_memreg(&server_ptr, size, hainfo_cnt, false) == 0) {
-
-            if (flags & cudaHostAllocPortable) {
-                register_flags |= cudaHostRegisterPortable;
-            }
-            if (flags & cudaHostAllocMapped) {
-                register_flags |= cudaHostRegisterMapped;
-            }
-            if (flags & cudaHostAllocWriteCombined) {
-                register_flags |= cudaHostRegisterMapped;
-            }
-
-            if ((*result = cudaHostRegister(server_ptr, size, flags)) != cudaSuccess) {
-                LOGE(LOG_ERROR, "cudaHostRegister failed.");
-                goto out;
-            }
-
-            hainfo[hainfo_cnt].cnt = client_cnt;
-            hainfo[hainfo_cnt].size = size;
-            hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
-            hainfo[hainfo_cnt].server_ptr = server_ptr;
-            hainfo_cnt++;
-        } else {
-            LOGE(LOG_ERROR, "failed to register infiniband memory region");
-            goto out;
-        }
+   
 #else
                 LOGE(LOG_ERROR, "infiniband is disabled.");
                 goto cleanup;
@@ -1157,19 +1139,26 @@ bool_t cuda_host_get_flags_1_svc(ptr pHost, int_result *result, struct svc_req *
 /* cudaHostUnregister ( void* ptr ) same as above */
 //here we will register new ib region 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
-{   printf("#### cuda_malloc_1_svc called...\n");
+{   
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc");
-    result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
-    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+//    result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
+//    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+        result->err = ib_allocate_memreg((void**)&result->ptr_result_u.ptr, argp, hainfo_cnt, true);
+            if (result->err == 0) {
+                hainfo[hainfo_cnt].cnt = hainfo_cnt;
+                hainfo[hainfo_cnt].size = argp;
+                hainfo[hainfo_cnt].server_ptr = (void*)result->ptr_result_u.ptr;
+
+                hainfo_cnt++;
+            }    
 
 
-#ifdef WITH_IB
+/*#ifdef WITH_IB
     hainfo_cnt++;
-    printf("the hainfo_cnt is %d ########### \n", hainfo_cnt);
     ib_register_memreg((void **)&result->ptr_result_u.ptr, argp, hainfo_cnt);
-#endif
+#endif*/
 
 
     RECORD_RESULT(ptr_result_u, *result);
@@ -1312,7 +1301,6 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
 
 bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
 {
-    printf("### cuda_memcpy_htd_1_svc #########################################...\n");
     RECORD_API(cuda_memcpy_htod_1_argument);
     RECORD_ARG(1, ptr);
     RECORD_ARG(2, mem);
@@ -1380,8 +1368,10 @@ void* ib_thread(void* arg)
     //the following memcpy will not be needed
 //    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
     //ib_cleanup();
+        info->result = 0;
 
-    ib_server_recv(info->device_ptr, info->index, info->size, true);
+    ib_server_recv(info->host_ptr, info->index, info->size, true);
+//    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyDeviceToDevice);
 
     free (info);
     return NULL;
@@ -1389,7 +1379,7 @@ void* ib_thread(void* arg)
 //the device ptr points to used device mem as is (as void*)
 bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
-    printf("##### cuda_memcpy_ib_1_svc ##################################..\n");
+    index = hainfo_getserverindex((void*)device_ptr);
     RECORD_API(cuda_memcpy_ib_1_argument);
     RECORD_ARG(1, index);
     RECORD_ARG(2, device_ptr);
@@ -1397,6 +1387,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     RECORD_ARG(4, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyIB");
     *result = cudaErrorInitializationError;
+    //anstatt array list (list.c)
     if (hainfo[index].cnt == 0 ||
         hainfo[index].cnt != index) {
 
@@ -1409,13 +1400,12 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     }
 
     if (kind == cudaMemcpyHostToDevice) {
-        printf("######## cudaMemcpyHostToDevice ###########################...\n");
         pthread_t thread = {0};
         // host ptr is device pointer!
         struct ib_thread_info *info = malloc(sizeof(struct ib_thread_info));
-        info->index = manCount;
+        info->index = index;
         info->host_ptr = hainfo[index].server_ptr;
-        info->device_ptr = resource_mg_get(&rm_memory, (void*)device_ptr);
+//        info->device_ptr = resource_mg_get(&rm_memory, (void*)device_ptr);
         info->size = size;
         info->result = 0;
         manCount++;
@@ -1425,17 +1415,16 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
         }
         *result = cudaSuccess;
     } else if (kind == cudaMemcpyDeviceToHost) {
-        printf("#### cudaMemcpyDeviceToHost #################################...\n");
 //the following part won't be needed, cudaMemcpy to server_ptr (which will be the registered device mem region) 
-/*       *result = cudaMemcpy(
+/*      *result = cudaMemcpy(
           hainfo[index].server_ptr,
           resource_mg_get(&rm_memory, (void*)device_ptr),
-          size, kind);
-          ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", false);*/
+          size, cudaMemcpyDeviceToDevice);*/
+          *result = 0;
+          ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", true);
 
         //TODO: Replace hardcoded IB destination below (Environment variable?)
         //first arg will bei ib registered device mem reg
-        ib_client_send((void*)device_ptr, index, size, "epyc4", true);
     }
 out:
     RECORD_RESULT(integer, *result);
