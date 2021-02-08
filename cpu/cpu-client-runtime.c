@@ -1275,7 +1275,6 @@ DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
 
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
-    printf("### cudaMalloc client was called ######################################################...\n");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
@@ -1493,7 +1492,7 @@ void* ib_thread(void* arg)
 #endif //WITH_IB
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
-    printf("### cudaMemcpy called #######################...\n");
+    
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1514,7 +1513,6 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-                printf("##### cudaMemcpy with IB...\n");
                 //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
                 //this will stay false/cpu srcS
@@ -1604,7 +1602,6 @@ DEF_FN(cudaError_t, cudaMemcpy3DPeerAsync, const struct cudaMemcpy3DPeerParms*, 
 
 cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
-    printf("### cudaMemcpyAsync called ###########################################...\n");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT

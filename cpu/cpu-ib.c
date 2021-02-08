@@ -200,8 +200,6 @@ void wait_for_client(uint16_t listen_portno)
  */
 int recv_data(void *buffer, size_t length)
 {
-    fprintf(stderr,
-                " ######################################recv_data called!\n");
     size_t bytes_received = 0;
     while(bytes_received < length) {
         bytes_received += recv(
@@ -222,8 +220,6 @@ int recv_data(void *buffer, size_t length)
  */
 int send_data(void *buffer, size_t length)
 {
-    fprintf(stderr,
-                " ######################################send_data called!\n");
     size_t bytes_sent = 0;
     while(bytes_sent < length) {
         bytes_sent += send(
@@ -344,7 +340,6 @@ ib_pp_barrier(int mr_id, int32_t server)
 //do we need this? YES for: cudaMalloc 
 size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
 {
-    printf("########################## ib register memreg called!!!############################## \n");
     /* allocate memory and register it with the protection domain */
     int res;
     if (mem_address == NULL) return 0;
@@ -612,7 +607,6 @@ ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
 
     if (gpumemreg)
     {
-        printf("gpu path... \n");
         if (cudaMemcpy(memreg + length, &one, 1, cudaMemcpyHostToDevice) != cudaSuccess)
         {
             fprintf(stderr, "error");
@@ -645,7 +639,6 @@ ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
 void
 ib_pp_msg_send(ib_pp_com_hndl_t *com_hndl)
 {
-    printf("####### welcome from ib_pp-msg_send ############## \n");
     /* we have to call ibv_post_send() as long as 'send_list' contains elements  */
     struct ibv_wc wc;
     struct ibv_send_wr *remaining_send_wr = NULL;
@@ -674,7 +667,7 @@ ib_pp_msg_send(ib_pp_com_hndl_t *com_hndl)
 
         if (wc.status != IBV_WC_SUCCESS) {
             fprintf(stderr,
-                "#######[ERROR] WR failed status %s (%d) for wr_id %lu\n",
+                "[ERROR] WR failed status %s (%d) for wr_id %lu\n",
                 ibv_wc_status_str(wc.status),
                 wc.status,
                 wc.wr_id);
@@ -743,7 +736,6 @@ ib_pp_msg_recv(ib_pp_com_hndl_t *com_hndl, uint32_t length, int mr_id)
 
 int ib_init(int _device_id)
 {
-    printf("### ib_init called...\n");
     device_id = _device_id;
     /* initialize com_hndl */
     memset(&ib_pp_com_hndl, 0, sizeof(ib_pp_com_hndl));
@@ -849,7 +841,7 @@ int ib_init(int _device_id)
 }
 
 int ib_connect_server(void *memreg, int mr_id)
-{   printf("### ib_connect_server called...\n");
+{   
     ib_pp_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
     ib_pp_init_com_hndl(mr_id);
@@ -869,7 +861,6 @@ int ib_connect_server(void *memreg, int mr_id)
 
 int ib_connect_client(void *memreg, int mr_id, char *server_address)
 {
-    printf("### ib_connect_client called...\n");
     ib_pp_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
     ib_pp_init_com_hndl(mr_id);
@@ -982,10 +973,10 @@ void ib_final_cleanup(void)
 }
 
 int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
-{   printf("### ib_server_recv called. and the mr_id is: %d..\n", mr_id);
+{   
     ib_connect_server(memptr, mr_id);
 
-    printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
+    /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
            ib_pp_com_hndl.loc_com_buf.qp_info.lid,
            ib_pp_com_hndl.loc_com_buf.qp_info.qpn,
            ib_pp_com_hndl.loc_com_buf.qp_info.psn,
@@ -996,7 +987,7 @@ int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
            ib_pp_com_hndl.rem_com_buf.qp_info.qpn,
            ib_pp_com_hndl.rem_com_buf.qp_info.psn,
            (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
-           ib_pp_com_hndl.rem_com_buf.qp_info.key);
+           ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
     if(togpumem){
     ib_pp_prepare_run(memptr, length, mr_id, true);
     }
@@ -1012,11 +1003,9 @@ int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
 
 int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool fromgpumem)
 {
-    printf("### ib_client_send called, and the mr_id is: %d...\n", mr_id);
     ib_connect_client(memptr, mr_id, peer_node);
-    printf("###### connect client worked ################ \n");
 
-    printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
+    /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
            ib_pp_com_hndl.loc_com_buf.qp_info.lid,
            ib_pp_com_hndl.loc_com_buf.qp_info.qpn,
            ib_pp_com_hndl.loc_com_buf.qp_info.psn,
@@ -1027,7 +1016,7 @@ int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool
            ib_pp_com_hndl.rem_com_buf.qp_info.qpn,
            ib_pp_com_hndl.rem_com_buf.qp_info.psn,
            (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
-           ib_pp_com_hndl.rem_com_buf.qp_info.key);
+           ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
 
 
     if(fromgpumem){
@@ -1036,7 +1025,5 @@ int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool
     else{
     ib_pp_prepare_run(memptr, length, mr_id, false);
     }
-    printf("ib_pp_prepare_run worked ###################### \n");
     ib_pp_msg_send(&ib_pp_com_hndl);
-    printf("ib_pp_msg_send worked ################# \n");
 }
