@@ -2,7 +2,7 @@
 BINARY = cricket
 
 CUDA_SRC = /usr/local/cuda
-CUDA_GDB_PATH = /home/eiling/tmp/cuda-gdb-11.1
+CUDA_GDB_PATH = ../submodules/cuda-gdb
 
 CC = g++
 LD = g++

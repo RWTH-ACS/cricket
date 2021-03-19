@@ -14,6 +14,7 @@ clean:
 cuda-gdb:
 	@echo -e "\033[36m----> Building submodules\033[0m"
 	$(MAKE) -C submodules cuda-gdb
+	$(MAKE) -C submodules cuda-gdb-libs
 
 libtirpc:
 	@echo -e "\033[36m----> Building libtirpc\033[0m"
