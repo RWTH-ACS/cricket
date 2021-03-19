@@ -195,7 +195,6 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
                             const char *deviceName, int thread_limit, uint3 *tid,
                             uint3 *bid, dim3 *bDim, dim3 *gDim, int *wSize)
 {
-    printf("## cudaRegisterFunction called...\n");
     int result;
     enum clnt_stat retval_1;
 

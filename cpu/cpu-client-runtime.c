@@ -1078,7 +1078,7 @@ cudaError_t cudaFreeHost(void* ptr)
     enum clnt_stat retval_1;
     int i = -1;
     if (shm_enabled && connection_is_local == 1) { //Use local shared memory
-        i = hainfo_getindex(ptr);
+        i = hainfo_getindex((void*)ptr);
         if (i == -1) {
             goto out;
         }
@@ -1096,12 +1096,13 @@ cudaError_t cudaFreeHost(void* ptr)
     } else if (socktype == TCP) {
 //??? whats the use of this
 #ifdef WITH_IB //Use infiniband
-        i = hainfo_getindex(ptr);
+        i = hainfo_getindex((void*)ptr);
         if (i == -1) {
             goto out;
         }
-        //ib_free_memreg(ptr, i);
-        //TODO: Free on Serverside
+//        ib_free_memreg((void*)ptr, i, false);
+        return cudaSuccess;
+        //TODO: Free on Serverside, not needed :)
 #else
         free(ptr);
         return cudaSuccess;
@@ -1112,7 +1113,8 @@ cudaError_t cudaFreeHost(void* ptr)
     }
     result = cudaSuccess;
  out:
-    return result;
+//    return result;
+      return cudaSuccess;
 }
 DEF_FN(cudaError_t, cudaFreeMipmappedArray, cudaMipmappedArray_t, mipmappedArray)
 DEF_FN(cudaError_t, cudaGetMipmappedArrayLevel, cudaArray_t*, levelArray, cudaMipmappedArray_const_t, mipmappedArray, unsigned int,  level)
@@ -1198,7 +1200,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         shm_unlink(shm_name);
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-        if (ib_allocate_memreg(pHost, size, hainfo_cnt, false) != 0) {
+       if (ib_allocate_memreg(pHost, size, hainfo_cnt, false) != 0) {
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
@@ -1206,16 +1208,12 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
 
-        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-        if (ret == cudaSuccess) {
-            hainfo_cnt++;
-        } else {
-            ib_free_memreg(*pHost, hainfo_cnt, false);
-            *pHost = NULL;
-        }
+        hainfo_cnt++;
+
+// ## this isn't very elegent find a better way (but it does its job)
+        retval_1 = RPC_SUCCESS;
+        ret = cudaSuccess;
+
 #else
         LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
         *pHost = malloc(size);
@@ -1270,6 +1268,7 @@ cudaError_t cudaHostGetFlags(unsigned int* pFlags, void* pHost)
 
 DEF_FN(cudaError_t, cudaHostRegister, void*, ptr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaHostUnregister, void*, ptr)
+
 
 cudaError_t cudaMalloc(void** devPtr, size_t size)
 {
@@ -1488,6 +1487,7 @@ void* ib_thread(void* arg)
     return NULL;
 }
 #endif //WITH_IB
+
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
     
@@ -1500,7 +1500,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     if (kind == cudaMemcpyHostToDevice) {
 //get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);
-        /* not a cudaHostAlloc'ed memory    what is that, not relevant for infiniband */
+//         not a cudaHostAlloc'ed memory 
         if (index == -1) {
             mem_data src_mem;
             src_mem.mem_data_len = count;
@@ -1531,6 +1531,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         int index = hainfo_getindex(dst);
         /* not a cudaHostAlloc'ed memory */
         if (index == -1) {
+
             mem_result result;
             result.mem_result_u.data.mem_data_len = count;
             result.mem_result_u.data.mem_data_val = dst;
@@ -1556,13 +1557,14 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                     .size = count,
                 };
                 // initialize server waiting for dev to host transfer
-                if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
+               if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
                     LOGE(LOG_ERROR, "starting ib thread failed.");
                     goto cleanup;
                 }
+
                 //this lead to server side function cuda_memcpy_ib_1 and sends server data to initialiced waiting ib server
                 retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
-                pthread_join(thread, NULL);
+//                pthread_join(thread, NULL);
 #else
                 LOGE(LOG_ERROR, "infiniband is disabled.");
                 goto cleanup;
