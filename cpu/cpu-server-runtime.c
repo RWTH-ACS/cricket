@@ -37,7 +37,7 @@ typedef struct host_alloc_info {
     void *server_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64];
-static size_t hainfo_cnt = 40;
+static size_t hainfo_cnt = 1;
 
 static resource_mg rm_streams;
 static resource_mg rm_events;
@@ -945,9 +945,10 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     uint64_t arg;
     api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree");
-    *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
-//    ib_free_memreg((void*)devPtr, index, true);
-//    *result = 0;
+//    *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
+    ib_free_memreg((void*)devPtr, index, true);
+    hainfo[index].server_ptr = 0;
+    *result = 0;
 
     /* The cleanup/simplification of the record could also be
      * done during checkpoint creation. What is better depends

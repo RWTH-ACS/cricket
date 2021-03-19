@@ -1102,7 +1102,8 @@ cudaError_t cudaFreeHost(void* ptr)
         if (i == -1) {
             goto out;
         }
-//        ib_free_memreg((void*)ptr, i, false);
+        ib_free_memreg((void*)ptr, i, false);
+        hainfo[i].client_ptr = 0;
         return cudaSuccess;
         //TODO: Free on Serverside, not needed :)
 #else

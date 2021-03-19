@@ -361,7 +361,6 @@ size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
 //page round up vuelleicht für gpu nicht wichtig
 size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gpumemreg)
 {
-    printf("######################### and the mr id is..... %d  ###############################\n", mr_id);
     /* allocate memory and register it with the protection domain */
     int res;
     size_t real_size = PAGE_ROUND_UP(memsize + 2);
@@ -886,7 +885,6 @@ int ib_connect_client(void *memreg, int mr_id, char *server_address)
 
 void ib_free_memreg(void* memreg, int mr_id, bool gpumemreg)
 {
-    printf("#####################hello from free memreg#######");
     /* free memory regions*/ 
     printf("Deregistering memory ... \n");
     if (ibv_dereg_mr(mrs[mr_id]) < 0) {
@@ -904,7 +902,6 @@ void ib_free_memreg(void* memreg, int mr_id, bool gpumemreg)
     }else{
         free(memreg);
     }
-    printf("###########goodbye from freememreg###################");
 }
 
 
