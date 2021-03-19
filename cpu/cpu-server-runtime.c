@@ -37,7 +37,7 @@ typedef struct host_alloc_info {
     void *server_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64];
-static size_t hainfo_cnt = 1;
+static size_t hainfo_cnt = 40;
 
 static resource_mg rm_streams;
 static resource_mg rm_events;
@@ -940,11 +940,14 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 {
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(devPtr);
+    int index = hainfo_getserverindex((void*)devPtr);
     int ret = 1;
     uint64_t arg;
     api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree");
     *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
+//    ib_free_memreg((void*)devPtr, index, true);
+//    *result = 0;
 
     /* The cleanup/simplification of the record could also be
      * done during checkpoint creation. What is better depends
@@ -1143,8 +1146,9 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc");
-//    result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
-//    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+
+
+#ifdef WITH_IB
         result->err = ib_allocate_memreg((void**)&result->ptr_result_u.ptr, argp, hainfo_cnt, true);
             if (result->err == 0) {
                 hainfo[hainfo_cnt].cnt = hainfo_cnt;
@@ -1153,13 +1157,10 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 
                 hainfo_cnt++;
             }    
-
-
-/*#ifdef WITH_IB
-    hainfo_cnt++;
-    ib_register_memreg((void **)&result->ptr_result_u.ptr, argp, hainfo_cnt);
-#endif*/
-
+#else
+    result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
+    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+#endif
 
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
@@ -1349,7 +1350,6 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
     return 1;
 }
 
-static size_t manCount = 5;
 
 #ifdef WITH_IB
 struct ib_thread_info {
@@ -1363,15 +1363,8 @@ struct ib_thread_info {
 void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    //host ptr is reg mem region, gpu mem reg
-//    ib_server_recv(info->host_ptr, info->index, info->size, false);
-    //the following memcpy will not be needed
-//    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyHostToDevice);
-    //ib_cleanup();
-        info->result = 0;
-
+    info->result = 0;
     ib_server_recv(info->host_ptr, info->index, info->size, true);
-//    info->result = cudaMemcpy(info->device_ptr, info->host_ptr, info->size, cudaMemcpyDeviceToDevice);
 
     free (info);
     return NULL;
@@ -1408,18 +1401,13 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
 //        info->device_ptr = resource_mg_get(&rm_memory, (void*)device_ptr);
         info->size = size;
         info->result = 0;
-        manCount++;
         if (pthread_create(&thread, NULL, ib_thread, info) != 0) {
             LOGE(LOG_ERROR, "starting ib thread failed.");
             goto out;
         }
         *result = cudaSuccess;
     } else if (kind == cudaMemcpyDeviceToHost) {
-//the following part won't be needed, cudaMemcpy to server_ptr (which will be the registered device mem region) 
-/*      *result = cudaMemcpy(
-          hainfo[index].server_ptr,
-          resource_mg_get(&rm_memory, (void*)device_ptr),
-          size, cudaMemcpyDeviceToDevice);*/
+
           *result = 0;
           ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", true);
 
