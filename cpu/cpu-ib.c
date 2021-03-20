@@ -36,10 +36,10 @@
 
 /* IB definitions */
 #define CQ_ENTRIES      (1)
-#define IB_PP_WRITE_WR_ID   (2)
-#define IB_PP_RECV_WR_ID    (1)
-#define IB_PP_SEND_WR_ID    (0)
-#define IB_PP_MTU       (IBV_MTU_2048)
+#define IB_WRITE_WR_ID   (2)
+#define IB_RECV_WR_ID    (1)
+#define IB_SEND_WR_ID    (0)
+#define IB_MTU       (IBV_MTU_2048)
 #define MAX_DEST_RD_ATOMIC  (1)
 #define MIN_RNR_TIMER       (1)
 #define MAX_SEND_WR         (8192)  // TODO: should be
@@ -56,24 +56,24 @@
 /*
  * Helper data types
  */
-typedef struct ib_pp_qp_info {
+typedef struct ib_qp_info {
     uint32_t qpn;
     uint16_t lid;
     uint16_t psn;
     uint32_t key;
     uint64_t addr;
-} ib_pp_qp_info_t;
+} ib_qp_info_t;
 
-typedef struct ib_pp_com_buf {
+typedef struct ib_com_buf {
     uint8_t *send_buf;
     uint8_t *recv_buf;
-    ib_pp_qp_info_t qp_info;
+    ib_qp_info_t qp_info;
     volatile char *new_msg;
     volatile char *send_flag;
-} ib_pp_com_buf_t;
+} ib_com_buf_t;
 
 
-typedef struct ib_pp_com_hndl {
+typedef struct ib_com_hndl {
     struct ibv_context      *ctx;       /* device context */
     struct ibv_device_attr_ex   dev_attr_ex;    /* extended device attributes */
     struct ibv_port_attr        port_attr;  /* port attributes */
@@ -83,18 +83,18 @@ typedef struct ib_pp_com_hndl {
     struct ibv_qp           *qp;        /* queue pair */
     struct ibv_comp_channel     *comp_chan;     /* completion event channel */
     struct ibv_send_wr      *send_wr;   /* data send list */
-    ib_pp_com_buf_t         loc_com_buf;
-    ib_pp_com_buf_t         rem_com_buf;
+    ib_com_buf_t         loc_com_buf;
+    ib_com_buf_t         rem_com_buf;
     uint8_t             used_port;  /* port of the IB device */
     uint32_t            buf_size;   /* size of the buffer */
-} ib_pp_com_hndl_t;
+} ib_com_hndl_t;
 /*
  * Global variables
  */
 uint8_t my_mask, rem_mask;
 
-static ib_pp_com_hndl_t ib_pp_com_hndl;
-static struct sockaddr_in ib_pp_server;
+static ib_com_hndl_t ib_com_hndl;
+static struct sockaddr_in ib_server;
 static int com_sock = 0;
 static int listen_sock = 0;
 static int device_id = 0;
@@ -111,12 +111,12 @@ void set_server_info(const char *hostname, int port) {
     }
 
     /* determine server address */
-    memset(&ib_pp_server, '0', sizeof(ib_pp_server));
-    ib_pp_server.sin_family = AF_INET;
-    ib_pp_server.sin_port = htons(port);
+    memset(&ib_server, '0', sizeof(ib_server));
+    ib_server.sin_family = AF_INET;
+    ib_server.sin_port = htons(port);
 
     char *server_ip = inet_ntoa(*(struct in_addr *)(hp->h_addr_list[0]));
-    int res = inet_pton(AF_INET, server_ip, &ib_pp_server.sin_addr);
+    int res = inet_pton(AF_INET, server_ip, &ib_server.sin_addr);
     if (res == 0) {
         fprintf(stderr, "'%s' is not a valid server address\n", server_ip);
     } else if (res < 0) {
@@ -131,7 +131,7 @@ void set_server_info(const char *hostname, int port) {
 int connect_to_server(void)
 {
     char buf[INET_ADDRSTRLEN];
-    if (inet_ntop(AF_INET, (const void*)&ib_pp_server.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
+    if (inet_ntop(AF_INET, (const void*)&ib_server.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
         perror("inet_ntop");
         return -1;
     }
@@ -142,8 +142,8 @@ int connect_to_server(void)
     }
 
     //fprintf(stderr, "[INFO] Trying to connect to migration server: %s\n", buf);
-    while (connect(com_sock, (struct sockaddr *)&ib_pp_server, sizeof(ib_pp_server)) < 0);
-    /*if (connect(com_sock, (struct sockaddr *)&ib_pp_server, sizeof(ib_pp_server)) < 0) {
+    while (connect(com_sock, (struct sockaddr *)&ib_server, sizeof(ib_server)) < 0);
+    /*if (connect(com_sock, (struct sockaddr *)&ib_server, sizeof(ib_server)) < 0) {
         perror("connect");
         return -1;
         }*/
@@ -267,7 +267,7 @@ void close_comm_channel(void)
 
 /* synchronize client and server in case of one_sided */
 void
-ib_pp_barrier(int mr_id, int32_t server)
+ib_barrier(int mr_id, int32_t server)
 {
     if (server) {
         struct ibv_sge sg_list = {
@@ -276,13 +276,13 @@ ib_pp_barrier(int mr_id, int32_t server)
             .lkey   = mrs[mr_id]->lkey
         };
         struct ibv_recv_wr recv_wr = {
-            .wr_id      = IB_PP_RECV_WR_ID,
+            .wr_id      = IB_RECV_WR_ID,
             .sg_list    = &sg_list,
             .num_sge    = 1,
         };
         struct ibv_recv_wr *bad_wr;
 
-        if (ibv_post_recv(ib_pp_com_hndl.qp, &recv_wr, &bad_wr) < 0) {
+        if (ibv_post_recv(ib_com_hndl.qp, &recv_wr, &bad_wr) < 0) {
             fprintf(stderr,
                     "ERROR: Could post recv "
                 "- %d (%s). Abort!\n",
@@ -297,7 +297,7 @@ ib_pp_barrier(int mr_id, int32_t server)
             .lkey   = mrs[mr_id]->lkey
         };
         struct ibv_send_wr send_wr = {
-            .wr_id      = IB_PP_SEND_WR_ID,
+            .wr_id      = IB_SEND_WR_ID,
             .sg_list    = &sg_list,
             .num_sge    = 1,
             .opcode     = IBV_WR_SEND,
@@ -305,7 +305,7 @@ ib_pp_barrier(int mr_id, int32_t server)
         };
         struct ibv_send_wr *bad_wr;
 
-        if (ibv_post_send(ib_pp_com_hndl.qp, &send_wr, &bad_wr) < 0) {
+        if (ibv_post_send(ib_com_hndl.qp, &send_wr, &bad_wr) < 0) {
             fprintf(stderr,
                     "ERROR: Could post send "
                 "- %d (%s). Abort!\n",
@@ -319,7 +319,7 @@ ib_pp_barrier(int mr_id, int32_t server)
     struct ibv_wc wc;
         int ne;
     do {
-        if ((ne = ibv_poll_cq(ib_pp_com_hndl.cq, 1, &wc)) < 0) {
+        if ((ne = ibv_poll_cq(ib_com_hndl.cq, 1, &wc)) < 0) {
             fprintf(stderr,
                     "ERROR: Could poll on CQ (for barrier)"
                 "- %d (%s). Abort!\n",
@@ -344,7 +344,7 @@ size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
     int res;
     if (mem_address == NULL) return 0;
 
-    if ((mrs[mr_id] = ibv_reg_mr(ib_pp_com_hndl.pd,
+    if ((mrs[mr_id] = ibv_reg_mr(ib_com_hndl.pd,
                                     *mem_address,
                                     memsize,
                         IBV_ACCESS_LOCAL_WRITE |
@@ -403,7 +403,7 @@ size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gp
         memset(*mem_address, 0x0, real_size);
     }
 
-    if ((mrs[mr_id] = ibv_reg_mr(ib_pp_com_hndl.pd,
+    if ((mrs[mr_id] = ibv_reg_mr(ib_com_hndl.pd,
                                  *mem_address,
                                  real_size,
                         IBV_ACCESS_LOCAL_WRITE |
@@ -422,11 +422,11 @@ size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gp
 
 /* initialize communication buffer for data transfer */
 void
-ib_pp_init_com_hndl(int mr_id)
+ib_init_com_hndl(int mr_id)
 {
     /* create completion event channel */
-    if ((ib_pp_com_hndl.comp_chan =
-        ibv_create_comp_channel(ib_pp_com_hndl.ctx)) == NULL) {
+    if ((ib_com_hndl.comp_chan =
+        ibv_create_comp_channel(ib_com_hndl.ctx)) == NULL) {
         fprintf(stderr,
             "[ERROR] Could not create the completion channel "
             "- %d (%s). Abort!\n",
@@ -437,10 +437,10 @@ ib_pp_init_com_hndl(int mr_id)
 
 
     /* create the completion queue */
-    if ((ib_pp_com_hndl.cq = ibv_create_cq(ib_pp_com_hndl.ctx,
+    if ((ib_com_hndl.cq = ibv_create_cq(ib_com_hndl.ctx,
                                CQ_ENTRIES,
                                NULL,        /* TODO: check cq_context */
-                           ib_pp_com_hndl.comp_chan,
+                           ib_com_hndl.comp_chan,
                            0)) == NULL) {   /* TODO: check comp_vector */
         fprintf(stderr,
                 "ERROR: Could not create the completion queue "
@@ -452,8 +452,8 @@ ib_pp_init_com_hndl(int mr_id)
 
     /* create send and recv queue pair  and initialize it */
     struct ibv_qp_init_attr init_attr = {
-        .send_cq = ib_pp_com_hndl.cq,
-        .recv_cq = ib_pp_com_hndl.cq,
+        .send_cq = ib_com_hndl.cq,
+        .recv_cq = ib_com_hndl.cq,
         .cap     = {
             .max_inline_data    = MAX_INLINE_DATA,
             .max_send_wr        = MAX_SEND_WR,
@@ -464,7 +464,7 @@ ib_pp_init_com_hndl(int mr_id)
         .qp_type = IBV_QPT_RC
 //      .sq_sig_all = 0 /* we do not want a CQE for each WR */
     };
-    if ((ib_pp_com_hndl.qp = ibv_create_qp(ib_pp_com_hndl.pd,
+    if ((ib_com_hndl.qp = ibv_create_qp(ib_com_hndl.pd,
                                &init_attr)) == NULL) {
         fprintf(stderr,
                 "ERROR: Could not create the queue pair "
@@ -477,10 +477,10 @@ ib_pp_init_com_hndl(int mr_id)
     struct ibv_qp_attr attr = {
         .qp_state           = IBV_QPS_INIT,
         .pkey_index         = 0,
-        .port_num       = ib_pp_com_hndl.used_port,
+        .port_num       = ib_com_hndl.used_port,
         .qp_access_flags    = (IBV_ACCESS_REMOTE_WRITE)
     };
-    if (ibv_modify_qp(ib_pp_com_hndl.qp,
+    if (ibv_modify_qp(ib_com_hndl.qp,
               &attr,
               IBV_QP_STATE |
               IBV_QP_PKEY_INDEX |
@@ -495,34 +495,34 @@ ib_pp_init_com_hndl(int mr_id)
     }
 
     /* fill in local qp_info */
-    ib_pp_com_hndl.loc_com_buf.qp_info.qpn  = ib_pp_com_hndl.qp->qp_num;
-    ib_pp_com_hndl.loc_com_buf.qp_info.psn  = lrand48() & 0xffffff;
-    ib_pp_com_hndl.loc_com_buf.qp_info.key  = mrs[mr_id]->lkey;
-    ib_pp_com_hndl.loc_com_buf.qp_info.addr = (uint64_t)ib_pp_com_hndl.loc_com_buf.recv_buf;
-    ib_pp_com_hndl.loc_com_buf.qp_info.lid  = ib_pp_com_hndl.port_attr.lid;
+    ib_com_hndl.loc_com_buf.qp_info.qpn  = ib_com_hndl.qp->qp_num;
+    ib_com_hndl.loc_com_buf.qp_info.psn  = lrand48() & 0xffffff;
+    ib_com_hndl.loc_com_buf.qp_info.key  = mrs[mr_id]->lkey;
+    ib_com_hndl.loc_com_buf.qp_info.addr = (uint64_t)ib_com_hndl.loc_com_buf.recv_buf;
+    ib_com_hndl.loc_com_buf.qp_info.lid  = ib_com_hndl.port_attr.lid;
 }
 
 /* connect to remote communication buffer */
 void
-ib_pp_con_com_buf()
+ib_con_com_buf()
 {
     /* connect QPs */
     struct ibv_qp_attr qp_attr = {
         .qp_state       = IBV_QPS_RTR,
         .path_mtu       = IBV_MTU_2048,
-        .dest_qp_num        = ib_pp_com_hndl.rem_com_buf.qp_info.qpn,
-        .rq_psn         = ib_pp_com_hndl.rem_com_buf.qp_info.psn,
+        .dest_qp_num        = ib_com_hndl.rem_com_buf.qp_info.qpn,
+        .rq_psn         = ib_com_hndl.rem_com_buf.qp_info.psn,
         .max_dest_rd_atomic = MAX_DEST_RD_ATOMIC,
         .min_rnr_timer      = MIN_RNR_TIMER,
         .ah_attr        = {
             .is_global  = 0,
             .sl         = 0,
             .src_path_bits  = 0,
-            .dlid       = ib_pp_com_hndl.rem_com_buf.qp_info.lid,
-            .port_num   = ib_pp_com_hndl.used_port,
+            .dlid       = ib_com_hndl.rem_com_buf.qp_info.lid,
+            .port_num   = ib_com_hndl.used_port,
         }
     };
-    if (ibv_modify_qp(ib_pp_com_hndl.qp,
+    if (ibv_modify_qp(ib_com_hndl.qp,
               &qp_attr,
               IBV_QP_STATE |
               IBV_QP_PATH_MTU |
@@ -542,9 +542,9 @@ ib_pp_con_com_buf()
     qp_attr.timeout         = 14;
     qp_attr.retry_cnt       = 7;
     qp_attr.rnr_retry       = 7;
-    qp_attr.sq_psn          = ib_pp_com_hndl.loc_com_buf.qp_info.psn;
+    qp_attr.sq_psn          = ib_com_hndl.loc_com_buf.qp_info.psn;
     qp_attr.max_rd_atomic   = 1;
-    if (ibv_modify_qp(ib_pp_com_hndl.qp, &qp_attr,
+    if (ibv_modify_qp(ib_com_hndl.qp, &qp_attr,
               IBV_QP_STATE              |
               IBV_QP_TIMEOUT            |
               IBV_QP_RETRY_CNT          |
@@ -586,7 +586,7 @@ prepare_send_list_elem(void)
 static inline
 void cleanup_send_list(void)
 {
-    struct ibv_send_wr *cur_send_wr = ib_pp_com_hndl.send_wr;
+    struct ibv_send_wr *cur_send_wr = ib_com_hndl.send_wr;
     struct ibv_send_wr *tmp_send_wr = NULL;
     while (cur_send_wr != NULL) {
         free(cur_send_wr->sg_list);
@@ -597,10 +597,10 @@ void cleanup_send_list(void)
 }
 
 void
-ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
+ib_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
 {
     
-    //memset(ib_pp_com_hndl.loc_com_buf.send_buf, 0x42, ib_pp_com_hndl.buf_size);
+    //memset(ib_com_hndl.loc_com_buf.send_buf, 0x42, ib_com_hndl.buf_size);
     static uint8_t one = 1;
     /* create work request */
     struct ibv_send_wr *send_wr = prepare_send_list_elem();
@@ -621,23 +621,23 @@ ib_pp_prepare_run(void *memreg, uint32_t length, int mr_id, bool gpumemreg)
     send_wr->sg_list->length = length + 1;
     send_wr->sg_list->lkey = mrs[mr_id]->lkey;
 
-    send_wr->wr.rdma.rkey = ib_pp_com_hndl.rem_com_buf.qp_info.key;
-    send_wr->wr.rdma.remote_addr    = (uintptr_t)ib_pp_com_hndl.rem_com_buf.recv_buf;
+    send_wr->wr.rdma.rkey = ib_com_hndl.rem_com_buf.qp_info.key;
+    send_wr->wr.rdma.remote_addr    = (uintptr_t)ib_com_hndl.rem_com_buf.recv_buf;
 
 
-    send_wr->wr_id          = IB_PP_WRITE_WR_ID;
+    send_wr->wr_id          = IB_WRITE_WR_ID;
     send_wr->opcode			= IBV_WR_RDMA_WRITE_WITH_IMM;
 	send_wr->send_flags		= IBV_SEND_SIGNALED | IBV_SEND_SOLICITED;
 	send_wr->imm_data		= htonl(0x1);
 
-    ib_pp_com_hndl.send_wr = send_wr;
+    ib_com_hndl.send_wr = send_wr;
 
 }
 
 
 /* send data */
 void
-ib_pp_msg_send(ib_pp_com_hndl_t *com_hndl)
+ib_msg_send(ib_com_hndl_t *com_hndl)
 {
     /* we have to call ibv_post_send() as long as 'send_list' contains elements  */
     struct ibv_wc wc;
@@ -682,7 +682,7 @@ ib_pp_msg_send(ib_pp_com_hndl_t *com_hndl)
 
 /* recv data */
 void
-ib_pp_msg_recv(ib_pp_com_hndl_t *com_hndl, uint32_t length, int mr_id)
+ib_msg_recv(ib_com_hndl_t *com_hndl, uint32_t length, int mr_id)
 {
     /* request notification on the event channel */
 	if (ibv_req_notify_cq(com_hndl->cq, 1) < 0) {
@@ -738,7 +738,7 @@ int ib_init(int _device_id)
 {
     device_id = _device_id;
     /* initialize com_hndl */
-    memset(&ib_pp_com_hndl, 0, sizeof(ib_pp_com_hndl));
+    memset(&ib_com_hndl, 0, sizeof(ib_com_hndl));
 
     struct ibv_device **device_list = NULL;
     int num_devices = 0;
@@ -763,7 +763,7 @@ int ib_init(int _device_id)
     size_t cur_dev = device_id;
     for (; cur_dev<(size_t)num_devices; ++cur_dev){
         /* open the device context */
-        if ((ib_pp_com_hndl.ctx = ibv_open_device(device_list[cur_dev])) == NULL) {
+        if ((ib_com_hndl.ctx = ibv_open_device(device_list[cur_dev])) == NULL) {
             fprintf(stderr,
                 "[ERROR] Could not open the device context "
                 "- %d (%s). Abort!\n",
@@ -773,7 +773,7 @@ int ib_init(int _device_id)
         }
 
         /* determine port count via normal device query (necessary for mlx_5) */
-        if (ibv_query_device(ib_pp_com_hndl.ctx, &ib_pp_com_hndl.dev_attr_ex.orig_attr) < 0) {
+        if (ibv_query_device(ib_com_hndl.ctx, &ib_com_hndl.dev_attr_ex.orig_attr) < 0) {
             fprintf(stderr,
                 "[ERROR] Could not query normal device attributes "
                 "- %d (%s). Abort!\n",
@@ -784,10 +784,10 @@ int ib_init(int _device_id)
 
 
         /* check all ports */
-        size_t num_ports = ib_pp_com_hndl.dev_attr_ex.orig_attr.phys_port_cnt;
+        size_t num_ports = ib_com_hndl.dev_attr_ex.orig_attr.phys_port_cnt;
         for (size_t cur_port=0; cur_port<=num_ports; ++cur_port) {
             /* query current port */
-            if (ibv_query_port(ib_pp_com_hndl.ctx, cur_port, &ib_pp_com_hndl.port_attr) < 0){
+            if (ibv_query_port(ib_com_hndl.ctx, cur_port, &ib_com_hndl.port_attr) < 0){
                 fprintf(stderr,
                     "[ERROR] Could not query port %lu "
                     "- %d (%s). Abort!\n",
@@ -797,16 +797,16 @@ int ib_init(int _device_id)
                 exit(EXIT_FAILURE);
             }
 
-            if (ib_pp_com_hndl.port_attr.state == IBV_PORT_ACTIVE) {
+            if (ib_com_hndl.port_attr.state == IBV_PORT_ACTIVE) {
                 active_port_found = 1;
-                ib_pp_com_hndl.used_port = cur_port;
+                ib_com_hndl.used_port = cur_port;
                 break;
             }
         }
 
         /* close this device if no active port was found */
         if (!active_port_found) {
-               if (ibv_close_device(ib_pp_com_hndl.ctx) < 0) {
+               if (ibv_close_device(ib_com_hndl.ctx) < 0) {
             fprintf(stderr,
                 "[ERROR] Could not close the device context "
                 "- %d (%s). Abort!\n",
@@ -826,10 +826,10 @@ int ib_init(int _device_id)
 
     /*fprintf(stderr, "[INFO] Using device '%s' and port %u\n",
             ibv_get_device_name(device_list[cur_dev]),
-            ib_pp_com_hndl.used_port);
+            ib_com_hndl.used_port);
 */
     /* allocate protection domain */
-    if ((ib_pp_com_hndl.pd = ibv_alloc_pd(ib_pp_com_hndl.ctx)) == NULL) {
+    if ((ib_com_hndl.pd = ibv_alloc_pd(ib_com_hndl.ctx)) == NULL) {
         fprintf(stderr,
             "[ERROR] Could not allocate protection domain "
             "- %d (%s). Abort!\n",
@@ -842,28 +842,28 @@ int ib_init(int _device_id)
 
 int ib_connect_server(void *memreg, int mr_id)
 {   
-    ib_pp_com_hndl.loc_com_buf.recv_buf = memreg;
+    ib_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
-    ib_pp_init_com_hndl(mr_id);
+    ib_init_com_hndl(mr_id);
 
     /* exchange QP information */
     wait_for_client(TCP_PORT);
 
-    recv_data(&ib_pp_com_hndl.rem_com_buf.qp_info, sizeof(ib_pp_qp_info_t));
-    send_data(&ib_pp_com_hndl.loc_com_buf.qp_info, sizeof(ib_pp_qp_info_t));
+    recv_data(&ib_com_hndl.rem_com_buf.qp_info, sizeof(ib_qp_info_t));
+    send_data(&ib_com_hndl.loc_com_buf.qp_info, sizeof(ib_qp_info_t));
 
     close_comm_channel();
-    ib_pp_com_hndl.rem_com_buf.recv_buf = (uint8_t*)ib_pp_com_hndl.rem_com_buf.qp_info.addr;
+    ib_com_hndl.rem_com_buf.recv_buf = (uint8_t*)ib_com_hndl.rem_com_buf.qp_info.addr;
 
-    ib_pp_con_com_buf();
+    ib_con_com_buf();
     return 0;
 }
 
 int ib_connect_client(void *memreg, int mr_id, char *server_address)
 {
-    ib_pp_com_hndl.loc_com_buf.recv_buf = memreg;
+    ib_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
-    ib_pp_init_com_hndl(mr_id);
+    ib_init_com_hndl(mr_id);
 
     /* exchange QP information */
     set_server_info(server_address, TCP_PORT);
@@ -873,13 +873,13 @@ int ib_connect_client(void *memreg, int mr_id, char *server_address)
         exit(-1);
     }
 
-    send_data(&ib_pp_com_hndl.loc_com_buf.qp_info, sizeof(ib_pp_qp_info_t));
-    recv_data(&ib_pp_com_hndl.rem_com_buf.qp_info, sizeof(ib_pp_qp_info_t));
+    send_data(&ib_com_hndl.loc_com_buf.qp_info, sizeof(ib_qp_info_t));
+    recv_data(&ib_com_hndl.rem_com_buf.qp_info, sizeof(ib_qp_info_t));
 
     close_comm_channel();
-    ib_pp_com_hndl.rem_com_buf.recv_buf = (uint8_t*)ib_pp_com_hndl.rem_com_buf.qp_info.addr;
+    ib_com_hndl.rem_com_buf.recv_buf = (uint8_t*)ib_com_hndl.rem_com_buf.qp_info.addr;
 
-    ib_pp_con_com_buf();
+    ib_con_com_buf();
     return 0;
 }
 
@@ -910,7 +910,7 @@ void ib_cleanup(void)
 {
     /* destroy qp */
     printf("Destroying queue pair ... \n");
-    if (ibv_destroy_qp(ib_pp_com_hndl.qp) < 0) {
+    if (ibv_destroy_qp(ib_com_hndl.qp) < 0) {
         fprintf(stderr,
                 "ERROR: Could not destroy QP "
             "- %d (%s). Abort!\n",
@@ -921,7 +921,7 @@ void ib_cleanup(void)
 
     /* destroy completion queues */
     printf("Destroying completion queue ... \n");
-    if (ibv_destroy_cq(ib_pp_com_hndl.cq) < 0) {
+    if (ibv_destroy_cq(ib_com_hndl.cq) < 0) {
         fprintf(stderr,
                 "ERROR: Could not destroy CQ"
             "- %d (%s). Abort!\n",
@@ -931,7 +931,7 @@ void ib_cleanup(void)
     }
 
     /* destroy the completion event channel */
-  if (ibv_destroy_comp_channel(ib_pp_com_hndl.comp_chan) < 0) {
+  if (ibv_destroy_comp_channel(ib_com_hndl.comp_chan) < 0) {
         fprintf(stderr,
                 "ERROR: Could not destroy completion event channel"
             "- %d (%s). Abort!\n",
@@ -948,7 +948,7 @@ void ib_final_cleanup(void)
 {
     /* free protection domain */
     printf("Deallocating PD ... \n");
-    if (ibv_dealloc_pd(ib_pp_com_hndl.pd) < 0) {
+    if (ibv_dealloc_pd(ib_com_hndl.pd) < 0) {
         fprintf(stderr,
             "ERROR: Unable to de-allocate PD "
             "on device"
@@ -960,7 +960,7 @@ void ib_final_cleanup(void)
 
     /* close device context */
     printf("Closing device ... \n");
-    if (ibv_close_device(ib_pp_com_hndl.ctx) < 0) {
+    if (ibv_close_device(ib_com_hndl.ctx) < 0) {
         fprintf(stderr,
             "ERROR: Unable to close device context "
             "on device"
@@ -977,26 +977,26 @@ int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
     ib_connect_server(memptr, mr_id);
 
     /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
-           ib_pp_com_hndl.loc_com_buf.qp_info.lid,
-           ib_pp_com_hndl.loc_com_buf.qp_info.qpn,
-           ib_pp_com_hndl.loc_com_buf.qp_info.psn,
-           (void*)ib_pp_com_hndl.loc_com_buf.qp_info.addr,
-           ib_pp_com_hndl.loc_com_buf.qp_info.key);
+           ib_com_hndl.loc_com_buf.qp_info.lid,
+           ib_com_hndl.loc_com_buf.qp_info.qpn,
+           ib_com_hndl.loc_com_buf.qp_info.psn,
+           (void*)ib_com_hndl.loc_com_buf.qp_info.addr,
+           ib_com_hndl.loc_com_buf.qp_info.key);
     printf("remote address:  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
-           ib_pp_com_hndl.rem_com_buf.qp_info.lid,
-           ib_pp_com_hndl.rem_com_buf.qp_info.qpn,
-           ib_pp_com_hndl.rem_com_buf.qp_info.psn,
-           (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
-           ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
+           ib_com_hndl.rem_com_buf.qp_info.lid,
+           ib_com_hndl.rem_com_buf.qp_info.qpn,
+           ib_com_hndl.rem_com_buf.qp_info.psn,
+           (void*)ib_com_hndl.rem_com_buf.qp_info.addr,
+           ib_com_hndl.rem_com_buf.qp_info.key);*/
     if(togpumem){
-    ib_pp_prepare_run(memptr, length, mr_id, true);
+    ib_prepare_run(memptr, length, mr_id, true);
     }
     else{
-    ib_pp_prepare_run(memptr, length, mr_id, false);
+    ib_prepare_run(memptr, length, mr_id, false);
     }
-    ib_pp_msg_recv(&ib_pp_com_hndl, length, mr_id);
+    ib_msg_recv(&ib_com_hndl, length, mr_id);
     
-    //ib_pp_msg_send(&ib_pp_com_hndl);
+    //ib_msg_send(&ib_com_hndl);
     //printf("received: %s\n", memptr);
     return 0;
 }
@@ -1006,24 +1006,24 @@ int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool
     ib_connect_client(memptr, mr_id, peer_node);
 
     /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
-           ib_pp_com_hndl.loc_com_buf.qp_info.lid,
-           ib_pp_com_hndl.loc_com_buf.qp_info.qpn,
-           ib_pp_com_hndl.loc_com_buf.qp_info.psn,
-           (void*)ib_pp_com_hndl.loc_com_buf.qp_info.addr,
-           ib_pp_com_hndl.loc_com_buf.qp_info.key);
+           ib_com_hndl.loc_com_buf.qp_info.lid,
+           ib_com_hndl.loc_com_buf.qp_info.qpn,
+           ib_com_hndl.loc_com_buf.qp_info.psn,
+           (void*)ib_com_hndl.loc_com_buf.qp_info.addr,
+           ib_com_hndl.loc_com_buf.qp_info.key);
     printf("remote address:  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
-           ib_pp_com_hndl.rem_com_buf.qp_info.lid,
-           ib_pp_com_hndl.rem_com_buf.qp_info.qpn,
-           ib_pp_com_hndl.rem_com_buf.qp_info.psn,
-           (void*)ib_pp_com_hndl.rem_com_buf.qp_info.addr,
-           ib_pp_com_hndl.rem_com_buf.qp_info.key);*/
+           ib_com_hndl.rem_com_buf.qp_info.lid,
+           ib_com_hndl.rem_com_buf.qp_info.qpn,
+           ib_com_hndl.rem_com_buf.qp_info.psn,
+           (void*)ib_com_hndl.rem_com_buf.qp_info.addr,
+           ib_com_hndl.rem_com_buf.qp_info.key);*/
 
 
     if(fromgpumem){
-    ib_pp_prepare_run(memptr, length, mr_id, true);
+    ib_prepare_run(memptr, length, mr_id, true);
     }
     else{
-    ib_pp_prepare_run(memptr, length, mr_id, false);
+    ib_prepare_run(memptr, length, mr_id, false);
     }
-    ib_pp_msg_send(&ib_pp_com_hndl);
+    ib_msg_send(&ib_com_hndl);
 }
