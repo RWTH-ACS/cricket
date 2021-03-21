@@ -1567,7 +1567,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 
                 //this lead to server side function cuda_memcpy_ib_1 and sends server data to initialiced waiting ib server
                 retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
-//                pthread_join(thread, NULL);
+                pthread_join(thread, NULL);
 #else
                 LOGE(LOG_ERROR, "infiniband is disabled.");
                 goto cleanup;
