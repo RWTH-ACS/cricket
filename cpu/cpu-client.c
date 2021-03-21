@@ -188,7 +188,6 @@ void __attribute__ ((destructor)) deinit_rpc(void)
 
 void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress, const char *deviceName, int ext, size_t size, int constant, int global)
 {
-    printf("## cudaRegisterVar called...\n");
 }
 
 void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,

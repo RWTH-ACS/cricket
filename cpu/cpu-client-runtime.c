@@ -1094,7 +1094,6 @@ cudaError_t cudaFreeHost(void* ptr)
             goto out;
         }
     } else if (socktype == TCP) {
-//??? whats the use of this
 #ifdef WITH_IB //Use infiniband
         i = hainfo_getindex((void*)ptr);
         if (i == -1) {
@@ -1103,7 +1102,6 @@ cudaError_t cudaFreeHost(void* ptr)
         ib_free_memreg((void*)ptr, i, false);
         hainfo[i].client_ptr = 0;
         return cudaSuccess;
-        //TODO: Free on Serverside, not needed :)
 #else
         free(ptr);
         return cudaSuccess;
@@ -1211,7 +1209,6 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 
         hainfo_cnt++;
 
-// ## this isn't very elegent find a better way (but it does its job)
         retval_1 = RPC_SUCCESS;
         ret = cudaSuccess;
 
@@ -1514,7 +1511,6 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #ifdef WITH_IB
                 //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
-                //this will stay false/cpu srcS
                 ib_client_send((void*)src, index, count, "ghost",false);
                 //ib_cleanup();
 #else
