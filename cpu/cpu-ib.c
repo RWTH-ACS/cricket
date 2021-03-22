@@ -358,7 +358,7 @@ size_t ib_register_memreg(void** mem_address, size_t memsize, int mr_id)
     }
     return 0;
 }
-//page round up vuelleicht für gpu nicht wichtig
+
 size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gpumemreg)
 {
     /* allocate memory and register it with the protection domain */
@@ -370,7 +370,6 @@ size_t ib_allocate_memreg(void** mem_address, size_t memsize, int mr_id, bool gp
 
     if (gpumemreg)
     {
-        printf("gpu path.... \n");
         if ((res = cudaMalloc(mem_address, real_size)) != cudaSuccess)
         {
             fprintf(stderr,
@@ -886,7 +885,6 @@ int ib_connect_client(void *memreg, int mr_id, char *server_address)
 void ib_free_memreg(void* memreg, int mr_id, bool gpumemreg)
 {
     /* free memory regions*/ 
-    printf("Deregistering memory ... \n");
     if (ibv_dereg_mr(mrs[mr_id]) < 0) {
         fprintf(stderr,
                 "ERROR: Could not de-register  "
