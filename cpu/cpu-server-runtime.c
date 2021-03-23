@@ -1364,7 +1364,7 @@ void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
     info->result = 0;
-    ib_server_recv(info->host_ptr, info->index, info->size, true);
+    ib_responder_recv(info->host_ptr, info->index, info->size, true);
 
     free (info);
     return NULL;
@@ -1410,7 +1410,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     } else if (kind == cudaMemcpyDeviceToHost) {
 
           *result = 0;
-          ib_client_send(hainfo[index].server_ptr, index, size, "epyc4", true);
+          ib_requester_send(hainfo[index].server_ptr, index, size, "epyc4", true);
 
         //TODO: Replace hardcoded IB destination below (Environment variable?)
         //first arg will bei ib registered device mem reg

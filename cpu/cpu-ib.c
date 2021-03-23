@@ -94,7 +94,7 @@ typedef struct ib_com_hndl {
 uint8_t my_mask, rem_mask;
 
 static ib_com_hndl_t ib_com_hndl;
-static struct sockaddr_in ib_server;
+static struct sockaddr_in ib_responder;
 static int com_sock = 0;
 static int listen_sock = 0;
 static int device_id = 0;
@@ -103,24 +103,24 @@ static int device_id = 0;
 static struct ibv_mr *mrs[32];
 static size_t mr_len = 0;
 
-void set_server_info(const char *hostname, int port) {
+void set_responder_info(const char *hostname, int port) {
     struct hostent *hp = gethostbyname(hostname);
     if (hp == NULL) {
         fprintf(stderr, "[ERROR] gethostbyname() failed. Abort!\n");
         exit(-1);
     }
 
-    /* determine server address */
-    memset(&ib_server, '0', sizeof(ib_server));
-    ib_server.sin_family = AF_INET;
-    ib_server.sin_port = htons(port);
+    /* determine responder address */
+    memset(&ib_responder, '0', sizeof(ib_responder));
+    ib_responder.sin_family = AF_INET;
+    ib_responder.sin_port = htons(port);
 
-    char *server_ip = inet_ntoa(*(struct in_addr *)(hp->h_addr_list[0]));
-    int res = inet_pton(AF_INET, server_ip, &ib_server.sin_addr);
+    char *responder_ip = inet_ntoa(*(struct in_addr *)(hp->h_addr_list[0]));
+    int res = inet_pton(AF_INET, responder_ip, &ib_responder.sin_addr);
     if (res == 0) {
-        fprintf(stderr, "'%s' is not a valid server address\n", server_ip);
+        fprintf(stderr, "'%s' is not a valid responder address\n", responder_ip);
     } else if (res < 0) {
-        fprintf(stderr, "An error occured while retrieving the migration server address\n");
+        fprintf(stderr, "An error occured while retrieving the migration responder address\n");
         perror("inet_pton");
     }
 }
@@ -128,10 +128,10 @@ void set_server_info(const char *hostname, int port) {
 /**
  * \brief Connects to a migration target via TCP/IP
  */
-int connect_to_server(void)
+int connect_to_responder(void)
 {
     char buf[INET_ADDRSTRLEN];
-    if (inet_ntop(AF_INET, (const void*)&ib_server.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
+    if (inet_ntop(AF_INET, (const void*)&ib_responder.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
         perror("inet_ntop");
         return -1;
     }
@@ -141,9 +141,9 @@ int connect_to_server(void)
         return -1;
     }
 
-    //fprintf(stderr, "[INFO] Trying to connect to migration server: %s\n", buf);
-    while (connect(com_sock, (struct sockaddr *)&ib_server, sizeof(ib_server)) < 0);
-    /*if (connect(com_sock, (struct sockaddr *)&ib_server, sizeof(ib_server)) < 0) {
+    //fprintf(stderr, "[INFO] Trying to connect to migration responder: %s\n", buf);
+    while (connect(com_sock, (struct sockaddr *)&ib_responder, sizeof(ib_responder)) < 0);
+    /*if (connect(com_sock, (struct sockaddr *)&ib_responder, sizeof(ib_responder)) < 0) {
         perror("connect");
         return -1;
         }*/
@@ -157,35 +157,35 @@ int connect_to_server(void)
  *
  * \param listen_portno the port of the migration socket
  */
-void wait_for_client(uint16_t listen_portno)
+void wait_for_requester(uint16_t listen_portno)
 {
-    int client_addr_len = 0;
-    struct sockaddr_in serv_addr;
-    struct sockaddr_in client_addr;
+    int requester_addr_len = 0;
+    struct sockaddr_in responder_addr;
+    struct sockaddr_in requester_addr;
 
     /* open migration socket */
-    //fprintf(stderr, "[INFO] Waiting for the client side...\n");
+    //fprintf(stderr, "[INFO] Waiting for the requester side...\n");
     listen_sock = socket(AF_INET, SOCK_STREAM, 0);
-    memset(&serv_addr, '0', sizeof(serv_addr));
+    memset(&responder_addr, '0', sizeof(responder_addr));
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(listen_portno);
+    responder_addr.sin_family = AF_INET;
+    responder_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    responder_addr.sin_port = htons(listen_portno);
 
     int yes = 1;
     setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, (void*) &yes, (socklen_t) sizeof(yes));
 
-    bind(listen_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    bind(listen_sock, (struct sockaddr*)&responder_addr, sizeof(responder_addr));
 
     listen(listen_sock, 10);
 
-    client_addr_len = sizeof(struct sockaddr_in);
-    if ((com_sock = accept(listen_sock, (struct sockaddr *)&client_addr, (socklen_t*)&client_addr_len)) < 0) {
+    requester_addr_len = sizeof(struct sockaddr_in);
+    if ((com_sock = accept(listen_sock, (struct sockaddr *)&requester_addr, (socklen_t*)&requester_addr_len)) < 0) {
         perror("accept");
         exit(EXIT_FAILURE);
     }
     char buf[INET_ADDRSTRLEN];
-    if (inet_ntop(AF_INET, (const void*)&client_addr.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
+    if (inet_ntop(AF_INET, (const void*)&requester_addr.sin_addr, buf, INET_ADDRSTRLEN) == NULL) {
         perror("inet_ntop");
         exit(EXIT_FAILURE);
     }
@@ -265,11 +265,11 @@ void close_comm_channel(void)
  * Helper functions
  */
 
-/* synchronize client and server in case of one_sided */
+/* synchronize requester and responder in case of one_sided */
 void
-ib_barrier(int mr_id, int32_t server)
+ib_barrier(int mr_id, int32_t responder)
 {
-    if (server) {
+    if (responder) {
         struct ibv_sge sg_list = {
             .addr   = 0,
             .length = 0,
@@ -839,14 +839,14 @@ int ib_init(int _device_id)
     return 0;
 }
 
-int ib_connect_server(void *memreg, int mr_id)
+int ib_connect_responder(void *memreg, int mr_id)
 {   
     ib_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
     ib_init_com_hndl(mr_id);
 
     /* exchange QP information */
-    wait_for_client(TCP_PORT);
+    wait_for_requester(TCP_PORT);
 
     recv_data(&ib_com_hndl.rem_com_buf.qp_info, sizeof(ib_qp_info_t));
     send_data(&ib_com_hndl.loc_com_buf.qp_info, sizeof(ib_qp_info_t));
@@ -858,15 +858,15 @@ int ib_connect_server(void *memreg, int mr_id)
     return 0;
 }
 
-int ib_connect_client(void *memreg, int mr_id, char *server_address)
+int ib_connect_requester(void *memreg, int mr_id, char *responder_address)
 {
     ib_com_hndl.loc_com_buf.recv_buf = memreg;
     /* initialize loc comm buf and connect to remote */
     ib_init_com_hndl(mr_id);
 
     /* exchange QP information */
-    set_server_info(server_address, TCP_PORT);
-    if (connect_to_server() < 0) {
+    set_responder_info(responder_address, TCP_PORT);
+    if (connect_to_responder() < 0) {
         fprintf(stderr, "[ERROR] Could not connect to the "
                 "destination. Abort!\n");
         exit(-1);
@@ -970,9 +970,9 @@ void ib_final_cleanup(void)
     printf("Done!\n");
 }
 
-int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
+int ib_responder_recv(void *memptr, int mr_id, size_t length, bool togpumem)
 {   
-    ib_connect_server(memptr, mr_id);
+    ib_connect_responder(memptr, mr_id);
 
     /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
            ib_com_hndl.loc_com_buf.qp_info.lid,
@@ -999,9 +999,9 @@ int ib_server_recv(void *memptr, int mr_id, size_t length, bool togpumem)
     return 0;
 }
 
-int ib_client_send(void *memptr, int mr_id, size_t length, char *peer_node, bool fromgpumem)
+int ib_requester_send(void *memptr, int mr_id, size_t length, char *peer_node, bool fromgpumem)
 {
-    ib_connect_client(memptr, mr_id, peer_node);
+    ib_connect_requester(memptr, mr_id, peer_node);
 
     /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
            ib_com_hndl.loc_com_buf.qp_info.lid,

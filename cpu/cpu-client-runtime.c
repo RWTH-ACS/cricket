@@ -1480,7 +1480,7 @@ struct ib_thread_info {
 void* ib_thread(void* arg)
 {
     struct ib_thread_info *info = (struct ib_thread_info*)arg;
-    ib_server_recv(info->host_ptr, info->index, info->size, false);
+    ib_responder_recv(info->host_ptr, info->index, info->size, false);
     //ib_cleanup();
     return NULL;
 }
@@ -1511,7 +1511,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #ifdef WITH_IB
                 //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
                 retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
-                ib_client_send((void*)src, index, count, "ghost",false);
+                ib_requester_send((void*)src, index, count, "ghost",false);
                 //ib_cleanup();
 #else
                 LOGE(LOG_ERROR, "infiniband is disabled.");
