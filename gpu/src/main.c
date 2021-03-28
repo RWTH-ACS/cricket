@@ -110,53 +110,6 @@ cuda_error:
     return false;
 }
 
-extern char *gdb_program_name;
-
-bool cricket_init_gdb(char *name)
-{
-    lim_at_start = (char *) sbrk (0);
-    /* initialize gdb streams, necessary for gdb_init */
-    notice_open_fds();
-    saved_command_line = (char*) xstrdup("");
-    main_ui = new ui(stdin, stdout, stderr);
-    current_ui = main_ui;
-    gdb_stdtargerr = gdb_stderr;
-    gdb_stdtargin = gdb_stdin;
-
-    /* initialize BFD, the binary file descriptor library */
-    if (bfd_init() != BFD_INIT_MAGIC) {
-        printf("error bfd init\n");
-        return false;
-    }
-
-    gdb_program_name = xstrdup (name);
-    current_directory = getcwd (NULL, 0);
-    if (current_directory == NULL)
-        printf("error finding working directory\n");
-
-    /* initialize gdb paths */
-    gdb_sysroot = relocate_gdb_directory(TARGET_SYSTEM_ROOT,
-                                         TARGET_SYSTEM_ROOT_RELOCATABLE);
-    if (gdb_sysroot == NULL || *gdb_sysroot == '\0') {
-        xfree(gdb_sysroot);
-        gdb_sysroot = xstrdup (TARGET_SYSROOT_PREFIX);
-    }
-    debug_file_directory = relocate_gdb_directory (DEBUGDIR, DEBUGDIR_RELOCATABLE);
-    gdb_datadir = relocate_gdb_directory (GDB_DATADIR, GDB_DATADIR_RELOCATABLE);
-
-    /* tell gdb that we do not want to run an interactive shell */
-    batch_flag = 1;
-
-
-    save_original_signals_state(batch_flag);
-    /* initialize GDB */
-    printf("gdb_init...\n");
-    gdb_init(gdb_program_name);
-
-    char *interpreter_p = xstrdup(INTERP_CONSOLE);
-    set_top_level_interpreter(interpreter_p);
-    return true;
-}
 
 int cricket_analyze(int argc, char *argv[])
 {
@@ -170,249 +123,6 @@ int cricket_analyze(int argc, char *argv[])
         return -1;
     }
     return 0;
-}
-
-int cricket_info(int argc, char *argv[])
-{
-    bfd *hostbfd = NULL;
-    bfd *cudabfd = NULL;
-    asection *section;
-    asection *cudasection;
-    size_t fatbin_pos, fatbin_size;
-    FILE *hostbfd_fd = NULL;
-    FILE *cudabfd_fd = NULL;
-    void *fatbin = NULL;
-    int ret = -1;
-    size_t prefixlen = strlen(CRICKET_ELF_NV_INFO_PREFIX);
-    char *filename = NULL;
-
-    cricket_elf_info info = {0};
-    char data[8];
-    uint32_t kernel_index;
-    size_t attr_num;
-    char *attrs;
-
-    size_t symtab_size;
-    asymbol **symtab;
-    size_t symtab_num;
-    size_t i;
-
-    if (argc != 3) {
-        fprintf(stderr, "wrong number of arguments, use: %s <executable>\n", argv[0]);
-        return -1;
-    }
-    filename = argv[2];
-
-    if (filename == NULL) {
-        fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
-        return -1;
-    }
-
-    bfd_init();
-
-    if ((hostbfd_fd = fopen(filename, "rb")) == NULL) {
-        fprintf(stderr, "cricket (%d): fopen failed\n", __LINE__);
-        return -1;
-    }
-
-    if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricket (%d): bfd_openr failed on %s\n", __LINE__,
-                filename);
-        fclose(hostbfd_fd);
-        goto cleanup;
-    }
-
-    if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricket (%d): %s has wrong bfd format\n", __LINE__,
-                filename);
-        goto cleanup;
-    }
-
-    for (section = hostbfd->sections; section != NULL; section = section->next) {
-        if (strcmp(section->name, CRICKET_ELF_FATBIN) != 0) {
-            continue;
-        } else {
-            //There is just one fatbin section so stop searching...
-            break;
-        }
-    }
-    //printf("found fatbin @ %p, size: %x\n", section->filepos, section->size);
-    if ((fatbin = malloc(section->size)) == NULL) {
-        goto cleanup;
-    }
-    if (fseek(hostbfd_fd, section->filepos, SEEK_SET) != 0) {
-        fprintf(stderr, "cricket: fseek failed\n");
-        goto cleanup;
-    }
-    if (fread(fatbin, section->size, 1, hostbfd_fd) != 1) {
-        fprintf(stderr, "cricket: fread failed\n");
-        goto cleanup;
-    }
-
-    //Now read CUBIN offsets from symtab
-
-    if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) < 0) {
-        fprintf(stderr, "cricket (%d): getting symtab size failed\n", __LINE__);
-        goto cleanup;
-    }
-
-    if ((symtab = (asymbol**)malloc(symtab_size)) == NULL) {
-        fprintf(stderr, "cricket (%d): malloc for symtab failed\n", __LINE__);
-        goto cleanup;
-    }
-
-    if ((symtab_num = bfd_canonicalize_symtab(hostbfd, symtab)) < 0) {
-        fprintf(stderr, "cricket (%d): canonicalize symtab failed\n", __LINE__);
-        goto cleanup;
-    }
-
-    for (i = 0; i < symtab_num; i++) {
-        if (!symtab[i] || strcmp(symtab[i]->name, "fatbinData") != 0) {
-            continue;
-        }
-        //printf("Found CUBIN at offset 0x%x\n", symtab[i]->value);
-
-
-
-        /* There is a 0x50 byte header in front of the actual ELF. I don't know what
-         * information the header contains. 
-         * Stackoverflow suggests the following (I'm not convinced...)
-         * struct {
-         *     uint32_t magic; // Always 0x466243b1
-         *     uint32_t seq;   // Sequence number of the cubin
-         *     uint64_t ptr;   // The pointer to the real cubin
-         *     uint64_t data_ptr;    // Some pointer related to the data segment
-         * }
-         * https://stackoverflow.com/questions/6392407/what-are-the-parameters-for-cudaregisterfatbinary-and-cudaregisterfunction-f/39453201#39453201
-         */
-        fatbin_pos = symtab[i]->value + 0x50;
-        fatbin_size = section->size - symtab[i]->value - 0x50;
-
-        if ((cudabfd_fd = fmemopen(fatbin+fatbin_pos, fatbin_size, "rb")) == NULL) {
-            fprintf(stderr, "cricket (%d): fmemopen failed\n", __LINE__);
-            goto cleanup;
-        }
-
-        if ((cudabfd = bfd_openstreamr(filename, NULL, cudabfd_fd)) == NULL) {
-            fprintf(stderr, "cricket: bfd_openstreamr failed\n");
-            fclose(cudabfd_fd);
-            goto cleanup;
-        }
-
-        if (!bfd_check_format(cudabfd, bfd_object)) {
-            fprintf(stderr, "cricket: wrong bfd format\n");
-            goto cleanup;
-        }
-
-
-        for (cudasection = cudabfd->sections; cudasection != NULL;
-             cudasection = cudasection->next) {
-
-            if (strncmp(cudasection->name, CRICKET_ELF_NV_INFO_PREFIX,
-                        prefixlen + 1) == 0) {
-                if (!cricket_elf_extract_attribute(
-                         cudabfd, cudasection, EIATTR_MIN_STACK_SIZE, 8, data,
-                         NULL, NULL)) {
-                    fprintf(stderr,
-                            "error: found .nv.info section but could not find "
-                            "stack size for kernel %s\n",
-                            cudasection->name);
-                }
-                info.stack_size = *(uint32_t *)(data + 4);
-            } else if (strncmp(cudasection->name, CRICKET_ELF_NV_INFO_PREFIX,
-                               prefixlen) == 0) {
-                if (!cricket_elf_extract_multiple_attributes(
-                         cudabfd, cudasection, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
-                         &attr_num)) {
-                    fprintf(stderr, "warning: found %s section but "
-                                    "could not find any EIATTR_KPARAM_INFO attributes. "
-                                    "Maybe the kernel has no parameters?\n",
-                            cudasection->name);
-                    attr_num = 0;
-                    attrs = NULL;
-                }
-                info.params = malloc(attr_num * sizeof(cricket_param_info));
-                info.param_num = attr_num;
-                printf("%s param_num %d\n", cudasection->name+prefixlen+1,
-                       info.param_num);
-                for (int i = 0; i != attr_num; ++i) {
-                    info.params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
-                    info.params[i].offset = *(uint16_t *)(attrs + 6 + i * 12);
-                    info.params[i].size = *(uint8_t *)(attrs + 10 + i * 12) >> 2;
-                }
-                printf("%s param_offsets ", cudasection->name+prefixlen+1);
-                for (int i = 0; i != attr_num; ++i) {
-                    for (int j = 0; j != attr_num; ++j) {
-                        if (info.params[j].index == i) {
-                            printf("%04x,", info.params[j].offset);
-                            break;
-                        }
-                    }
-                }
-                printf("\n");
-                printf("%s param_sizes ", cudasection->name+prefixlen+1);
-                for (int i = 0; i != attr_num; ++i) {
-                    for (int j = 0; j != attr_num; ++j) {
-                        if (info.params[j].index == i) {
-                            printf("%04x,", info.params[j].size);
-                            break;
-                        }
-                    }
-                }
-                printf("\n");
-                free(attrs);
-                if (!cricket_elf_extract_attribute(cudabfd, cudasection,
-                                                   EIATTR_PARAM_CBANK, 8, data,
-                                                   NULL, NULL)) {
-                    fprintf(stderr, "warning: found %s section but "
-                                    "could not find EIATTR_PARAM_CBANK attribute. "
-                                    "Maybe the kernel has no parameters?\n",
-                            cudasection->name);
-                   memset(data, 0, 8);
-                }
-                info.param_size = *(uint16_t *)(data + 6);
-                info.param_addr = *(uint16_t *)(data + 4);
-                printf("%s param_size %d\n", cudasection->name+prefixlen+1,
-                       info.param_size);
-                printf("%s param_addr %d\n", cudasection->name+prefixlen+1,
-                       info.param_addr);
-            } else if (strncmp(cudasection->name, CRICKET_ELF_NV_SHARED_PREFIX,
-                               strlen(CRICKET_ELF_NV_SHARED_PREFIX) - 1) == 0) {
-
-                if (!cricket_elf_extract_shared_size(cudasection,
-                                                     &info.shared_size)) {
-                    fprintf(stderr, "warning: could not read shared memory size\n");
-                }
-                printf("%s shared %d\n", cudasection->name+strlen(CRICKET_ELF_NV_SHARED_PREFIX),
-                       info.shared_size);
-            }
-
-        }
-        if (cudabfd != NULL) {
-            bfd_close(cudabfd);
-            cudabfd = NULL;
-        }
-    }
-
-    ret = 0;
-cleanup:
-    free(fatbin);
-    if (cudabfd != NULL)
-        bfd_close(cudabfd);
-    if (hostbfd != NULL)
-        bfd_close(hostbfd);
-    return ret;
-}
-
-static void
-symbol_file_add_main_adapter (const char *arg, int from_tty)
-{
-  symfile_add_flags add_flags = 0;
-
-  if (from_tty)
-    add_flags |= SYMFILE_VERBOSE;
-
-  symbol_file_add_main (arg, add_flags);
 }
 
 int cricket_restore(int argc, char *argv[])
@@ -487,7 +197,6 @@ int cricket_restore(int argc, char *argv[])
 
     // load the patched binary
     //exec_file_attach(patched_binary, !batch_flag);
-    //symbol_file_add_main_adapter(patched_binary, !batch_flag);
 
     // break when the kernel launches
     struct cmd_list_element *cl;
@@ -1376,7 +1085,6 @@ int cricket_start(int argc, char *argv[])
 
     /* load files */
     //exec_file_attach(argv[2], !batch_flag);
-    //symbol_file_add_main_adapter(argv[2], !batch_flag);
     //
     execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
     //execute_command("break main", !batch_flag);
@@ -1407,8 +1115,6 @@ int main(int argc, char *argv[])
         return cricket_restore(argc, argv);
     if (strcmp(argv[1], "analyze") == 0)
         return cricket_analyze(argc, argv);
-    if (strcmp(argv[1], "info") == 0)
-        return cricket_info(argc, argv);
 
     fprintf(stderr, "Unknown operation \"%s\".\n", argv[1]);
     return -1;
