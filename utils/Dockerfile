@@ -12,7 +12,7 @@ LABEL \
 RUN dnf -y update && \
     dnf install -y epel-release dnf-plugins-core && \
     dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm && \
-    dnf config-manager --set-enabled PowerTools && \
+    dnf config-manager --set-enabled powertools && \
     dnf config-manager --set-enabled remi
 
 RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \

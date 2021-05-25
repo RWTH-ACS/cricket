@@ -8,9 +8,9 @@ variables:
   # MAKE_OPTS: -j 16
 
 before_script:
-  - git config --local core.longpaths true
-  - git submodule sync --recursive
-  - git submodule update --init --recursive
+    #  - git config --local core.longpaths true
+    #- git submodule sync --recursive
+    #- git submodule update --init --recursive
 
 stages:
   - prepare
@@ -29,8 +29,7 @@ prepare:centos8:docker-dev:
         --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
         --tag ${DOCKER_IMAGE_DEV}:latest .
   tags:
-    - shell
-    - linux
+    - docker
 
 prepare:centos8:cuda10:
   stage: prepare
@@ -40,8 +39,7 @@ prepare:centos8:cuda10:
         --tag ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
         --tag ${DOCKER_IMAGE_DEV}_cuda10:latest .
   tags:
-    - shell
-    - linux
+    - docker
 
 # check if styleguide is fulfilled
 #style_check:
