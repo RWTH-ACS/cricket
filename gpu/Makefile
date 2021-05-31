@@ -33,6 +33,10 @@ BUILD_BASE := $(addprefix $(BUILD_DIR)/, $(notdir $(SRCS_BASE)))
 DEPS := $(addsuffix .d,$(BUILD_BASE))
 OBJS := $(addsuffix .o,$(BUILD_BASE))
 
+ifdef LOG
+CFLAGS += -DLOG_LEVEL=LOG_$(LOG)
+endif
+
 
 .PHONY: all objs clean show
 
