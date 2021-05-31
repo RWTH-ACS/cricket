@@ -18,8 +18,8 @@
 #include "main.h"
 #include <dlfcn.h>
 #include <sys/time.h>
-#include "signals-state-save-restore.h"
 
+#include "log.h"
 #include "cricket-util.h"
 #include "cricket-cr.h"
 #include "cricket-device.h"
@@ -29,6 +29,10 @@
 #include "cricket-heap.h"
 #include "cricket-elf.h"
 #include "gdb.h"
+
+#ifndef LOG_LEVEL
+#define LOG_LEVEL LOG_INFO
+#endif
 
 #define CRICKET_PROFILE 1
 
@@ -1077,7 +1081,7 @@ int cricket_start(int argc, char *argv[])
     struct cmd_list_element *cmd = NULL;
     CUDBGResult res;
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>\n", argv[0]);
         return -1;
     }
 
@@ -1101,8 +1105,9 @@ detach:
 
 int main(int argc, char *argv[])
 {
+    init_log(LOG_LEVEL, __FILE__);
     if (argc < 2) {
-        fprintf(stderr, "wrong number of arguments, use: %s "
+        LOG(LOG_INFO, "wrong number of arguments, use: %s "
                         "(start|checkpoint|restore)\n",
                 argv[0]);
         return -1;
@@ -1116,6 +1121,6 @@ int main(int argc, char *argv[])
     if (strcmp(argv[1], "analyze") == 0)
         return cricket_analyze(argc, argv);
 
-    fprintf(stderr, "Unknown operation \"%s\".\n", argv[1]);
+    LOG(LOG_ERROR, "Unknown operation \"%s\".\n", argv[1]);
     return -1;
 }

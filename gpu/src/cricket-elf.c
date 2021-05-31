@@ -856,6 +856,15 @@ cleanup:
     return ret;
 }
 
+size_t cudabfd_size = 0;
+int (*orig_cudabfd_stat)(struct bfd *abfd, struct stat* sb);
+int cudabfd_stat(struct bfd *bfd, struct stat *sb)
+{
+    //int ret = orig_cudabfd_stat(bfd, sb);
+    sb->st_size = cudabfd_size;
+    return 0;
+}
+
 #define CUDA_ELF_DEBUG_ 1
 bool cricket_elf_patch_all(const char *filename, const char *new_filename,
                            cricket_jmptable_index **jumptable,
@@ -948,6 +957,13 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         fclose(cudabfd_fd);
         goto cleanup;
     }
+
+    cudabfd_size = fatbin_size;
+    orig_cudabfd_stat = cudabfd->iovec->bstat;
+    struct bfd_iovec *iovec = malloc(sizeof(struct bfd_iovec));
+    memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
+    iovec->bstat = cudabfd_stat;
+    cudabfd->iovec = iovec;
     
     if (!bfd_check_format(cudabfd, bfd_object)) {
         fprintf(stderr, "cricket-elf: wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());
@@ -1137,14 +1153,6 @@ void cricket_elf_free_jumptable(cricket_jmptable_index **jmptbl,
     free(*jmptbl);
 }
 
-size_t cudabfd_size = 0;
-int (*orig_cudabfd_stat)(struct bfd *abfd, struct stat* sb);
-int cudabfd_stat(struct bfd *bfd, struct stat *sb)
-{
-    //int ret = orig_cudabfd_stat(bfd, sb);
-    sb->st_size = cudabfd_size;
-    return 0;
-}
 
 #define _CRICKET_ELF_DEBUG_ 1
 bool cricket_elf_analyze(const char *filename)
