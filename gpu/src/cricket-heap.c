@@ -9,7 +9,7 @@
 bool cricket_focus_host(bool batch_flag)
 {
     struct cmd_list_element *c;
-    char *threadcmd = "thread 1";
+    const char *threadcmd = "thread 1";
     c = lookup_cmd(&threadcmd, cmdlist, "", 0, 1);
 
     if (c == NULL || c == (struct cmd_list_element *)-1)
@@ -25,7 +25,7 @@ bool cricket_focus_host(bool batch_flag)
 bool cricket_focus_kernel(bool batch_flag)
 {
     struct cmd_list_element *c;
-    char *threadcmd = "cuda kernel 0";
+    const char *threadcmd = "cuda kernel 0";
     c = lookup_cmd(&threadcmd, cmdlist, "", 0, 1);
 
     if (c == NULL || c == (struct cmd_list_element *)-1)

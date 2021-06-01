@@ -196,6 +196,8 @@ bool stack_size_filter(void *data, void *kernel_i)
     return *((uint32_t *)data) == *((uint32_t *)kernel_i) + 1;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 bool cricket_elf_extract_multiple_attributes(bfd *obfd,
                                              asection *section,
                                              uint8_t attribute,
@@ -246,6 +248,7 @@ cleanup:
     free(contents);
     return res;
 }
+#pragma GCC diagnostic pop
 
 bool cricket_elf_extract_attribute(bfd *obfd,
                                    asection *section,
@@ -397,6 +400,8 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
     return false;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 static void cricket_elf_print_mem(void *offset, size_t size)
 {
     int c = 0;
@@ -407,6 +412,7 @@ static void cricket_elf_print_mem(void *offset, size_t size)
     }
     printf("\n");
 }
+#pragma GCC diagnostic pop
 
 bool cricket_elf_print_symtab(bfd *abfd)
 {
@@ -443,6 +449,8 @@ bool cricket_elf_print_symtab(bfd *abfd)
 }
 
 #define CRICKET_SASS_BPT (0xe3a00000001000c0L)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 static bool cricket_elf_find_bpt(void *function_base, uint64_t relative_pc,
                                  uint64_t *relative_bpt, uint32_t *number)
 {
@@ -630,6 +638,7 @@ static bool cricket_elf_count_cal(void *function_base, size_t function_size,
     }
     return true;
 }
+#pragma GCC diagnostic pop
 
 bool cricket_elf_get_fun_info(cricket_function_info *function_info,
                               size_t fi_num, const char *fun_name,
@@ -878,7 +887,8 @@ int cudabfd_stat(struct bfd *bfd, struct stat *sb)
     return 0;
 }
 
-#define CUDA_ELF_DEBUG_ 1
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-arith"
 bool cricket_elf_patch_all(const char *filename, const char *new_filename,
                            cricket_jmptable_index **jumptable,
                            size_t *jumptable_len)
@@ -902,6 +912,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
     size_t jmptbl_i = 0;
     size_t func_num = 0;
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
+    struct bfd_iovec *iovec = NULL;
 
     if (filename == NULL) {
         LOGE(LOG_ERROR, "filename is NULL");
@@ -969,7 +980,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
 
     cudabfd_size = fatbin_size;
     orig_cudabfd_stat = cudabfd->iovec->bstat;
-    struct bfd_iovec *iovec = malloc(sizeof(struct bfd_iovec));
+    iovec = (struct bfd_iovec*)malloc(sizeof(struct bfd_iovec));
     memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
     iovec->bstat = cudabfd_stat;
     cudabfd->iovec = iovec;
@@ -1163,7 +1174,6 @@ void cricket_elf_free_jumptable(cricket_jmptable_index **jmptbl,
 }
 
 
-#define _CRICKET_ELF_DEBUG_ 1
 bool cricket_elf_analyze(const char *filename)
 {
     bfd *hostbfd = NULL;
@@ -1182,6 +1192,7 @@ bool cricket_elf_analyze(const char *filename)
     size_t fixed_num = 4;
 
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
+    struct bfd_iovec *iovec;
 
     if (filename == NULL) {
         LOGE(LOG_ERROR, "filename is NULL");
@@ -1248,7 +1259,7 @@ bool cricket_elf_analyze(const char *filename)
 
     cudabfd_size = fatbin_size;
     orig_cudabfd_stat = cudabfd->iovec->bstat;
-    struct bfd_iovec *iovec = malloc(sizeof(struct bfd_iovec));
+    iovec = (struct bfd_iovec*)malloc(sizeof(struct bfd_iovec));
     memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
     iovec->bstat = cudabfd_stat;
     cudabfd->iovec = iovec;
@@ -1508,6 +1519,7 @@ cleanup:
         bfd_close(hostbfd);
     return ret;
 }
+#pragma GCC diagnostic pop
 
 bool cricket_elf_get_jmptable_addr(cricket_jmptable_entry *entries,
                                    size_t entries_num, uint64_t destination,

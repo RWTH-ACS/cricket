@@ -18,6 +18,10 @@ build/
 cricket
 bin
 *.test
+submodules/cuda-gdb
+submodules/libtirpc
+submodules/lib
+ckp
 
 # YouCompleteMe
 .ycm_extra_conf.py

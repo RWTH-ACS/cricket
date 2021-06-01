@@ -26,7 +26,7 @@ bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index,
     memset(prop, 0, sizeof(struct _CricketDeviceProp));
     prop->index = device_index;
 
-    if ((prop->name = malloc(STRLEN)) == NULL) {
+    if ((prop->name = (char*)malloc(STRLEN)) == NULL) {
         goto error_name;
     }
 
@@ -35,7 +35,7 @@ bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index,
         goto error_type;
     }
 
-    if ((prop->type = malloc(STRLEN)) == NULL) {
+    if ((prop->type = (char*)malloc(STRLEN)) == NULL) {
         goto error_type;
     }
 
@@ -44,7 +44,7 @@ bool cricket_device_get_prop(CUDBGAPI cudbgAPI, uint32_t device_index,
         goto error_smType;
     }
 
-    if ((prop->smType = malloc(STRLEN)) == NULL) {
+    if ((prop->smType = (char*)malloc(STRLEN)) == NULL) {
         goto error_smType;
     }
 

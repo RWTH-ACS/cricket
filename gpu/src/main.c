@@ -118,12 +118,12 @@ cuda_error:
 int cricket_analyze(int argc, char *argv[])
 {
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
         return -1;
     }
-    printf("Analyzing \"%s\"\n", argv[2]);
+    LOG(LOG_INFO, "Analyzing \"%s\"", argv[2]);
     if (!cricket_elf_analyze(argv[2])) {
-        printf("cricket analyze unsuccessful\n");
+        LOG(LOG_ERROR, "cricket analyze unsuccessful");
         return -1;
     }
     return 0;
@@ -135,7 +135,7 @@ int cricket_restore(int argc, char *argv[])
     CUDBGAPI cudbgAPI;
     cricketWarpInfo warp_info = { 0 };
     cricket_callstack callstack;
-    char *patched_binary = "/tmp/cricket-ckp/patched_binary";
+    const char *patched_binary = "/tmp/cricket-ckp/patched_binary";
     const char *ckp_dir = "/tmp/cricket-ckp";
     const char *kernel_name;
     uint32_t active_lanes;
@@ -143,8 +143,13 @@ int cricket_restore(int argc, char *argv[])
     cricket_jmptable_index *jmptbl;
     uint64_t warp_mask;
     size_t jmptbl_len;
+
+#ifdef CRICKET_PROFILE
+    //vars for profiling
+    double bt, ct, dt, et, ft, gt, comt;
+#endif
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <executable>\n", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
         return -1;
     }
 
@@ -196,7 +201,7 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&b, NULL);
 #endif
 
-    gdb_init(argc, argv, patched_binary, NULL);
+    gdb_init(argc, argv, (char*)patched_binary, NULL);
     execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so' 'CRICKET_RESTORE=1'", !batch_flag);
 
     // load the patched binary
@@ -523,7 +528,7 @@ int cricket_restore(int argc, char *argv[])
                 }
                 // if a warp has had diverged lanes/threads, we need to diverge
                 // them again using the SSY and SYNC instructions
-                int predicate_value;
+                uint32_t predicate_value;
                 if (callstack.active_lanes != callstack.valid_lanes) {
                     for (uint32_t lane = 0;
                          lane != warp_info.dev_prop->numLanes; lane++) {
@@ -715,25 +720,25 @@ int cricket_restore(int argc, char *argv[])
     }
 #ifdef CRICKET_PROFILE
     gettimeofday(&g, NULL);
-    double bt = ((double)((b.tv_sec * 1000000 + b.tv_usec) -
+    bt = ((double)((b.tv_sec * 1000000 + b.tv_usec) -
                           (a.tv_sec * 1000000 + a.tv_usec))) /
                 1000000.;
-    double ct = ((double)((c.tv_sec * 1000000 + c.tv_usec) -
+    ct = ((double)((c.tv_sec * 1000000 + c.tv_usec) -
                           (b.tv_sec * 1000000 + b.tv_usec))) /
                 1000000.;
-    double dt = ((double)((d.tv_sec * 1000000 + d.tv_usec) -
+    dt = ((double)((d.tv_sec * 1000000 + d.tv_usec) -
                           (b.tv_sec * 1000000 + b.tv_usec))) /
                 1000000.;
-    double et = ((double)((e.tv_sec * 1000000 + e.tv_usec) -
+    et = ((double)((e.tv_sec * 1000000 + e.tv_usec) -
                           (d.tv_sec * 1000000 + d.tv_usec))) /
                 1000000.;
-    double ft = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
+    ft = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
                           (e.tv_sec * 1000000 + e.tv_usec))) /
                 1000000.;
-    double gt = ((double)((g.tv_sec * 1000000 + g.tv_usec) -
+    gt = ((double)((g.tv_sec * 1000000 + g.tv_usec) -
                           (f.tv_sec * 1000000 + f.tv_usec))) /
                 1000000.;
-    double comt = ((double)((g.tv_sec * 1000000 + g.tv_usec) -
+    comt = ((double)((g.tv_sec * 1000000 + g.tv_usec) -
                             (a.tv_sec * 1000000 + a.tv_usec))) /
                   1000000.;
     printf("complete time:\n\tPROFILE patch: %f s\n\tPROFILE runattach: %f "
@@ -806,6 +811,8 @@ int cricket_checkpoint(int argc, char *argv[])
 #ifdef CRICKET_PROFILE
     struct timeval a, b, c, d, e, f;
     struct timeval la, lb, lc, ld, le, lf, lg;
+    //vars for profiling
+    double lct, ldt, let, lft, lgt, bt, dt, et, ft, comt;
     gettimeofday(&a, NULL);
 #endif
 
@@ -991,19 +998,19 @@ int cricket_checkpoint(int argc, char *argv[])
                 }
 #ifdef CRICKET_PROFILE
                 gettimeofday(&lg, NULL);
-                double lct = ((double)((lc.tv_sec * 1000000 + lc.tv_usec) -
+                lct = ((double)((lc.tv_sec * 1000000 + lc.tv_usec) -
                                        (la.tv_sec * 1000000 + la.tv_usec))) /
                              1000000.;
-                double ldt = ((double)((ld.tv_sec * 1000000 + ld.tv_usec) -
+                ldt = ((double)((ld.tv_sec * 1000000 + ld.tv_usec) -
                                        (lc.tv_sec * 1000000 + lc.tv_usec))) /
                              1000000.;
-                double let = ((double)((le.tv_sec * 1000000 + le.tv_usec) -
+                let = ((double)((le.tv_sec * 1000000 + le.tv_usec) -
                                        (ld.tv_sec * 1000000 + ld.tv_usec))) /
                              1000000.;
-                double lft = ((double)((lf.tv_sec * 1000000 + lf.tv_usec) -
+                lft = ((double)((lf.tv_sec * 1000000 + lf.tv_usec) -
                                        (le.tv_sec * 1000000 + le.tv_usec))) /
                              1000000.;
-                double lgt = ((double)((lg.tv_sec * 1000000 + lg.tv_usec) -
+                lgt = ((double)((lg.tv_sec * 1000000 + lg.tv_usec) -
                                        (lf.tv_sec * 1000000 + lf.tv_usec))) /
                              1000000.;
                 printf("warp time:\n\tPROFILE misc: %f s\n\tPROFILE "
@@ -1036,20 +1043,19 @@ int cricket_checkpoint(int argc, char *argv[])
 
 #ifdef CRICKET_PROFILE
     gettimeofday(&f, NULL);
-
-    double bt = ((double)((b.tv_sec * 1000000 + b.tv_usec) -
+    bt = ((double)((b.tv_sec * 1000000 + b.tv_usec) -
                           (a.tv_sec * 1000000 + a.tv_usec))) /
                 1000000.;
-    double dt = ((double)((d.tv_sec * 1000000 + d.tv_usec) -
+    dt = ((double)((d.tv_sec * 1000000 + d.tv_usec) -
                           (b.tv_sec * 1000000 + b.tv_usec))) /
                 1000000.;
-    double et = ((double)((e.tv_sec * 1000000 + e.tv_usec) -
+    et = ((double)((e.tv_sec * 1000000 + e.tv_usec) -
                           (d.tv_sec * 1000000 + d.tv_usec))) /
                 1000000.;
-    double ft = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
+    ft = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
                           (e.tv_sec * 1000000 + e.tv_usec))) /
                 1000000.;
-    double comt = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
+    comt = ((double)((f.tv_sec * 1000000 + f.tv_usec) -
                             (a.tv_sec * 1000000 + a.tv_usec))) /
                   1000000.;
     printf("complete time:\n\tPROFILE attach: %f s\n\tPROFILE init: %f "

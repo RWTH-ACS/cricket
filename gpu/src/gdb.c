@@ -661,5 +661,5 @@ int gdb_init (int argc, char **argv, char *execarg, char* pidarg)
   /* Read in the old history after all the command files have been
      read.  */
   init_history ();
-
+  return 0;
 }
