@@ -13,6 +13,7 @@
 #include <sys/sendfile.h>
 
 #include "cricket-elf.h"
+#include "log.h"
 
 
 typedef struct
@@ -32,11 +33,11 @@ bool cricket_file_cpy(const char *source, const char *destination)
 {
     int input, output;
     if ((input = open(source, O_RDONLY)) == -1) {
-        fprintf(stderr, "cricket_file_cpy: failed to open source file %s\n", source);
+        LOGE(LOG_ERROR, "failed to open source file %s", source);
         return false;
     }
     if ((output = creat(destination, 0770)) == -1) {
-        fprintf(stderr, "cricket_file_cpy: failed to create destination file %s\n", destination);
+        LOGE(LOG_ERROR, "failed to create destination file %s", destination);
         close(input);
         return false;
     }
@@ -58,18 +59,18 @@ static void cricket_elf_get_symbols(struct objfile *objfile)
 {
     struct minimal_symbol *msymbol;
     int i = 0;
-    printf("msym num: %d, cuda_objfile:%d\n", objfile->per_bfd->minimal_symbol_count,
+    LOGE(LOG_DEBUG, "msym num: %d, cuda_objfile:%d", objfile->per_bfd->minimal_symbol_count,
            objfile->cuda_objfile);
     for (auto msymbol = objfile->msymbols().begin(); msymbol != objfile->msymbols().end(); ++msymbol) {
         if (!*msymbol) {
             i++;
             continue;
         }
-        printf("%d: name: %s, section:%u, size: %lu, type: %u\n", i++,
+        LOGE(LOG_DEBUG, "%d: name: %s, section:%u, size: %lu, type: %u", i++,
                (*msymbol)->mginfo.name, (*msymbol)->mginfo.section, (*msymbol)->size,
                MSYMBOL_TYPE(*msymbol));
         if ((*msymbol)->mginfo.name[0] != '.') {
-            printf("%p\n", MSYMBOL_VALUE_ADDRESS(objfile, *msymbol));
+            LOGE(LOG_DEBUG, "%p\n", MSYMBOL_VALUE_ADDRESS(objfile, *msymbol));
 
         }
     }
@@ -85,7 +86,13 @@ bool cricket_elf_get_global_vars_info(cricket_global_var **globals,
     int i = 0;
     const size_t const_suffix_len = strlen(CRICKET_ELF_CONST_SUFFIX);
     auto objfile_adapter = current_program_space->objfiles();
-    
+
+    if (globals == NULL || globals_size == NULL) {
+        LOGE(LOG_ERROR, "at least one parameter is a nullptr");
+        return false;
+    }
+
+    //Count global vars
     for (auto objfile = objfile_adapter.begin();
          objfile != objfile_adapter.end();
          ++objfile) {
@@ -144,9 +151,13 @@ bool cricket_elf_get_global_vars_info(cricket_global_var **globals,
         }
     }
     *globals_size = i;
-    for (i = 0; i < *globals_size; ++i) {
-        printf("(%d) %s: %lx (%lx bytes)\n", i, arr[i].symbol, arr[i].address,
-               arr[i].size);
+
+    IFLOG(LOG_DEBUG) {
+        LOGE(LOG_DEBUG, "globals list:");
+        for (i = 0; i < *globals_size; ++i) {
+            printf("\t(%d) %s: %lx (%lx bytes)\n", i, arr[i].symbol, arr[i].address,
+                   arr[i].size);
+        }
     }
     return true;
 }
@@ -162,7 +173,7 @@ static bool cricket_elf_get_symindex(bfd *obfd, const char *name,
     storage_needed = bfd_get_symtab_upper_bound(obfd);
 
     if (storage_needed <= 0) {
-        fprintf(stderr, "cirekt-stack (%d): error while getting symtab\n",
+        LOGE(LOG_ERROR, "cirekt-stack (%d): error while getting symtab",
                 __LINE__);
         return false;
     }
@@ -202,7 +213,7 @@ bool cricket_elf_extract_multiple_attributes(bfd *obfd,
         goto cleanup;
     }
     if (!bfd_get_section_contents(obfd, section, contents, 0, section->size)) {
-        fprintf(stderr, "error during bfd_get_section_contents\n");
+        LOGE(LOG_ERROR, "error during bfd_get_section_contents");
         goto cleanup;
     }
     trav.c = (char *)contents;
@@ -219,10 +230,10 @@ bool cricket_elf_extract_multiple_attributes(bfd *obfd,
                 memcpy(*data + ((*data_size) - 1) * size, trav.c, size);
                 res = true;
             } else {
-                fprintf(stderr,
-                        "cricket_elf_extract_multiple_attributes: warning: "
+                LOGE(LOG_WARNING,
+                        "cricket_elf_extract_multiple_attributes: "
                         "requested attribute found but size does not match or "
-                        "attribute is not an EIFMT_SVAL\n");
+                        "attribute is not an EIFMT_SVAL");
                 res = false;
                 continue;
             }
@@ -252,7 +263,7 @@ bool cricket_elf_extract_attribute(bfd *obfd,
         goto cleanup;
     }
     if (!bfd_get_section_contents(obfd, section, contents, 0, section->size)) {
-        fprintf(stderr, "error during bfd_get_section_contents\n");
+        LOGE(LOG_ERROR, "error during bfd_get_section_contents");
         goto cleanup;
     }
     trav.c = (char *)contents;
@@ -271,10 +282,10 @@ bool cricket_elf_extract_attribute(bfd *obfd,
                     goto cleanup;
                 }
             } else {
-                fprintf(stderr,
+                LOGE(LOG_WARNING,
                         " cricket_stack_extract_elf_attribut: warning: "
                         "requested attribute found but size does not match or "
-                        "attribute is not an EIFMT_SVAL\n");
+                        "attribute is not an EIFMT_SVAL");
                 continue;
             }
         }
@@ -337,9 +348,9 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                 if (!cricket_elf_extract_attribute(
                          (*objfile)->obfd, section, EIATTR_MIN_STACK_SIZE, 8, data,
                          stack_size_filter, &kernel_index)) {
-                    fprintf(stderr,
-                            "error: found .nv.info section but could not find "
-                            "stack size for kernel %s\n",
+                    LOGE(LOG_ERROR,
+                            "found .nv.info section but could not find "
+                            "stack size for kernel %s",
                             function_name);
                 }
                 info->stack_size = *(uint32_t *)(data + 4);
@@ -350,9 +361,9 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                 if (!cricket_elf_extract_multiple_attributes(
                          (*objfile)->obfd, section, EIATTR_KPARAM_INFO, 12, (void **)&attrs,
                          &attr_num)) {
-                    fprintf(stderr, "error: found .nv.info.%s section but "
+                    LOGE(LOG_ERROR, "found .nv.info.%s section but "
                                     "could not find "
-                                    "any EIATTR_KPARAM_INFO attributes\n",
+                                    "any EIATTR_KPARAM_INFO attributes",
                             function_name);
                 }
                 info->params = (cricket_param_info*)malloc(attr_num * sizeof(cricket_param_info));
@@ -367,9 +378,9 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                 if (!cricket_elf_extract_attribute((*objfile)->obfd, section,
                                                    EIATTR_PARAM_CBANK, 8, data,
                                                    NULL, NULL)) {
-                    fprintf(stderr, "error: found .nv.info.%s section but "
+                    LOGE(LOG_ERROR, "found .nv.info.%s section but "
                                     "could not find "
-                                    "EIATTR_PARAM_CBANK attribute\n",
+                                    "EIATTR_PARAM_CBANK attribute",
                             function_name);
                 }
                 info->param_size = *(uint16_t *)(data + 6);
@@ -378,7 +389,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                                strlen(CRICKET_ELF_NV_SHARED_PREFIX) - 1) == 0) {
                 if (!cricket_elf_extract_shared_size(section,
                                                      &info->shared_size)) {
-                    fprintf(stderr, "error while reading shared memory size\n");
+                    LOGE(LOG_ERROR, "error while reading shared memory size");
                 }
             }
         }
@@ -403,26 +414,29 @@ bool cricket_elf_print_symtab(bfd *abfd)
     asymbol **symtab;
 
     if ((symtab_size = bfd_get_symtab_upper_bound(abfd)) == -1) {
-        fprintf(stderr, "cricket-elf: bfd_get_symtab_upper_bound failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: bfd_get_symtab_upper_bound failed");
         return false;
     }
 
-    printf("symtab size: %lu\n", symtab_size);
+    LOGE(LOG_DEBUG, "symtab size: %lu", symtab_size);
 
     if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
-        fprintf(stderr, "cricket-elf: malloc symtab failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: malloc symtab failed");
         return false;
     }
 
     if ((symtab_length = bfd_canonicalize_symtab(abfd, symtab)) == 0) {
-        printf("symtab empty...\n");
+        LOGE(LOG_DEBUG, "symtab empty...");
     } else {
-        printf("%lu symtab entries\n", symtab_length);
+        LOGE(LOG_DEBUG, "%lu symtab entries", symtab_length);
     }
 
-    for (int i = 0; i < symtab_length; ++i) {
-        printf("%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
-               bfd_asymbol_value(symtab[i]));
+    IFLOG(LOG_DEBUG) {
+        LOG(LOG_DEBUG, "symtab:");
+        for (int i = 0; i < symtab_length; ++i) {
+            printf("\t%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
+                   bfd_asymbol_value(symtab[i]));
+        }
     }
     free(symtab);
     return true;
@@ -439,7 +453,7 @@ static bool cricket_elf_find_bpt(void *function_base, uint64_t relative_pc,
     uint32_t num = 0;
 
     if (function_base == NULL) {
-        fprintf(stderr, "cricket_elf (%d): function_base is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "function_base is NULL");
         return false;
     }
 
@@ -487,7 +501,7 @@ static bool cricket_elf_find_pbk(void *function_base, uint64_t relative_pc,
     uint32_t pbk_pc = 0;
 
     if (function_base == NULL) {
-        fprintf(stderr, "cricket_elf (%d): function_base is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "function_base is NULL");
         return false;
     }
 
@@ -522,7 +536,7 @@ static bool cricket_elf_find_ssy(void *function_base, uint64_t relative_pc,
     uint32_t syn_pc = 0;
 
     if (function_base == NULL) {
-        fprintf(stderr, "cricket_elf (%d): function_base is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "function_base is NULL");
         return false;
     }
 
@@ -558,7 +572,7 @@ static bool cricket_elf_count_ssy(void *function_base, size_t function_size,
     uint32_t cur_ssy_num = 0;
 
     if (function_base == NULL) {
-        fprintf(stderr, "cricket_elf (%d): function_base is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "function_base is NULL");
         return false;
     }
 
@@ -594,7 +608,7 @@ static bool cricket_elf_count_cal(void *function_base, size_t function_size,
     uint32_t cur_num = 0;
 
     if (function_base == NULL) {
-        fprintf(stderr, "cricket_elf (%d): function_base is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "function_base is NULL");
         return false;
     }
 
@@ -768,7 +782,7 @@ bool cricket_elf_pc_info(const char *function_name, uint64_t relative_pc,
     auto objfile_adapter = current_program_space->objfiles();
 
     if (asprintf(&section_name, ".text.%s", function_name) == -1) {
-        fprintf(stderr, "cricket-elf: asprintf failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: asprintf failed");
         goto cleanup;
     }
     for (auto objfile = objfile_adapter.begin();
@@ -831,23 +845,22 @@ static bool cricket_elf_patch(const char *filename, size_t filepos,
            patch_size);
 
     if (filename == NULL || patch_data == NULL) {
-        fprintf(stderr, "cricket_elf (%d): filename or patch_data NULL\n",
-                __LINE__);
+        LOGE(LOG_ERROR, "filename or patch_data NULL");
         return false;
     }
 
     if ((fd = fopen(filename, "r+b")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fopen failed");
         return false;
     }
 
     if (fseek(fd, filepos, SEEK_SET) != 0) {
-        fprintf(stderr, "cricket-elf: fseek failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: fseek failed");
         goto cleanup;
     }
 
     if (fwrite(patch_data, patch_size, 1, fd) != 1) {
-        fprintf(stderr, "cricket-elf: fwrite failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: fwrite failed");
         goto cleanup;
     }
     ret = true;
@@ -891,47 +904,43 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
 
     if (filename == NULL) {
-        fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "filename is NULL");
         return false;
     }
 
     if (!cricket_file_cpy(filename, new_filename)) {
-        fprintf(stderr, "cricket-elf: cpy failed\n");
+        LOGE(LOG_ERROR, "cpy failed");
         return false;
     }
 
     bfd_init();
 
     if ((hostbfd_fd = fopen(filename, "r+b")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fopen failed");
         return false;
     }
 
     if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): bfd_openr failed on %s\n", __LINE__,
-                filename);
+        LOGE(LOG_ERROR, "bfd_openr failed on %s");
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf (%d): %s has wrong bfd format\n", __LINE__,
+        LOGE(LOG_ERROR, "%s has wrong bfd format",
                 filename);
         goto cleanup;
     }
 
     section = bfd_get_section_by_name(hostbfd, CRICKET_ELF_FATBIN);
     if (section == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fatbin section %s not found\n",
-                __LINE__, CRICKET_ELF_FATBIN);
+        LOGE(LOG_ERROR, "fatbin section %s not found",
+                CRICKET_ELF_FATBIN);
         goto cleanup;
     }
 
-#define _CRICKET_ELF_DEBUG_
-#ifdef _CRICKET_ELF_DEBUG_
-    printf("name: %s, index: %d, size 0x%lx, pos:%p\n", section->name,
+    LOGE(LOG_DEBUG, "name: %s, index: %d, size 0x%lx, pos:%p", section->name,
            section->index, section->size, (void *)section->filepos);
-#endif
     fatbin_pos = section->filepos + 0x50;
     fatbin_size = section->size - 0x50;
 
@@ -939,21 +948,21 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         goto cleanup;
     }
     if (fseek(hostbfd_fd, fatbin_pos, SEEK_SET) != 0) {
-        fprintf(stderr, "cricket-elf: fseek failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: fseek failed");
         goto cleanup;
     }
     if (fread(fatbin, fatbin_size, 1, hostbfd_fd) != 1) {
-        fprintf(stderr, "cricket-elf: fread failed\n");
+        LOGE(LOG_ERROR, "cricket-elf: fread failed");
         goto cleanup;
     }
 
     if ((cudabfd_fd = fmemopen(fatbin, fatbin_size, "rb")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fmemopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fmemopen failed");
         goto cleanup;
     }
 
     if ((cudabfd = bfd_openstreamr(filename, "elf64-little", cudabfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf: bfd_openstreamr failed\n");
+        LOGE(LOG_ERROR, "bfd_openstreamr failed");
         fclose(cudabfd_fd);
         goto cleanup;
     }
@@ -964,15 +973,15 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
     memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
     iovec->bstat = cudabfd_stat;
     cudabfd->iovec = iovec;
-    
+
     if (!bfd_check_format(cudabfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf: wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());
+        LOGE(LOG_ERROR, "wrong bfd format: %s (%d)", bfd_errmsg(bfd_get_error()), bfd_get_error());
        // goto cleanup;
     }
 
     for (section = cudabfd->sections; section != NULL;
          section = section->next) {
-        printf("section: %s\n", section->name);
+        LOGE(LOG_DEBUG, "section: %s", section->name);
         if (strncmp(section->name, CRICKET_ELF_TEXT_PREFIX, text_prefixlen) !=
             0) {
             continue;
@@ -1000,21 +1009,21 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
             goto cleanup;
         }
 
-        printf("relative_bpt: %lx, bpt_num: %d\n", relative_bpt, bpt_num);
+        LOGE(LOG_DEBUG, "relative_bpt: %lx, bpt_num: %d", relative_bpt, bpt_num);
 
         if (bpt_num == 0) {
-            printf("no room in \"%s\" available\n", section->name);
+            LOGE(LOG_WARNING, "no room in \"%s\" available", section->name);
             continue;
         }
 
         if (!cricket_elf_count_ssy(fatbin + (size_t)section->filepos,
                                    section->size, &ssy_num, NULL, 0)) {
-            fprintf(stderr, "cricket-elf: counting SSYs failed\n");
+            LOGE(LOG_ERROR, "counting SSYs failed");
             goto cleanup;
         }
         if (!cricket_elf_count_cal(fatbin + (size_t)section->filepos,
                                    section->size, &cal_num, NULL, 0)) {
-            fprintf(stderr, "cricket-elf: counting JCALs failed\n");
+            LOGE(LOG_ERROR, "counting JCALs failed");
             goto cleanup;
         }
 
@@ -1028,7 +1037,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         jmptbl[jmptbl_i].cal_num = cal_num;
 
         if (bpt_num < ssy_num * 2 + cal_num * 2 + 3) {
-            printf("too little room available: required: %lu, available: %u\n",
+            LOGE(LOG_ERROR, "too little room available: required: %lu, available: %u",
                    ssy_num * 2 + cal_num * 2 + 2, bpt_num);
             continue;
         }
@@ -1045,13 +1054,13 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         if (!cricket_elf_count_ssy(fatbin + (size_t)section->filepos,
                                    section->size, NULL, jmptbl[jmptbl_i].ssy,
                                    ssy_num)) {
-            fprintf(stderr, "cricket-elf: counting SSYs failed\n");
+            LOGE(LOG_ERROR, "counting SSYs failed");
             goto cleanup;
         }
         if (!cricket_elf_count_cal(fatbin + (size_t)section->filepos,
                                    section->size, NULL, jmptbl[jmptbl_i].cal,
                                    cal_num)) {
-            fprintf(stderr, "cricket-elf: counting JCALs failed\n");
+            LOGE(LOG_ERROR, "counting JCALs failed");
             goto cleanup;
         }
 
@@ -1108,8 +1117,8 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         data[data_i++] = CRICKET_SASS_BRX(0);
 
         if (data_i * sizeof(uint64_t) > data_size) {
-            fprintf(stderr, "cricket-elf: too much data to write: have %lu, "
-                            "need %lu bytes\n",
+            LOGE(LOG_ERROR, "too much data to write: have %lu, "
+                            "need %lu bytes",
                     data_size, data_i * sizeof(uint64_t));
             goto cleanup;
         }
@@ -1118,7 +1127,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
                                fatbin_pos + (size_t)section->filepos +
                                    relative_bpt,
                                data, data_i * sizeof(uint64_t))) {
-            fprintf(stderr, "cricket-elf: patching elf unsuccessful\n");
+            LOGE(LOG_ERROR, "patching elf unsuccessful");
             goto cleanup;
         }
         free(data);
@@ -1175,42 +1184,42 @@ bool cricket_elf_analyze(const char *filename)
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
 
     if (filename == NULL) {
-        fprintf(stderr, "cricket_elf (%d): filename is NULL\n", __LINE__);
+        LOGE(LOG_ERROR, "filename is NULL");
         return false;
     }
 
     bfd_init();
 
     if ((hostbfd_fd = fopen(filename, "rb")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fopen failed");
         return false;
     }
 
     if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): bfd_openr failed on %s\n", __LINE__,
+        LOGE(LOG_ERROR, "bfd_openr failed on %s",
                 filename);
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf (%d): %s has wrong bfd format\n", __LINE__,
+        LOGE(LOG_ERROR, "%s has wrong bfd format",
                 filename);
         goto cleanup;
     }
 
     section = bfd_get_section_by_name(hostbfd, CRICKET_ELF_FATBIN);
     if (section == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fatbin section %s not found\n",
-                __LINE__, CRICKET_ELF_FATBIN);
+        LOGE(LOG_ERROR, "fatbin section %s not found",
+                CRICKET_ELF_FATBIN);
         goto cleanup;
     }
 
-#ifdef _CRICKET_ELF_DEBUG_
-    cricket_elf_print_symtab(hostbfd);
-    printf("name: %s, index: %d, size %lx, pos:%x\n", section->name,
-           section->index, section->size, (void *)section->filepos);
-#endif
+    IFLOG(LOG_DEBUG) {
+        cricket_elf_print_symtab(hostbfd);
+        LOG(LOG_DEBUG, "name: %s, index: %d, size %lx, pos:%x", section->name,
+               section->index, section->size, (void *)section->filepos);
+    }
     fatbin_pos = section->filepos + 0x50;
     fatbin_size = section->size - 0x50;
 
@@ -1218,21 +1227,21 @@ bool cricket_elf_analyze(const char *filename)
         goto cleanup;
     }
     if (fseek(hostbfd_fd, fatbin_pos, SEEK_SET) != 0) {
-        fprintf(stderr, "cricket-elf: fseek failed\n");
+        LOGE(LOG_ERROR, "fseek failed");
         goto cleanup;
     }
     if (fread(fatbin, fatbin_size, 1, hostbfd_fd) != 1) {
-        fprintf(stderr, "cricket-elf: fread failed\n");
+        LOGE(LOG_ERROR, "fread failed");
         goto cleanup;
     }
 
     if ((cudabfd_fd = fmemopen(fatbin, fatbin_size, "rb")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fmemopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fmemopen failed");
         goto cleanup;
     }
 
     if ((cudabfd = bfd_openstreamr(filename, NULL, cudabfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf: bfd_openstreamr failed\n");
+        LOGE(LOG_ERROR, "bfd_openstreamr failed");
         fclose(cudabfd_fd);
         goto cleanup;
     }
@@ -1243,19 +1252,18 @@ bool cricket_elf_analyze(const char *filename)
     memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
     iovec->bstat = cudabfd_stat;
     cudabfd->iovec = iovec;
-#ifdef _CRICKET_ELF_DEBUG_
-    printf("Symtab size: %d\n", bfd_get_file_size(cudabfd));
-#endif
+
+    LOGE(LOG_DEBUG, "Symtab size: %d", bfd_get_file_size(cudabfd));
 
     if (!bfd_check_format(cudabfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf: wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());
+        LOGE(LOG_ERROR, "wrong bfd format: %s (%d)\n", bfd_errmsg(bfd_get_error()), bfd_get_error());
         goto cleanup;
     }
 
-#ifdef _CRICKET_ELF_DEBUG_
-    cricket_elf_print_mem(fatbin, 0x160);
-    cricket_elf_print_symtab(cudabfd);
-#endif
+    IFLOG(LOG_DEBUG) {
+        cricket_elf_print_mem(fatbin, 0x160);
+        cricket_elf_print_symtab(cudabfd);
+    }
 
     for (section = cudabfd->sections; section != NULL;
          section = section->next) {
@@ -1264,17 +1272,17 @@ bool cricket_elf_analyze(const char *filename)
             continue;
         }
 
-        printf("name: %s, index: %d, size %lx, pos:%p\n", section->name,
+        LOGE(LOG_DEBUG, "name: %s, index: %d, size %lx, pos:%p", section->name,
                section->index, section->size, (void *)section->filepos);
 
         if (!cricket_elf_count_ssy(fatbin + (size_t)section->filepos,
                                    section->size, &ssy_num, NULL, 0)) {
-            fprintf(stderr, "cricket-elf: counting SSYs failed\n");
+            LOGE(LOG_ERROR, "counting SSYs failed");
             goto cleanup;
         }
         if (!cricket_elf_count_cal(fatbin + (size_t)section->filepos,
                                    section->size, &cal_num, NULL, 0)) {
-            fprintf(stderr, "cricket-elf: counting JCALs failed\n");
+            LOGE(LOG_ERROR, "counting JCALs failed");
             goto cleanup;
         }
 
@@ -1287,20 +1295,20 @@ bool cricket_elf_analyze(const char *filename)
 
         if (!cricket_elf_count_ssy(fatbin + (size_t)section->filepos,
                                    section->size, NULL, ssy, ssy_num)) {
-            fprintf(stderr, "cricket-elf: counting SSYs failed\n");
+            LOGE(LOG_ERROR, "counting SSYs failed");
             goto cleanup;
         }
         if (!cricket_elf_count_cal(fatbin + (size_t)section->filepos,
                                    section->size, NULL, cal, cal_num)) {
-            fprintf(stderr, "cricket-elf: counting JCALs failed\n");
+            LOGE(LOG_ERROR, "counting JCALs failed");
             goto cleanup;
         }
 
         if (ssy_num == 0 && cal_num == 0) {
-            printf(" => function \"%s\" requires %u slot\n\n", section->name,
+            LOG(LOG_INFO, " => function \"%s\" requires %u slot", section->name,
                    2);
         } else {
-            printf(" => function \"%s\" requires %lu slots\n\n", section->name,
+            LOG(LOG_INFO, " => function \"%s\" requires %lu slots", section->name,
                    fixed_num + ssy_num * 2 + cal_num * 2);
         }
         free(ssy);
@@ -1340,42 +1348,40 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
     cricket_jmptable_entry *cal = NULL;
 
     if (filename == NULL || section_name == NULL) {
-        fprintf(stderr, "cricket_elf (%d): filename or section_name is NULL\n",
-                __LINE__);
+        LOGE(LOG_ERROR, "filename or section_name is NULL");
         return false;
     }
 
     bfd_init();
 
     if ((hostbfd_fd = fopen(filename, "r+b")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fopen failed");
         return false;
     }
 
     if ((hostbfd = bfd_openstreamr(filename, NULL, hostbfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): bfd_openr failed on %s\n", __LINE__,
+        LOGE(LOG_ERROR, "bfd_openr failed on %s",
                 filename);
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf (%d): %s has wrong bfd format\n", __LINE__,
+        LOGE(LOG_ERROR, "%s has wrong bfd format",
                 filename);
         goto cleanup;
     }
 
     section = bfd_get_section_by_name(hostbfd, CRICKET_ELF_FATBIN);
     if (section == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fatbin section %s not found\n",
-                __LINE__, CRICKET_ELF_FATBIN);
+        LOGE(LOG_ERROR, "fatbin section %s not found",
+                CRICKET_ELF_FATBIN);
         goto cleanup;
     }
 
-#ifdef _CRICKET_ELF_DEBUG_
-    printf("name: %s, index: %d, size %lx, pos:%p\n", section->name,
+    LOG(LOG_DEBUG, "name: %s, index: %d, size %lx, pos:%p\n", section->name,
            section->index, section->size, (void *)section->filepos);
-#endif
+
     fatbin_pos = section->filepos + 0x50;
     fatbin_size = section->size - 0x50;
 
@@ -1383,41 +1389,41 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
         goto cleanup;
     }
     if (fseek(hostbfd_fd, fatbin_pos, SEEK_SET) != 0) {
-        fprintf(stderr, "cricket-elf: fseek failed\n");
+        LOGE(LOG_ERROR, "fseek failed");
         goto cleanup;
     }
     if (fread(fatbin, fatbin_size, 1, hostbfd_fd) != 1) {
-        fprintf(stderr, "cricket-elf: fread failed\n");
+        LOGE(LOG_ERROR, "fread failed");
         goto cleanup;
     }
 
     if ((cudabfd_fd = fmemopen(fatbin, fatbin_size, "rb")) == NULL) {
-        fprintf(stderr, "cricket-elf (%d): fmemopen failed\n", __LINE__);
+        LOGE(LOG_ERROR, "fmemopen failed");
         goto cleanup;
     }
 
     if ((cudabfd = bfd_openstreamr(filename, NULL, cudabfd_fd)) == NULL) {
-        fprintf(stderr, "cricket-elf: bfd_openstreamr failed\n");
+        LOGE(LOG_ERROR, "bfd_openstreamr failed");
         fclose(cudabfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(cudabfd, bfd_object)) {
-        fprintf(stderr, "cricket-elf: wrong bfd format\n");
+        LOGE(LOG_ERROR, "wrong bfd format");
         goto cleanup;
     }
 
-#ifdef _CRICKET_ELF_DEBUG_
-    cricket_elf_print_symtab(cudabfd);
-#endif
+    IFLOG(LOG_DEBUG) {
+        cricket_elf_print_symtab(cudabfd);
+    }
 
     if ((section = bfd_get_section_by_name(cudabfd, section_name)) == NULL) {
-        fprintf(stderr, "cricket-elf: error getting section %s\n",
+        LOGE(LOG_ERROR, "error getting section %s",
                 section_name);
         goto cleanup;
     }
 
-    printf("name: %s, index: %d, size %lx, pos:%p\n", section->name,
+    LOG(LOG_DEBUG, "name: %s, index: %d, size %lx, pos:%p", section->name,
            section->index, section->size, (void *)section->filepos);
 
     if (info != NULL) {
@@ -1425,17 +1431,17 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
         info->fun_size = section->size;
     }
 
-#ifdef _CRICKET_ELF_DEBUG_
-    cricket_elf_print_mem((fatbin + (size_t)section->filepos), section->size);
-#endif
+    IFLOG(LOG_DEBUG) {
+        cricket_elf_print_mem((fatbin + (size_t)section->filepos), section->size);
+    }
 
     if (!cricket_elf_find_ssy(fatbin + (size_t)section->filepos, relative_pc,
                               &relative_ssy)) {
-        fprintf(stderr, "cricket-elf: error during find_ssy\n");
+        LOGE(LOG_ERROR, "error during find_ssy");
         goto cleanup;
     }
 
-    printf("relative_ssy: %lx\n", relative_ssy);
+    LOGE(LOG_DEBUG, "relative_ssy: %lx", relative_ssy);
 
     if (info != NULL) {
         info->ssy = relative_ssy;
@@ -1443,11 +1449,11 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
 
     if (!cricket_elf_find_bpt(fatbin + (size_t)section->filepos, relative_pc,
                               &relative_bpt, &bpt_num)) {
-        fprintf(stderr, "cricket-elf: finding bpt instructions failed\n");
+        LOGE(LOG_ERROR, "finding bpt instructions failed");
         goto cleanup;
     }
 
-    printf("relative_bpt: %lx, bpt_num: %d\n", relative_bpt, bpt_num);
+    LOG(LOG_DEBUG, "relative_bpt: %lx, bpt_num: %d", relative_bpt, bpt_num);
 
     if (info != NULL) {
         info->bpt = relative_bpt;
@@ -1554,21 +1560,21 @@ bool cricket_elf_restore_patch(const char *filename, const char *new_filename,
                         CRICKET_SASS_JMX(18) };
 
     if (!cricket_file_cpy(filename, new_filename)) {
-        fprintf(stderr, "cricket-elf: cpy failed\n");
+        LOGE(LOG_ERROR, "cpy failed");
         return false;
     }
 
     if (asprintf(&section_name, ".text.%s",
                  callstack->function_names[callstack->callstack_size - 1]) ==
         -1) {
-        fprintf(stderr, "cricket-elf: asprintf failed\n");
+        LOGE(LOG_ERROR, "asprintf failed");
         return false;
     }
     if (!cricket_elf_get_sass_info(new_filename, section_name,
                                    callstack->pc[callstack->callstack_size - 1]
                                        .relative,
                                    &sinfo_kernel)) {
-        fprintf(stderr, "cricket-elf: cuda function %s not found in elf %s\n",
+        LOGE(LOG_ERROR, "cuda function %s not found in elf %s",
                 callstack->function_names[0], new_filename);
         goto cleanup;
     }
@@ -1576,35 +1582,31 @@ bool cricket_elf_restore_patch(const char *filename, const char *new_filename,
     section_name = NULL;
 
     if (callstack->callstack_size > 2) {
-        fprintf(stderr,
-                "cricket-elf: patching for callstack-sizes greater than 2 "
-                "is not possible\n");
+        LOGE(LOG_ERROR, "cricket-elf: patching for callstack-sizes greater than 2 is not possible");
         return false;
     } else if (callstack->callstack_size == 2) {
         if (asprintf(&section_name, ".text.%s", callstack->function_names[0]) ==
             -1) {
-            fprintf(stderr, "cricket-elf: asprintf failed\n");
+            LOGE(LOG_ERROR, "asprintf failed");
             return false;
         }
 
         if (!cricket_elf_get_sass_info(new_filename, section_name,
                                        callstack->pc[0].relative, &sinfo)) {
-            fprintf(stderr,
-                    "cricket-elf: cuda function %s not found in elf %s\n",
+            LOGE(LOG_ERROR, "cuda function %s not found in elf %s",
                     callstack->function_names[0], new_filename);
             goto cleanup;
         }
 
-        printf("fun_offset: %lx, fun_size: %lx, ssy: %lx\n", sinfo.fun_offset,
+        LOG(LOG_DEBUG, "fun_offset: %lx, fun_size: %lx, ssy: %lx", sinfo.fun_offset,
                sinfo.fun_size, sinfo.ssy);
 
         free(section_name);
         section_name = NULL;
         if (sinfo.ssy > callstack->pc[0].relative) {
-            fprintf(stderr,
-                    "cricket-elf: threads in a divergent block cannot be "
+            LOGE(LOG_ERROR, "cricket-elf: threads in a divergent block cannot be "
                     "restored. something during checkpoint went wrong if "
-                    "this occurs here.\n");
+                    "this occurs here.");
             goto cleanup;
             // data[1] = CRICKET_SASS_SSY(sinfo.ssy-0x8);
             /*if (callstack->active_lanes != callstack->valid_lanes) {
@@ -1629,7 +1631,7 @@ bool cricket_elf_restore_patch(const char *filename, const char *new_filename,
 
     if (!cricket_elf_patch(new_filename, sinfo_kernel.fun_offset, data,
                            6 * sizeof(uint64_t))) {
-        fprintf(stderr, "cricket-elf: patching elf unsuccessful\n");
+        LOGE(LOG_ERROR, "patching elf unsuccessful");
         goto cleanup;
     }
 

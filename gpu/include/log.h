@@ -20,6 +20,9 @@
 #ifndef __LOG_H__
 #define __LOG_H__
 
+#define IFLOG(level) \
+if (level > get_log_data()->curr_level)
+
 #define LOG(level, ...) \
 if (level > get_log_data()->curr_level) ; \
 else loggf(level, __VA_ARGS__)
