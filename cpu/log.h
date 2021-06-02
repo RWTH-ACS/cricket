@@ -21,7 +21,8 @@
 #define __LOG_H__
 
 #define IFLOG(level) \
-if (level > get_log_data()->curr_level)
+if (level > get_log_data()->curr_level) ; \
+else 
 
 #define LOG(level, ...) \
 if (level > get_log_data()->curr_level) ; \

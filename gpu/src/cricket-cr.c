@@ -129,8 +129,8 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
         goto cleanup;
     }
 
-    IFLOG(LOG_DEBUG) {
-        printf("\tregister-data: ");
+    IFLOG(LOG_DBG(3)) {
+        printf("register-data: ");
         for (int i = 0; i != register_size / sizeof(uint32_t); ++i) {
             printf("%08x ", ((uint32_t *)reg_mem)[i]);
         }
@@ -163,7 +163,7 @@ bool cricket_cr_rst_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
         goto cleanup;
     }
 
-    IFLOG(LOG_DEBUG) {
+    IFLOG(LOG_DBG(3)) {
         printf("stack-mem: ");
         for (int i = 0; i != wi->stack_size; ++i) {
             printf("%02x ", ((uint8_t *)stack_mem)[i]);
@@ -351,7 +351,7 @@ bool cricket_cr_read_pc(cricketWarpInfo *wi, uint32_t lane, const char *ckp_dir,
         function_names[i] = (const char*)(packed + offset + pc_data[i].str_offset);
     }
 
-    IFLOG(LOG_DEBUG) {
+    IFLOG(LOG_DBG(3)) {
         LOGE(LOG_DEBUG, "callstack_size: %u", callstack_size);
         for (i = 0; i < callstack_size; ++i) {
             printf("\trelative: %lx, absolute: %lx, str_offset: %lx, function: %s\n",
@@ -667,7 +667,7 @@ bool cricket_cr_callstack(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
         LOGE(LOG_ERROR, "cricket-cr: error getting function name");
         goto cleanup;
     }
-    LOGE(LOG_ERROR, "relative %lx, virtual %lx", pc_data[0].relative, pc_data[0].virt);
+    LOGE(LOG_DEBUG, "relative %lx, virtual %lx", pc_data[0].relative, pc_data[0].virt);
 
     pc_data[0].str_offset = 0;
     str_offset = strlen(function_names[0]) + 1;
@@ -775,7 +775,7 @@ bool cricket_cr_ckp_pc(CUDBGAPI cudbgAPI, cricketWarpInfo *wi,
                callstack->function_names[i]);
     }
 
-    IFLOG(LOG_DEBUG) {
+    IFLOG(LOG_DBG(3)) {
         LOGE(LOG_DEBUG, "callstack_size: %u", callstack->callstack_size);
         for (i = 0; i < callstack->callstack_size; ++i) {
             printf("relative: %lx, absolute: %lx, str_offset: %lx, function: %s\n",
@@ -977,9 +977,8 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
     }
 
     if ((mem = malloc(wi->stack_size)) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%d): error during memory allocation of size %d\n",
-                __LINE__, wi->stack_size);
+        LOGE(LOG_ERROR, "error during memory allocation of size %d",
+                wi->stack_size);
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -992,27 +991,25 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("stack-mem: ");
-    for (int i = 0; i != wi->stack_size; ++i) {
-        printf("%02x ", ((uint8_t *)mem)[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("stack-mem: ");
+        for (int i = 0; i != wi->stack_size; ++i) {
+            printf("%02x ", ((uint8_t *)mem)[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 #ifdef CRICKET_PROFILE
     gettimeofday(&c, NULL);
 #endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_STACK, suffix, mem,
                                 wi->stack_size)) {
-        fprintf(stderr, "cricket-cr: error writing stack memory\n");
+        LOGE(LOG_ERROR, "error writing stack memory");
         goto cleanup;
     }
     register_size = cricket_register_size(wi->dev_prop);
     if ((mem = realloc(mem, register_size)) == NULL) {
-        fprintf(stderr, "cricket-cr (%lu): error during memory allocation of "
-                        "size %lu\n",
-                __LINE__, register_size);
+        LOGE(LOG_ERROR, "error during memory allocation of size %lu", register_size);
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -1021,31 +1018,30 @@ bool cricket_cr_ckp_lane(CUDBGAPI cudbgAPI, cricketWarpInfo *wi, uint32_t lane,
 
     if (!cricket_register_ckp(cudbgAPI, wi->dev, wi->sm, wi->warp, lane, mem,
                               wi->dev_prop)) {
-        fprintf(stderr, "cricket-cr: error retrieving register data\n");
+        LOGE(LOG_ERROR, "error retrieving register data");
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("register-data: ");
-    for (int i = 0; i != register_size / sizeof(uint32_t); ++i) {
-        printf("%08x ", ((uint32_t *)mem)[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("register-data: ");
+        for (int i = 0; i != register_size / sizeof(uint32_t); ++i) {
+            printf("%08x ", ((uint32_t *)mem)[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 #ifdef CRICKET_PROFILE
     gettimeofday(&e, NULL);
 #endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_REGISTERS, suffix, mem,
                                 register_size)) {
-        fprintf(stderr, "cricket-cr: error writing registers\n");
+        LOGE(LOG_ERROR, "error writing registers");
         goto cleanup;
     }
 
     if ((mem = realloc(mem, sizeof(uint64_t))) == NULL) {
-        fprintf(stderr,
-                "cricket-cr (%u): error during memory allocation of size %lu\n",
-                __LINE__, sizeof(uint64_t));
+        LOGE(LOG_ERROR, "error during memory allocation of size %lu",
+                sizeof(uint64_t));
         goto cleanup;
     }
 #ifdef CRICKET_PROFILE
@@ -1097,23 +1093,23 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_PARAM, NULL, param_mem,
                                elf_info->param_size)) {
-        printf("error reading param\n");
+        LOGE(LOG_ERROR, "error reading param");
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("param-mem: ");
-    for (int i = 0; i != elf_info->param_size; ++i) {
-        printf("%02x ", param_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("param-mem: ");
+        for (int i = 0; i != elf_info->param_size; ++i) {
+            printf("%02x ", param_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     res = cudbgAPI->writeParamMemory(dev, sm, warp,
                                      (uint64_t)elf_info->param_addr, param_mem,
                                      (uint32_t)elf_info->param_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
+        LOGE(LOG_ERROR, "cuda error: %s",
                 cudbgGetErrorString(res));
         goto cleanup;
     }
@@ -1124,30 +1120,30 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         sprintf(heap_suffix, "-P%u", elf_info->params[i].index);
 
         if (!cricket_file_exists(ckp_dir, CRICKET_DT_HEAP, heap_suffix)) {
-            printf("no checkpoint file for parameter %u\n", i);
+            LOGE(LOG_ERROR, "no checkpoint file for parameter %u", i);
             continue;
         }
         param_data = NULL;
         if (!cricket_file_read_mem_size(ckp_dir, CRICKET_DT_HEAP, heap_suffix,
                                         &param_data, 0, &heapsize)) {
-            printf("cricket error while reading heap param data\n");
+            LOGE(LOG_ERROR, "cricket error while reading heap param data");
             goto cleanup;
         }
-#ifdef _CRICKET_DEBUG_CR_
-        printf("heap param %u: %llx (%u)\n", i,
-               *(void **)(param_mem + elf_info->params[i].offset), heapsize);
-        printf("param-data for param %u: ", i);
-        for (int i = 0; i != heapsize; ++i) {
-            printf("%02x ", ((uint8_t *)param_data)[i]);
+        IFLOG(LOG_DBG(3)) {
+            printf("heap param %u: %llx (%u)\n", i,
+                   *(void **)(param_mem + elf_info->params[i].offset), heapsize);
+            printf("param-data for param %u: ", i);
+            for (int i = 0; i != heapsize; ++i) {
+                printf("%02x ", ((uint8_t *)param_data)[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
-#endif
 
         res = cudbgAPI->writeGlobalMemory(
             *(uint64_t *)(param_mem + elf_info->params[i].offset), param_data,
             heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
+            LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
@@ -1182,22 +1178,22 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         cudbgAPI->readParamMemory(dev, sm, warp, (uint64_t)elf_info->param_addr,
                                   param_mem, (uint32_t)elf_info->param_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
+        LOGE(LOG_ERROR, "cuda error: %s",
                 cudbgGetErrorString(res));
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("param-mem: ");
-    for (int i = 0; i != elf_info->param_size; ++i) {
-        printf("%02x ", param_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("param-mem: ");
+        for (int i = 0; i != elf_info->param_size; ++i) {
+            printf("%02x ", param_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_PARAM, NULL, param_mem,
                                 elf_info->param_size)) {
-        printf("error writing param\n");
+        LOGE(LOG_ERROR, "error writing param");
         goto cleanup;
     }
     cricket_focus_host(0);
@@ -1209,13 +1205,13 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         if (!cricket_heap_memreg_size(
                  *(void **)(param_mem + elf_info->params[i].offset),
                  &heapsize)) {
-            printf("cricket-heap: param %u is a 64 bit parameter but does not "
-                   "point to an allocated region or an error occured\n",
+            LOGE(LOG_DEBUG, "cricket-heap: param %u is a 64 bit parameter but does not "
+                   "point to an allocated region or an error occured",
                    i);
             continue;
         }
 
-        printf("heap param %u: %llx (%lu)\n", i,
+        LOGE(LOG_DEBUG, "heap param %u: %llx (%lu)", i,
                *(void **)(param_mem + elf_info->params[i].offset), heapsize);
 
         if ((param_data = realloc(param_data, heapsize)) == NULL) {
@@ -1226,23 +1222,23 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
             *(uint64_t *)(param_mem + elf_info->params[i].offset), param_data,
             heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
+            LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
 
-#ifdef _CRICKET_DEBUG_CR_
-        printf("param-data for param %u: ", i);
-        for (int i = 0; i != heapsize; ++i) {
-            printf("%02x ", ((uint8_t *)param_data)[i]);
+        IFLOG(LOG_DBG(3)) {
+            printf("param-data for param %u: ", i);
+            for (int i = 0; i != heapsize; ++i) {
+                printf("%02x ", ((uint8_t *)param_data)[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
-#endif
 
         sprintf(heap_suffix, "-P%u", elf_info->params[i].index);
         if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_HEAP, heap_suffix,
                                     param_data, heapsize)) {
-            printf("cricket error while writing param heap\n");
+            LOGE(LOG_ERROR, "cricket error while writing param heap");
         }
     }
     ret = true;
@@ -1271,22 +1267,22 @@ bool cricket_cr_ckp_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
     res = cudbgAPI->readSharedMemory(dev, sm, warp, 0x0LLU, shared_mem,
                                      (uint32_t)elf_info->shared_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s\n", __LINE__,
+        LOGE(LOG_ERROR, "cuda error: %s",
                 cudbgGetErrorString(res));
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("shared-mem (%u): ", elf_info->shared_size);
-    for (int i = 0; i != elf_info->shared_size; ++i) {
-        printf("%02x ", shared_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("shared-mem (%u): ", elf_info->shared_size);
+        for (int i = 0; i != elf_info->shared_size; ++i) {
+            printf("%02x ", shared_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_SHARED, warp_suffix,
                                 shared_mem, elf_info->shared_size)) {
-        printf("error writing param\n");
+        LOGE(LOG_ERROR, "error writing param");
         goto cleanup;
     }
     ret = true;
@@ -1313,22 +1309,22 @@ bool cricket_cr_rst_shared(CUDBGAPI cudbgAPI, const char *ckp_dir,
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_SHARED, warp_suffix,
                                shared_mem, elf_info->shared_size)) {
-        printf("error reading shared\n");
+        LOGE(LOG_ERROR, "error reading shared");
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("shared-mem (%u): ", elf_info->shared_size);
-    for (int i = 0; i != elf_info->shared_size; ++i) {
-        printf("%02x ", shared_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("shared-mem (%u): ", elf_info->shared_size);
+        for (int i = 0; i != elf_info->shared_size; ++i) {
+            printf("%02x ", shared_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     res = cudbgAPI->writeSharedMemory(dev, sm, warp, 0x0LLU, shared_mem,
                                       (uint32_t)elf_info->shared_size);
     if (res != CUDBG_SUCCESS) {
-        fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
+        LOGE(LOG_ERROR, "cuda error: %s",
                 cudbgGetErrorString(res));
         goto cleanup;
     }
@@ -1358,7 +1354,7 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
      * possible?)
      */
     if (!cricket_elf_get_global_vars_info(&globals, &globals_num)) {
-        printf("cricket-cr: error getting global variable info\n");
+        LOGE(LOG_ERROR, "cricket-cr: error getting global variable info");
         return false;
     }
 
@@ -1372,23 +1368,23 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
 
     if (!cricket_file_read_mem(ckp_dir, CRICKET_DT_GLOBALS, NULL, globals_mem,
                                globals_mem_size)) {
-        fprintf(stderr, "cricket-cr: error while reading globals\n");
+        LOGE(LOG_ERROR, "error while reading globals");
         goto cleanup;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("globals-mem: ");
-    for (int i = 0; i != globals_mem_size; ++i) {
-        printf("%02x ", globals_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("globals-mem: ");
+        for (int i = 0; i != globals_mem_size; ++i) {
+            printf("%02x ", globals_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     for (i = 0; i < globals_num; ++i) {
         res = cudbgAPI->writeGlobalMemory(
             globals[i].address, globals_mem + offset, globals[i].size);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
+            LOGE(LOG_DEBUG, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
@@ -1403,7 +1399,7 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         asprintf(&heap_suffix, "-G%s", globals[i].symbol);
 
         if (!cricket_file_exists(ckp_dir, CRICKET_DT_HEAP, heap_suffix)) {
-            printf("cricket-cr: no checkpoint file for global variable %s\n",
+            LOGE(LOG_ERROR, "no checkpoint file for global variable %s",
                    globals[i].symbol);
             free(heap_suffix);
             heap_suffix = NULL;
@@ -1412,7 +1408,7 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         globals_data = NULL;
         if (!cricket_file_read_mem_size(ckp_dir, CRICKET_DT_HEAP, heap_suffix,
                                         &globals_data, 0, &heapsize)) {
-            printf("cricket error while writing globals heap\n");
+            LOGE(LOG_ERROR, "cricket error while writing globals heap");
             free(heap_suffix);
             heap_suffix = NULL;
             goto cleanup;
@@ -1420,20 +1416,20 @@ bool cricket_cr_rst_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         free(heap_suffix);
         heap_suffix = NULL;
 
-#ifdef _CRICKET_DEBUG_CR_
-        printf("heap global %u: %llx (%u)\n", i,
-               *(void **)(globals_mem + offset), heapsize);
-        printf("globals-data for global variable %s: ", globals[i].symbol);
-        for (int i = 0; i != heapsize; ++i) {
-            printf("%02x ", ((uint8_t *)globals_data)[i]);
+        IFLOG(LOG_DBG(3)) {
+            printf("heap global %u: %llx (%u)\n", i,
+                   *(void **)(globals_mem + offset), heapsize);
+            printf("globals-data for global variable %s: ", globals[i].symbol);
+            for (int i = 0; i != heapsize; ++i) {
+                printf("%02x ", ((uint8_t *)globals_data)[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
-#endif
 
         res = cudbgAPI->writeGlobalMemory(*(uint64_t *)(globals_mem + offset),
                                           globals_data, heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
+            LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
@@ -1468,7 +1464,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
      * possible?)
      */
     if (!cricket_elf_get_global_vars_info(&globals, &globals_num)) {
-        printf("cricket-cr: error getting global variable info\n");
+        LOGE(LOG_ERROR, "error getting global variable info");
         return false;
     }
 
@@ -1484,24 +1480,24 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->readGlobalMemory(globals[i].address,
                                          globals_mem + offset, globals[i].size);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d):%s", __LINE__,
+            LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
         offset += globals[i].size;
     }
 
-#ifdef _CRICKET_DEBUG_CR_
-    printf("globals-mem: ");
-    for (int i = 0; i != globals_mem_size; ++i) {
-        printf("%02x ", globals_mem[i]);
+    IFLOG(LOG_DBG(3)) {
+        printf("globals-mem: ");
+        for (int i = 0; i != globals_mem_size; ++i) {
+            printf("%02x ", globals_mem[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-#endif
 
     if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_GLOBALS, NULL, globals_mem,
                                 globals_mem_size)) {
-        fprintf(stderr, "cricket-cr: error writing globals\n");
+        LOGE(LOG_ERROR, "error writing globals");
         goto cleanup;
     }
 
@@ -1514,13 +1510,13 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
 
         if (!cricket_heap_memreg_size(*(void **)(globals_mem + offset),
                                       &heapsize)) {
-            printf("cricket-heap: global variable %s has a size of 64 bit but "
+            LOGE(LOG_WARNING, "global variable %s has a size of 64 bit but "
                    "does not point to an allocated region or an error "
-                   "occured\n",
+                   "occured",
                    globals[i].symbol);
             continue;
         }
-        printf("heap param %u: %llx (%lu)\n", i,
+        LOGE(LOG_DEBUG,"heap param %u: %llx (%lu)", i,
                *(void **)(globals_mem + offset), heapsize);
 
         if ((globals_data = realloc(globals_data, heapsize)) == NULL) {
@@ -1530,22 +1526,23 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         res = cudbgAPI->readGlobalMemory(*(uint64_t *)(globals_mem + offset),
                                          globals_data, heapsize);
         if (res != CUDBG_SUCCESS) {
-            fprintf(stderr, "cricket-cr (%d): %s\n", __LINE__,
+             LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
             goto cleanup;
         }
 
-#ifdef _CRICKET_DEBUG_CR_
-        printf("global-data for global variable %s: ", globals[i].symbol);
-        for (int i = 0; i != heapsize; ++i) {
-            printf("%02x ", ((uint8_t *)globals_data)[i]);
+        IFLOG(LOG_DBG(3)) {
+            printf("global-data for global variable %s: ", globals[i].symbol);
+            for (int i = 0; i != heapsize; ++i) {
+                printf("%02x ", ((uint8_t *)globals_data)[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
-#endif
+
         asprintf(&heap_suffix, "-G%s", globals[i].symbol);
         if (!cricket_file_store_mem(ckp_dir, CRICKET_DT_HEAP, heap_suffix,
                                     globals_data, heapsize)) {
-            printf("cricket error while writing param heap\n");
+            LOGE(LOG_ERROR, "cricket error while writing param heap");
         }
         free(heap_suffix);
         heap_suffix = NULL;
