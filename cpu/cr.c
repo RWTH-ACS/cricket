@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <rpc/clnt.h>
 #include <cusolverDn.h>
+#include <errno.h>
 
 #include "cpu-common.h"
 #include "api-recorder.h"
@@ -498,7 +499,7 @@ int cr_restore_rpc_id(const char *path, unsigned long *prog, unsigned long *vers
         goto out;
     }
     if ((fp = fopen(file_name, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "error while opening file");
+        LOGE(LOG_ERROR, "error while opening file \"%s\": %s", file_name, strerror(errno));
         free(file_name);
         goto out;
     }
@@ -732,12 +733,12 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     case CUDA_LAUNCH_KERNEL:
     case CUDA_LAUNCH_COOPERATIVE_KERNEL:
     case CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE:
+        break;
+    case rpc_cusolverDnCreate:
         if (cr_restore_cusolver(record, rm_cusolver) != 0) {
             LOGE(LOG_ERROR, "error restoring cusolver");
             goto cleanup;
         }
-        break;
-    case rpc_cusolverDnCreate:
         break;
     default:
         if (cr_call_record(record) != 0) {
@@ -767,8 +768,9 @@ int cr_launch_kernel(void)
             arg->arg4.mem_data_val = record->data;
             if ((ret = cr_call_record(record)) != 0) {
                 LOGE(LOG_ERROR, "calling record function failed");
+                goto cleanup;
             }
-            free(record->data);
+            //free(record->data);
             /*dim3 cuda_gridDim = {arg.arg2.x, arg.arg2.y, arg.arg2.z};
             dim3 cuda_blockDim = {arg.arg3.x, arg.arg3.y, arg.arg3.z};
             LOGE(LOG_DEBUG, "launching kernel with address %p", arg.arg1);
@@ -786,10 +788,14 @@ int cr_launch_kernel(void)
             } else {
                 ret = 0;
             }*/
+            ret = 0;
             goto cleanup;
         } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL) {
-
+            LOGE(LOG_ERROR, "not yet supported");
+            goto cleanup;
         } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE) {
+            LOGE(LOG_ERROR, "not yet supported");
+            goto cleanup;
         }
     }
     ret = 0;
@@ -811,7 +817,7 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
         goto out;
     }
     if ((fp = fopen(file_name, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "error while opening file");
+        LOGE(LOG_ERROR, "error while opening file \"%s\": %s", file_name, strerror(errno));
         free(file_name);
         goto out;
     }
@@ -842,7 +848,10 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
             goto cleanup;
         }
     }
-    //cr_launch_kernel();
+    if (cr_launch_kernel() != 0) {
+        LOGE(LOG_ERROR, "launching kernel failed");
+        goto cleanup;
+    }
     res = 0;
 cleanup:
     free(file_name);

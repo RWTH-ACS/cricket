@@ -57,7 +57,7 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
         mid = start + (end-start)/2;
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
-            LOG(LOG_ERROR, "list state of map_res is inconsistent\n");
+            LOG(LOG_ERROR, "list state of map_res is inconsistent");
             return NULL;
         }
 
@@ -111,7 +111,7 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
         mid = start + (end-start)/2;
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
-            LOG(LOG_ERROR, "list state of map_res is inconsistent\n");
+            LOG(LOG_ERROR, "list state of map_res is inconsistent");
             return 1;
         }
 

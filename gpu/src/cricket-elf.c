@@ -36,10 +36,16 @@ bool cricket_file_cpy(const char *source, const char *destination)
         LOGE(LOG_ERROR, "failed to open source file %s", source);
         return false;
     }
-    if ((output = creat(destination, 0770)) == -1) {
-        LOGE(LOG_ERROR, "failed to create destination file %s", destination);
-        close(input);
-        return false;
+    if ((output = open(destination, O_WRONLY|O_CREAT|O_TRUNC, 0770)) == -1) {
+        LOGE(LOG_WARNING, "create file %s resulted in : \"%s\". Deleting existing file.", destination, strerror(errno));
+        if (unlink(destination) != 0) {
+            LOGE(LOG_ERROR, "could not delete file %s: \"%s\"", destination, strerror(errno));
+            close(input);
+            return false;
+        } else if ((output = open(destination, O_WRONLY|O_CREAT|O_TRUNC, 0770)) == -1) {
+            LOGE(LOG_ERROR, "creating destionation file %s failed again: \"%s\"", destination, strerror(errno));
+            return false;
+        }
     }
 
     // sendfile will work with non-socket output (i.e. regular file) on Linux
@@ -913,6 +919,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
     size_t func_num = 0;
     size_t text_prefixlen = strlen(CRICKET_ELF_TEXT_PREFIX) - 1;
     struct bfd_iovec *iovec = NULL;
+    const struct bfd_iovec *orig_iovec = NULL;
 
     if (filename == NULL) {
         LOGE(LOG_ERROR, "filename is NULL");
@@ -978,8 +985,12 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
         goto cleanup;
     }
 
+    //We change the iovec of cudabfd so we can report the correct filesize
+    //because in-memory files always report a file size of 0, which creates 
+    //problems elsewhere
     cudabfd_size = fatbin_size;
     orig_cudabfd_stat = cudabfd->iovec->bstat;
+    orig_iovec = cudabfd->iovec;
     iovec = (struct bfd_iovec*)malloc(sizeof(struct bfd_iovec));
     memcpy(iovec, cudabfd->iovec, sizeof(struct bfd_iovec));
     iovec->bstat = cudabfd_stat;
@@ -992,7 +1003,7 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
 
     for (section = cudabfd->sections; section != NULL;
          section = section->next) {
-        LOGE(LOG_DEBUG, "section: %s", section->name);
+        LOGE(LOG_DBG(1), "section: %s", section->name);
         if (strncmp(section->name, CRICKET_ELF_TEXT_PREFIX, text_prefixlen) !=
             0) {
             continue;
@@ -1155,8 +1166,13 @@ bool cricket_elf_patch_all(const char *filename, const char *new_filename,
 cleanup:
     free(fatbin);
     free(data);
-    if (cudabfd != NULL)
+    free(iovec);
+    if (cudabfd != NULL) {
+        //We need to restore the original iovec because libbfd is caching iovecs
+        //and gets trapped in an endless loop if the iovec is unknown
+        cudabfd->iovec = orig_iovec;
         bfd_close(cudabfd);
+    }
     if (hostbfd != NULL)
         bfd_close(hostbfd);
     return ret;

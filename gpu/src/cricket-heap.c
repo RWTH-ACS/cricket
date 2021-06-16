@@ -1,4 +1,5 @@
 
+#include "log.h"
 #include "defs.h"
 #include "command.h"
 #include "cli/cli-cmds.h"
@@ -51,10 +52,10 @@ bool cricket_heap_memreg_size(void *addr, size_t *size)
         return false;
 
     if (callstr == NULL) {
-        fprintf(stderr, "cricket-heap: asprintf returned NULL\n");
+        LOGE(LOG_ERROR, "asprintf returned NULL");
         return false;
     }
-    printf("callstr: %s\n", callstr);
+    LOGE(LOG_DEBUG, "callstr: %s", callstr);
     *size = parse_and_eval_long(callstr);
     free(callstr);
 

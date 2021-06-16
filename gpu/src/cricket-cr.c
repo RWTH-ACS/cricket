@@ -1120,7 +1120,7 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         sprintf(heap_suffix, "-P%u", elf_info->params[i].index);
 
         if (!cricket_file_exists(ckp_dir, CRICKET_DT_HEAP, heap_suffix)) {
-            LOGE(LOG_ERROR, "no checkpoint file for parameter %u", i);
+            LOGE(LOG_WARNING, "no checkpoint file for parameter %u", i);
             continue;
         }
         param_data = NULL;

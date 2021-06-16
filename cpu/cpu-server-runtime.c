@@ -110,7 +110,7 @@ int server_runtime_restore(const char *path)
     gettimeofday(&end, NULL);
     time = ((double)((end.tv_sec * 1e6 + end.tv_usec) -
                      (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
-    LOGE(LOG_INFO, "time: %f\n", time);
+    LOGE(LOG_INFO, "time: %f", time);
 
     return 0;
 }
@@ -264,7 +264,7 @@ bool_t cuda_device_set_shared_mem_config_1_svc(int config, int *result, struct s
 bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
 {
     RECORD_VOID_API;
-    LOGE(LOG_DEBUG, "cudaDeviceSynchronize\n");
+    LOGE(LOG_DEBUG, "cudaDeviceSynchronize");
     *result = cudaDeviceSynchronize();
     RECORD_RESULT(integer, *result);
     return 1;
@@ -493,7 +493,7 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(stream);
-    LOGE(LOG_DEBUG, "cudaStreamDestroy\n");
+    LOGE(LOG_DEBUG, "cudaStreamDestroy");
     *result = cudaStreamDestroy(resource_mg_get(&rm_streams, (void*)stream));
     RECORD_RESULT(integer, *result);
     return 1;
@@ -653,7 +653,7 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
     RECORD_ARG(1, event);
     RECORD_ARG(2, stream);
     RECORD_ARG(3, flags);
-    LOGE(LOG_DEBUG, "cudaEventRecordWithFlags\n");
+    LOGE(LOG_DEBUG, "cudaEventRecordWithFlags");
     *result = cudaEventRecordWithFlags(
       resource_mg_get(&rm_events, (void*)event),
       resource_mg_get(&rm_streams, (void*)stream),
@@ -827,10 +827,10 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
         *(void**)cuda_args[i] = resource_mg_get(&rm_memory, *(void**)cuda_args[i]);
-        LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+        LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)\n", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
     *result = cudaLaunchKernel(
       (void*)func,
@@ -1378,7 +1378,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     RECORD_ARG(2, device_ptr);
     RECORD_ARG(3, size);
     RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyIB\n");
+    LOGE(LOG_DEBUG, "cudaMemcpyIB");
     *result = cudaErrorInitializationError;
     if (hainfo[index].cnt == 0 ||
         hainfo[index].cnt != index) {
