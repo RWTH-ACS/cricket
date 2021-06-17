@@ -1,5 +1,7 @@
 #RPC server library
 SERVER = cricket-server.so
+#Standalone RPC Server
+SERVER_BIN = cricket-rpc-server
 #RPC client library
 CLIENT = cricket-client.so
 
@@ -77,19 +79,23 @@ ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lbfd
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lbfd -lrt -lpthread
+SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -lcuda
 CLIENT_LD_FLAGS = $(LD_FLAGS)
 
 # Targets
 .PHONY: all clean
 
-all : $(SERVER) $(CLIENT)
+all : $(SERVER) $(SERVER_BIN) $(CLIENT)
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
 $(SERVER) : $(OBJ_SERVER)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_LD_FLAGS)
+
+$(SERVER_BIN) : $(OBJ_SERVER)
+	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
 	$(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<

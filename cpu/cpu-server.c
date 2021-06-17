@@ -99,8 +99,7 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
 }
 
 
-/* shared object constructor; executes before main and thus hijacks main program */
-void __attribute__ ((constructor)) cricketd_main(void)
+void cricketd_main(void)
 {
     register SVCXPRT *transp;
 
@@ -126,6 +125,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
         LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
     } else {
         LOG(LOG_DEBUG, "the command is '%s'", command);
+        //This is a workaround to make LD_PRELOAD work under GDB supervision
         const char *cmp = "cudbgprocess";
         if (strncmp(command, cmp, strlen(cmp)) == 0) {
             LOG(LOG_DEBUG, "skipping RPC server");
@@ -145,7 +145,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
 
     switch (socktype) {
     case UNIX:
-        LOG(LOG_INFO, "using UNIX...\n");
+        LOG(LOG_INFO, "using UNIX...");
         transp = svcunix_create(RPC_ANYSOCK, 0, 0, CD_SOCKET_PATH);
         if (transp == NULL) {
             LOGE(LOG_ERROR, "cannot create service.");
@@ -154,14 +154,14 @@ void __attribute__ ((constructor)) cricketd_main(void)
         connection_is_local = 1;
         break;
     case TCP:
-        LOG(LOG_INFO, "using TCP...\n");
+        LOG(LOG_INFO, "using TCP...");
         transp = svctcp_create(RPC_ANYSOCK, 0, 0);
         if (transp == NULL) {
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         }
         pmap_unset(prog, vers);
-        LOG(LOG_INFO, "listening on port %d\n", transp->xp_port);
+        LOG(LOG_INFO, "listening on port %d", transp->xp_port);
         protocol = IPPROTO_TCP;
         break;
     case UDP:
@@ -172,7 +172,7 @@ void __attribute__ ((constructor)) cricketd_main(void)
          * -> Sounds like UDP does not make sense for CUDA, because we need to
          *    be able to copy large memory chunks
          **/
-        LOG(LOG_INFO, "UDP is not supported...\n");
+        LOG(LOG_INFO, "UDP is not supported...");
         break;
     }
 
@@ -209,16 +209,28 @@ void __attribute__ ((constructor)) cricketd_main(void)
         exit(1);
     }
 
-    LOG(LOG_INFO, "waiting for RPC requests...\n");
+    LOG(LOG_INFO, "waiting for RPC requests...");
 
     svc_run ();
 
     server_runtime_deinit();
-    fprintf (stderr, "%s", "svc_run returned\n");
+    LOGE(LOG_ERROR, "svc_run returned. This should not happen.");
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
     exit(0);
+}
+
+int main(int argc, char** argv)
+{
+    cricketd_main();
+    return 0;
+}
+
+/* shared object constructor; executes before main and thus hijacks main program */
+void __attribute__ ((constructor)) library_constr(void)
+{
+    cricketd_main();
 }
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)
