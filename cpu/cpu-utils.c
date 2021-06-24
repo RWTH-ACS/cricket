@@ -39,12 +39,13 @@ int cpu_utils_command(char **command)
         goto cleanup;
     }
 
-    if ((*command = realloc(*command, comm_len)) == NULL) {
+    if ((*command = realloc(*command, comm_len-1)) == NULL) {
         LOGE(LOG_ERROR, "realloc failed");
         goto cleanup;
     }
     
-    strncpy(*command, str, strlen(str)-1);
+    strncpy(*command, str, comm_len-1);
+    (*command)[comm_len-1] = '\0';
     ret = 0;
  cleanup:
     fclose(fd);

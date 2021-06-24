@@ -99,7 +99,7 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
 }
 
 
-void cricketd_main(void)
+void cricket_main(char* app_command)
 {
     register SVCXPRT *transp;
 
@@ -137,10 +137,12 @@ void cricketd_main(void)
         if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
             LOGE(LOG_ERROR, "error while restoring rpc id");
         }
-    } else if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+    } else if (cpu_utils_md5hash(app_command, &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum");
         exit(0);
     }
+
+    LOGE(LOG_DEBUG, "using prog=%d, vers=%d, derived from \"%s\"", prog, vers, app_command);
 
 
     switch (socktype) {
@@ -219,18 +221,6 @@ void cricketd_main(void)
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
     exit(0);
-}
-
-int main(int argc, char** argv)
-{
-    cricketd_main();
-    return 0;
-}
-
-/* shared object constructor; executes before main and thus hijacks main program */
-void __attribute__ ((constructor)) library_constr(void)
-{
-    cricketd_main();
 }
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)

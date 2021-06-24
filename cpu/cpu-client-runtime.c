@@ -295,7 +295,6 @@ cudaError_t cudaGetDevice(int* device)
 
 cudaError_t cudaGetDeviceCount(int* count)
 {
-    LOG(LOG_DEBUG, "start cgdc");
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
@@ -308,7 +307,6 @@ cudaError_t cudaGetDeviceCount(int* count)
     if (result.err == 0) {
         *count = result.int_result_u.data;
     }
-    LOG(LOG_DEBUG, "end cgdc");
     return result.err;
 }
 

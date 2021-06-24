@@ -21,6 +21,7 @@ RPC_DEF = cpu_rpc_prot.x
 RPC_H = $(RPC_DEF:%.x=%.h)
 
 
+
 SRC_SERVER = $(RPC_XDR)                 \
 			 $(RPC_SERVER_MOD)          \
 			 cpu-server.c               \
@@ -35,6 +36,9 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 api-recorder.c 			\
 			 resource-mg.c 			    \
 			 cr.c
+
+SRC_SERVER_LIB = server-library.c
+SRC_SERVER_EXE = server-exe.c
 
 SRC_CLIENT = $(RPC_XDR)                 \
 			 $(RPC_CLIENT)              \
@@ -81,7 +85,7 @@ endif
 
 SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lbfd -lrt -lpthread
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -lcuda
-CLIENT_LD_FLAGS = $(LD_FLAGS)
+CLIENT_LD_FLAGS = $(LD_FLAGS) -lbfd
 
 # Targets
 .PHONY: all clean
@@ -91,10 +95,10 @@ all : $(SERVER) $(SERVER_BIN) $(CLIENT)
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
-$(SERVER) : $(OBJ_SERVER)
+$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_LIB:%.c=%.o)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_LD_FLAGS)
 
-$(SERVER_BIN) : $(OBJ_SERVER)
+$(SERVER_BIN) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
@@ -116,7 +120,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_BIN) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
 
 
 

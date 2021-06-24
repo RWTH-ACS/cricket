@@ -30,6 +30,7 @@ kernel_info_t *infos = NULL;
 INIT_SOCKTYPE
 int connection_is_local = 0;
 int shm_enabled = 1;
+int initialized = 0;
 
 #ifdef WITH_API_CNT
 extern void cpu_runtime_print_api_call_cnt(void);
@@ -59,13 +60,22 @@ static void rpc_connect(void)
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
     if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
-        LOGE(LOG_ERROR, "error while creating binary checksum\n");
+        LOGE(LOG_ERROR, "error while creating binary checksum");
         exit(0);
     }
 
+    char* cmd = NULL;
+    if (cpu_utils_command(&cmd) != 0) {
+        LOGE(LOG_ERROR, "error getting command");
+    } else {
+        LOG(LOG_DEBUG, "the command is \"%s\"", cmd);
+    }
+
+    LOGE(LOG_DEBUG, "using prog=%d, vers=%d", prog, vers);
+
     switch (socktype) {
     case UNIX:
-        printf("connecting via UNIX...\n");
+        LOG(LOG_INFO, "connecting via UNIX...");
         isock = RPC_ANYSOCK;
         sock_un.sun_family = AF_UNIX;
         strcpy(sock_un.sun_path, CD_SOCKET_PATH);
@@ -73,7 +83,7 @@ static void rpc_connect(void)
         connection_is_local = 1;
         break;
     case TCP:
-        printf("connecting via TCP...\n");
+        LOG(LOG_INFO, "connecting via TCP...");
         isock = RPC_ANYSOCK;
         sock_in.sin_family = AF_INET;
         sock_in.sin_port = 0;
@@ -136,6 +146,7 @@ void __attribute__ ((constructor)) init_rpc(void)
     init_log(LOG_LEVEL, __FILE__);
     rpc_connect();
 
+    initialized = 1;
     if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
         exit(1);
@@ -160,15 +171,19 @@ void __attribute__ ((destructor)) deinit_rpc(void)
 {
     enum clnt_stat retval_1;
     int result;
-    retval_1 = rpc_deinit_1(&result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
+    if (initialized) {
+        retval_1 = rpc_deinit_1(&result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "call failed.");
+        }
 #ifdef WITH_API_CNT
-    cpu_runtime_print_api_call_cnt();
+        cpu_runtime_print_api_call_cnt();
 #endif //WITH_API_CNT
+    }
 
-    clnt_destroy (clnt);
+    if (clnt != NULL) {
+        clnt_destroy (clnt);
+    }
 }
 
 void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress, const char *deviceName, int ext, size_t size, int constant, int global)
