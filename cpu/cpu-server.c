@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "cpu-server.h"
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
@@ -108,7 +109,17 @@ bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* devic
     return 1;
 }
 
-void cricket_main(char* app_command)
+void cricket_main_hash(char* app_command)
+{
+    cricket_main(app_command, 0, 0);
+}
+
+void cricket_main_static(size_t prog_num, size_t vers_num)
+{
+    cricket_main("", prog_num, vers_num);
+}
+
+void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 {
     register SVCXPRT *transp;
 
@@ -146,9 +157,17 @@ void cricket_main(char* app_command)
         if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
             LOGE(LOG_ERROR, "error while restoring rpc id");
         }
-    } else if (cpu_utils_md5hash(app_command, &prog, &vers) != 0) {
-        LOGE(LOG_ERROR, "error while creating binary checksum");
-        exit(0);
+    } else {
+        if (prog_num == 0) {
+            if (cpu_utils_md5hash(app_command, &prog, &vers) != 0) {
+                LOGE(LOG_ERROR, "error while creating binary checksum");
+                exit(0);
+            }
+        }
+        else {
+            prog = prog_num;
+            vers = vers_num;
+        }
     }
 
     LOGE(LOG_DEBUG, "using prog=%d, vers=%d, derived from \"%s\"", prog, vers, app_command);
