@@ -35,6 +35,12 @@ _rpc_printmessage_1 (char * *argp, void *result, struct svc_req *rqstp)
 }
 
 int
+_cuda_register_function_1 (cuda_register_function_1_argument *argp, void *result, struct svc_req *rqstp)
+{
+	return (cuda_register_function_1_svc(argp->arg1, argp->arg2, argp->arg3, argp->arg4, argp->arg5, result, rqstp));
+}
+
+int
 _cuda_choose_device_1 (mem_data  *argp, void *result, struct svc_req *rqstp)
 {
 	return (cuda_choose_device_1_svc(*argp, result, rqstp));
@@ -759,6 +765,7 @@ rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
 		char *rpc_printmessage_1_arg;
+		cuda_register_function_1_argument cuda_register_function_1_arg;
 		mem_data cuda_choose_device_1_arg;
 		cuda_device_get_attribute_1_argument cuda_device_get_attribute_1_arg;
 		char *cuda_device_get_by_pci_bus_id_1_arg;
@@ -861,6 +868,7 @@ rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		int rpc_checkpoint_1_res;
 		int rpc_deinit_1_res;
 		int rpc_printmessage_1_res;
+		int cuda_register_function_1_res;
 		int_result cuda_choose_device_1_res;
 		int_result cuda_device_get_attribute_1_res;
 		int_result cuda_device_get_by_pci_bus_id_1_res;
@@ -1001,6 +1009,12 @@ rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_wrapstring;
 		_xdr_result = (xdrproc_t) xdr_int;
 		local = (bool_t (*) (char *, void *,  struct svc_req *))_rpc_printmessage_1;
+		break;
+
+	case CUDA_REGISTER_FUNCTION:
+		_xdr_argument = (xdrproc_t) xdr_cuda_register_function_1_argument;
+		_xdr_result = (xdrproc_t) xdr_int;
+		local = (bool_t (*) (char *, void *,  struct svc_req *))_cuda_register_function_1;
 		break;
 
 	case CUDA_CHOOSE_DEVICE:
@@ -1749,6 +1763,7 @@ void rpc_dispatch(struct svc_req *rqstp, xdrproc_t *ret_arg, xdrproc_t *ret_res,
 {
 	union {
 		char *rpc_printmessage_1_arg;
+		cuda_register_function_1_argument cuda_register_function_1_arg;
 		mem_data cuda_choose_device_1_arg;
 		cuda_device_get_attribute_1_argument cuda_device_get_attribute_1_arg;
 		char *cuda_device_get_by_pci_bus_id_1_arg;
@@ -1851,6 +1866,7 @@ void rpc_dispatch(struct svc_req *rqstp, xdrproc_t *ret_arg, xdrproc_t *ret_res,
 		int rpc_checkpoint_1_res;
 		int rpc_deinit_1_res;
 		int rpc_printmessage_1_res;
+		int cuda_register_function_1_res;
 		int_result cuda_choose_device_1_res;
 		int_result cuda_device_get_attribute_1_res;
 		int_result cuda_device_get_by_pci_bus_id_1_res;
@@ -1991,6 +2007,12 @@ void rpc_dispatch(struct svc_req *rqstp, xdrproc_t *ret_arg, xdrproc_t *ret_res,
 		_xdr_argument = (xdrproc_t) xdr_wrapstring;
 		_xdr_result = (xdrproc_t) xdr_int;
 		local = (bool_t (*) (char *, void *,  struct svc_req *))_rpc_printmessage_1;
+		break;
+
+	case CUDA_REGISTER_FUNCTION:
+		_xdr_argument = (xdrproc_t) xdr_cuda_register_function_1_argument;
+		_xdr_result = (xdrproc_t) xdr_int;
+		local = (bool_t (*) (char *, void *,  struct svc_req *))_cuda_register_function_1;
 		break;
 
 	case CUDA_CHOOSE_DEVICE:

@@ -908,13 +908,21 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     enum clnt_stat retval_1;
     size_t i;
     char *buf;
+    int found_kernel = 0;
     //printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(%p)", func);
 
     for (i=0; i < kernelnum; ++i) {
         if (func != NULL && infos[i].host_fun == func) {
             LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+            found_kernel = 1;
             break;
         }
+    }
+
+    if (!found_kernel) {
+        LOGE(LOG_ERROR, "request to call unknown kernel.");
+        return cudaErrorInvalidDeviceFunction;
     }
 
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};

@@ -47,6 +47,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-runtime.c       \
 			 cpu-client-driver.c        \
 			 cpu-client-driver-hidden.c \
+			 list.c 				    \
 			 log.c                      \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c

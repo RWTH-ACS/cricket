@@ -148,6 +148,7 @@ program RPC_CD_PROG {
         int          rpc_checkpoint(void)                                 = 0;
         int          rpc_deinit(void)                                     = 1;
         int          rpc_printmessage(string)                             = 2;
+        int          CUDA_REGISTER_FUNCTION(ptr, ptr, string, string, int)= 50;
 /* RUNTIME API */
         /* ### Device Management ### */
         int_result   CUDA_CHOOSE_DEVICE(mem_data)                       = 101;

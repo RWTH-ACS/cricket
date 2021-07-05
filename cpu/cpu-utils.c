@@ -183,16 +183,18 @@ int cpu_utils_launch_child(const char *file, char **args)
     return filedes[0];
 }
 
-kernel_info_t* cricketd_utils_search_info(kernel_info_t *infos, size_t kernelnum, char *kernelname)
+kernel_info_t* cricketd_utils_search_info(list *kernel_infos, char *kernelname)
 {
-    if (infos == NULL || kernelname == NULL) {
-        LOGE(LOG_ERROR, "parameters are supposed to be pre-allocated.");
+    kernel_info_t *info = NULL;
+    if (kernel_infos == NULL) {
+        LOGE(LOG_ERROR, "list is NULL.");
         return NULL;
     }
 
-    for (int i=0; i < kernelnum; ++i) {
-        if (strcmp(kernelname, infos[i].name) == 0) {
-            return &infos[i];
+    for (int i=0; i < kernel_infos->length; ++i) {
+        info = (kernel_info_t*)(kernel_infos->elements+sizeof(kernel_info_t)*i);
+        if (strcmp(kernelname, info->name) == 0) {
+            return infos;
         }
     }
     return NULL;
@@ -313,7 +315,7 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
     return ret;
 }
 
-int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
+int cpu_utils_parameter_info(list *kernel_infos)
 {
     int ret = 1;
     char linktarget[PATH_MAX] = {0};
@@ -327,12 +329,10 @@ int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
     kernel_info_t *buf = NULL;
     char *kernelname;
 
-    if (infos == NULL || kernelnum == NULL) {
-        LOGE(LOG_ERROR, "parameters are supposed to be pre-allocated.");
+    if (kernel_infos == NULL) {
+        LOGE(LOG_ERROR, "list is NULL.");
         goto out;
     }
-    *kernelnum = 0;
-    *infos = NULL;
 
     if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
         LOGE(LOG_ERROR, "executable path length is too long");
@@ -364,12 +364,11 @@ int cpu_utils_parameter_info(kernel_info_t **infos, size_t *kernelnum)
             goto cleanup2;
         }
 
-        if ((*infos = realloc(*infos, (++(*kernelnum))*sizeof(kernel_info_t))) == NULL) {
-            LOGE(LOG_ERROR, "realloc failed");
+        if (list_append(kernel_infos, (void**)&buf) != 0) {
+            LOGE(LOG_ERROR, "error on appending to list");
             goto cleanup2;
         }
-        buf = &((*infos)[(*kernelnum)-1]);
-        memset(buf, 0, sizeof(kernel_info_t));
+
         if ((buf->name = malloc(strlen(kernelname))) == NULL) {
             LOGE(LOG_ERROR, "malloc failed");
             goto cleanup2;

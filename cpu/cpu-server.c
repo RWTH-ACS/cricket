@@ -98,6 +98,15 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
     return ret == 0;
 }
 
+/** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
+ *
+ */
+bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    *result = 0;
+    return 1;
+}
 
 void cricket_main(char* app_command)
 {
