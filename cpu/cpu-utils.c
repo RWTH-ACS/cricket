@@ -190,11 +190,14 @@ kernel_info_t* cricketd_utils_search_info(list *kernel_infos, char *kernelname)
         LOGE(LOG_ERROR, "list is NULL.");
         return NULL;
     }
-
+    LOGE(LOG_DEBUG, "searching for %s in %d entries", kernelname, kernel_infos->length);
     for (int i=0; i < kernel_infos->length; ++i) {
-        info = (kernel_info_t*)(kernel_infos->elements+sizeof(kernel_info_t)*i);
+        if (list_at(kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "no element at index %d", i);
+        }
+        LOGE(LOG_DEBUG, "%s", info->name);
         if (strcmp(kernelname, info->name) == 0) {
-            return infos;
+            return info;
         }
     }
     return NULL;

@@ -822,25 +822,36 @@ cudaError_t cudaLaunchCooperativeKernel(const void* func, dim3 gridDim, dim3 blo
     enum clnt_stat retval_1;
     size_t i;
     char *buf;
+    kernel_info_t *info;
+    int found_kernel = 0;
 
-    for (i=0; i < kernelnum; ++i) {
-        if (func != NULL && infos[i].host_fun == func) {
-            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+    for (i=0; i < kernel_infos.length; ++i) {
+        if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "error gettint element at %d", i);
+            return cudaErrorInvalidDeviceFunction;
+        }
+        if (func != NULL && info != NULL && info->host_fun == func) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", info->name, info->param_size, info->param_num);
+            found_kernel = 1;
             break;
         }
+    }
+    if (!found_kernel) {
+        LOGE(LOG_ERROR, "request to call unknown kernel.");
+        return cudaErrorInvalidDeviceFunction;
     }
 
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;
-    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_len = sizeof(size_t)+info->param_num*sizeof(uint16_t)+info->param_size;
     rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
-    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
-    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
-    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
-        size = infos[i].param_sizes[j];
-        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
-               infos[i].param_offsets[j],
+    memcpy(rpc_args.mem_data_val, &info->param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), info->param_offsets, info->param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < info->param_num; ++j) {
+        size = info->param_sizes[j];
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + info->param_num*sizeof(uint16_t) +
+               info->param_offsets[j],
                args[j],
                size);
     }
@@ -862,27 +873,38 @@ cudaError_t cudaLaunchCooperativeKernelMultiDevice(struct cudaLaunchParams* laun
     size_t i;
     char *buf;
     void* func = launchParamsList->func;
+    kernel_info_t *info;
+    int found_kernel = 0;
     dim3 gridDim = launchParamsList->gridDim;
     dim3 blockDim = launchParamsList->blockDim;
 
-    for (i=0; i < kernelnum; ++i) {
-        if (func != NULL && infos[i].host_fun == func) {
-            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+    for (i=0; i < kernel_infos.length; ++i) {
+        if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "error gettint element at %d", i);
+            return cudaErrorInvalidDeviceFunction;
+        }
+        if (func != NULL && info != NULL && info->host_fun == func) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", info->name, info->param_size, info->param_num);
+            found_kernel = 1;
             break;
         }
+    }
+    if (!found_kernel) {
+        LOGE(LOG_ERROR, "request to call unknown kernel.");
+        return cudaErrorInvalidDeviceFunction;
     }
 
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;
-    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_len = sizeof(size_t)+info->param_num*sizeof(uint16_t)+info->param_size;
     rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
-    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
-    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
-    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
-        size = infos[i].param_sizes[j];
-        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
-               infos[i].param_offsets[j],
+    memcpy(rpc_args.mem_data_val, &info->param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), info->param_offsets, info->param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < info->param_num; ++j) {
+        size = info->param_sizes[j];
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + info->param_num*sizeof(uint16_t) +
+               info->param_offsets[j],
                launchParamsList->args[j],
                size);
     }
@@ -909,12 +931,17 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     size_t i;
     char *buf;
     int found_kernel = 0;
+    kernel_info_t *info;
     //printf("cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p->%p,%p, sharedMem=%d, stream=%p)\n", func, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, args, args[0], args[1], sharedMem, stream);
     LOGE(LOG_DEBUG, "cudaLaunchKernel(%p)", func);
 
-    for (i=0; i < kernelnum; ++i) {
-        if (func != NULL && infos[i].host_fun == func) {
-            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", infos[i].name, infos[i].param_size, infos[i].param_num);
+    for (i=0; i < kernel_infos.length; ++i) {
+        if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "error gettint element at %d", i);
+            return cudaErrorInvalidDeviceFunction;
+        }
+        if (func != NULL && info != NULL && info->host_fun == func) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", info->name, info->param_size, info->param_num);
             found_kernel = 1;
             break;
         }
@@ -928,15 +955,15 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
     rpc_dim3 rpc_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     rpc_dim3 rpc_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     mem_data rpc_args;
-    rpc_args.mem_data_len = sizeof(size_t)+infos[i].param_num*sizeof(uint16_t)+infos[i].param_size;
+    rpc_args.mem_data_len = sizeof(size_t)+info->param_num*sizeof(uint16_t)+info->param_size;
     rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
-    memcpy(rpc_args.mem_data_val, &infos[i].param_num, sizeof(size_t));
-    memcpy(rpc_args.mem_data_val + sizeof(size_t), infos[i].param_offsets, infos[i].param_num*sizeof(uint16_t));
-    for (size_t j=0, size=0; j < infos[i].param_num; ++j) {
-        size = infos[i].param_sizes[j];
+    memcpy(rpc_args.mem_data_val, &info->param_num, sizeof(size_t));
+    memcpy(rpc_args.mem_data_val + sizeof(size_t), info->param_offsets, info->param_num*sizeof(uint16_t));
+    for (size_t j=0, size=0; j < info->param_num; ++j) {
+        size = info->param_sizes[j];
         //printf("p%d - size: %d, offset: %d\n", j, size, infos[i].param_offsets[j]);
-        memcpy(rpc_args.mem_data_val + sizeof(size_t) + infos[i].param_num*sizeof(uint16_t) +
-               infos[i].param_offsets[j],
+        memcpy(rpc_args.mem_data_val + sizeof(size_t) + info->param_num*sizeof(uint16_t) +
+               info->param_offsets[j],
                args[j],
                size);
     }
