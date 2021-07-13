@@ -21,7 +21,6 @@
 
 //static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 const char* LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
-void *so_handle = NULL;
 
 CLIENT *clnt = NULL;
 
@@ -161,8 +160,8 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "list init failed.");
     }
 
-    if (cpu_utils_parameter_info(&kernel_infos) != 0) {
-        LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
+    if (cpu_utils_parameter_info(&kernel_infos, "/proc/self/exe") != 0) {
+        LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)");
     }
 #ifdef WITH_IB
     if (ib_init(0) != 0) {
@@ -269,4 +268,51 @@ void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
         clnt_perror (clnt, "call failed");
     }
 }
+
+static void *(*dlopen_orig)(const char *, int) = NULL;
+static int   (*dlclose_orig)(void *) = NULL;
+static void *dl_handle = NULL;
+
+void *dlopen(const char *filename, int flag)
+{
+    LOG(LOG_DEBUG, "intercepted dlopen(%s, %d)", filename, flag);
+    if (dlopen_orig == NULL) {
+        if ( (dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
+            LOGE(LOG_ERROR, "[dlopen] dlsym failed");
+        }
+    }
+
+    if (filename != NULL && strcmp(filename, "libcuda.so.1") == 0) {
+        LOG(LOG_DEBUG, "replacing dlopen call to cuda driver library with cricket-client.so");
+        dl_handle = dlopen_orig("cricket-client.so", flag);
+        if (clnt == NULL) {
+            LOGE(LOG_ERROR, "rpc seems to be uninitialized");
+        }
+        return dl_handle;
+    } else {
+        return dlopen_orig(filename, flag);
+    }
+}
+
+int dlclose(void *handle)
+{
+    if (handle == NULL) {
+        LOGE(LOG_ERROR, "[dlclose] handle NULL");
+        return -1;
+    } else if (dlclose_orig == NULL) {
+        if ( (dlclose_orig = dlsym(RTLD_NEXT, "dlclose")) == NULL) {
+            LOGE(LOG_ERROR, "[dlclose] dlsym failed");
+        }
+    }
+
+    // Ignore dlclose call that would close this library
+    if (dl_handle == handle) {
+        LOGE(LOG_DEBUG, "[dlclose] ignore close");
+        return 0;
+    } else {
+        return dlclose_orig(handle);
+    }
+
+}
+
 
