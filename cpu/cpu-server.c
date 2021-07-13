@@ -199,7 +199,7 @@ void cricket_main(char* app_command)
         (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
     LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_WARNING, "cricketd: error: could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+        LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
     } else {
         cudaRegisterAllv();
     }

@@ -16,51 +16,6 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 
-static void *(*dlopen_orig)(const char *, int) = NULL;
-static int   (*dlclose_orig)(void *) = NULL;
-static void *dl_handle = NULL;
-
-void *dlopen(const char *filename, int flag)
-{
-    if (dlopen_orig == NULL) {
-        if ( (dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
-            printf("[dlopen] dlsym failed\n");
-        }
-    }
-
-
-    if (filename && strcmp(filename, "libcuda.so.1") == 0) {
-        dl_handle = dlopen_orig("/home/eiling/projects/cricket/cpu/cricket-client.so", flag);
-        if (clnt == NULL) {
-            fprintf(stderr, "error: rpc seems to be uninitialized\n");
-        }
-        return dl_handle;
-    } else {
-        return dlopen_orig(filename, flag);
-    }
-}
-
-int dlclose(void *handle)
-{
-    if (!handle) {
-        printf("[dlclose] handle NULL\n");
-        return -1;
-    } else if (dlclose_orig == NULL) {
-        if ( (dlclose_orig = dlsym(RTLD_NEXT, "dlclose")) == NULL) {
-            printf("[dlclose] dlsym failed\n");
-        }
-    }
-
-
-    // Ignore dlclose call that would close this library
-    if (dl_handle == handle) {
-        printf("[dlclose] ignore close\n");
-        return 0;
-    } else {
-        return dlclose_orig(handle);
-    }
-
-}
 
 //DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
 //DEF_FN(CUresult, cuProfilerStart)

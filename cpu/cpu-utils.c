@@ -318,7 +318,7 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
     return ret;
 }
 
-int cpu_utils_parameter_info(list *kernel_infos)
+int cpu_utils_parameter_info(list *kernel_infos, char *path)
 {
     int ret = 1;
     char linktarget[PATH_MAX] = {0};
@@ -331,18 +331,28 @@ int cpu_utils_parameter_info(list *kernel_infos)
     static const char nv_info_prefix[] = ".nv.info.";
     kernel_info_t *buf = NULL;
     char *kernelname;
+    struct stat filestat = {0};
 
     if (kernel_infos == NULL) {
         LOGE(LOG_ERROR, "list is NULL.");
         goto out;
     }
 
-    if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
-        LOGE(LOG_ERROR, "executable path length is too long");
+    if (stat(path, &filestat) != 0) {
+        LOGE(LOG_ERROR, "stat on %s failed.", path);
         goto out;
     }
-    LOG(LOG_DBG(1), "we are running the following binary: \"%s\".", linktarget);
-    args[2] = linktarget;
+
+    if (S_ISLNK(filestat.st_mode)) {
+        if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
+            LOGE(LOG_ERROR, "executable path length is too long");
+            goto out;
+        }
+        args[2] = linktarget;
+    } else {
+        args[2] = path;
+    }
+    LOG(LOG_DBG(1), "searching for kernels in \"%s\".", args[2]);
 
     if ( (output = cpu_utils_launch_child(args[0], args)) == -1) {
         LOGE(LOG_ERROR, "error while launching child.");

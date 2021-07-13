@@ -13,7 +13,7 @@ int cpu_utils_command(char **command);
 int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low);
 void* cricketd_utils_symbol_address(char *symbol);
 int cricketd_utils_launch_child(const char *file, char **args);
-int cpu_utils_parameter_info(list *kernel_infos);
+int cpu_utils_parameter_info(list *kernel_infos, char *path);
 kernel_info_t* cricketd_utils_search_info(list *kernel_infos, char *kernelname);
 
 #endif //_CPU_UTILS_H_
