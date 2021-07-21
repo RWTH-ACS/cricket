@@ -14,6 +14,7 @@
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
+#include "list.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -24,8 +25,7 @@ void *so_handle = NULL;
 
 CLIENT *clnt = NULL;
 
-size_t kernelnum = 0;
-kernel_info_t *infos = NULL;
+list kernel_infos = {0};
 
 INIT_SOCKTYPE
 int connection_is_local = 0;
@@ -153,11 +153,15 @@ void __attribute__ ((constructor)) init_rpc(void)
     }
 
     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
-    printf("return:%d\n", result_1);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (cpu_utils_parameter_info(&infos, &kernelnum) != 0) {
+
+    if (list_init(&kernel_infos, sizeof(kernel_info_t)) != 0) {
+        LOGE(LOG_ERROR, "list init failed.");
+    }
+
+    if (cpu_utils_parameter_info(&kernel_infos) != 0) {
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)\n");
     }
 #ifdef WITH_IB
@@ -176,6 +180,7 @@ void __attribute__ ((destructor)) deinit_rpc(void)
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
+        list_free(&kernel_infos);
 #ifdef WITH_API_CNT
         cpu_runtime_print_api_call_cnt();
 #endif //WITH_API_CNT
@@ -197,16 +202,20 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     int result;
     enum clnt_stat retval_1;
 
-    //printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
+    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
 
-    kernel_info_t *info = cricketd_utils_search_info(infos, kernelnum, (char*)deviceName);
+    kernel_info_t *info = cricketd_utils_search_info(&kernel_infos, (char*)deviceName);
     if (info == NULL) {
         LOGE(LOG_ERROR, "request to register unknown function: \"%s\"", deviceName);
+        retval_1 = cuda_register_function_1((ptr)fatCubinHandle, (ptr)hostFun, deviceFun, (char*)deviceName, thread_limit, &result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "call failed.");
+        }
+
         return;
     }
     info->host_fun = (void*)hostFun;
 
-    retval_1 = RPC_SUCCESS;//cuda_register_function_1((uint64_t)fatCubinHandle, (uint64_t)hostFun, deviceFun, (char*)deviceName, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -235,6 +244,7 @@ void** __cudaRegisterFatBinary(void *fatCubin)
                                    .ptr   = fat->ptr,
                                    .ptr2  = fat->ptr2,
                                    .zero  = fat->zero};
+    LOGE(LOG_DEBUG, "__cudaRegisterFatBinary");
     //printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
     //       fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);

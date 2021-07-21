@@ -2,6 +2,7 @@
 #define _CD_COMMON_H_
 
 #include <rpc/rpc.h>
+#include "list.h"
 
 #define CD_SOCKET_PATH "/tmp/cricketd_sock"
 #ifndef LOG_LEVEL
@@ -28,9 +29,7 @@ int shm_enabled;
 
 
 CLIENT *clnt;
-
-size_t kernelnum;
-kernel_info_t *infos;
+list kernel_infos;
 
 #endif //_CD_COMMON_H_
 

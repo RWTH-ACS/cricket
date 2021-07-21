@@ -47,6 +47,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-runtime.c       \
 			 cpu-client-driver.c        \
 			 cpu-client-driver-hidden.c \
+			 list.c 				    \
 			 log.c                      \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c
@@ -84,7 +85,7 @@ CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
 SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lbfd -lrt -lpthread
-SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -lcuda
+SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
 CLIENT_LD_FLAGS = $(LD_FLAGS) -lbfd
 
 # Targets
