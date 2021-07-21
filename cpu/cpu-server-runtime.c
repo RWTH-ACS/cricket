@@ -945,9 +945,18 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     uint64_t arg;
     api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree");
+
+    #ifdef WITH_IB
+
     ib_free_memreg((void*)devPtr, index, true);
     hainfo[index].server_ptr = 0;
     *result = 0;
+
+    #else
+
+    *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
+
+    #endif
 
     /* The cleanup/simplification of the record could also be
      * done during checkpoint creation. What is better depends
