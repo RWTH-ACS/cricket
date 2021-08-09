@@ -318,6 +318,65 @@ static int cpu_utils_read_pars(kernel_info_t *info, FILE* fdesc)
     return ret;
 }
 
+int cpu_utils_contains_kernel(const char *path)
+{
+    int ret = 1;
+    char linktarget[PATH_MAX] = {0};
+    char *args[] = {"/usr/local/cuda/bin/cuobjdump", "--dump-elf", NULL, NULL};
+    int output;
+    FILE *fdesc; //fd to read subcommands output from
+    int child_exit = 0;
+    char *line = NULL;
+    size_t linelen;
+    static const char nv_info_prefix[] = ".nv.info.";
+    kernel_info_t *buf = NULL;
+    char *kernelname;
+    struct stat filestat = {0};
+
+    if (stat(path, &filestat) != 0) {
+        LOGE(LOG_ERROR, "stat on %s failed.", path);
+        goto out;
+    }
+
+    if (S_ISLNK(filestat.st_mode)) {
+        if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
+            LOGE(LOG_ERROR, "executable path length is too long");
+            goto out;
+        }
+        args[2] = linktarget;
+    } else {
+        args[2] = (char*)path;
+    }
+    LOG(LOG_DBG(1), "searching for kernels in \"%s\".", args[2]);
+
+    if ( (output = cpu_utils_launch_child(args[0], args)) == -1) {
+        LOGE(LOG_ERROR, "error while launching child.");
+        goto out;
+    }
+
+    if ( (fdesc = fdopen(output, "r")) == NULL) {
+        LOGE(LOG_ERROR, "erro while opening stream");
+        goto cleanup;
+    }
+
+    if (getline(&line, &linelen, fdesc) != -1) {
+        /*if (strncmp(line, nv_info_prefix, strlen(nv_info_prefix)) != 0) {
+            // Line does not start with .nv.info. so continue searching.
+            continue;
+        }*/
+        LOGE(LOG_DEBUG, "output: \"%s\"", line);
+    }
+    ret = 0;
+    fclose(fdesc);
+ cleanup:
+    close(output);
+    wait(&child_exit);
+    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
+ out:
+    free(line);
+    return (ret != 0 ? ret : child_exit);
+}
+
 int cpu_utils_parameter_info(list *kernel_infos, char *path)
 {
     int ret = 1;

@@ -290,6 +290,10 @@ void *dlopen(const char *filename, int flag)
         }
         return dl_handle;
     } else {
+        LOGE(LOG_DEBUG, "request to dlopen \"%s\"", filename);
+        if (cpu_utils_contains_kernel(filename) == 0) {
+            LOGE(LOG_ERROR, "file does not contain a kernel");
+        }
         return dlopen_orig(filename, flag);
     }
 }
