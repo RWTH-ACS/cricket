@@ -14,30 +14,21 @@ export CUDA_VISIBLE_DEVICES=0
 CRICKET_CKP_DIR=/tmp/cricket-ckp
 CRIU_CKP_DIR=/tmp/criu-ckp
 
-rm -rf ${CRICKET_CKP_DIR}/*
-rm -rf ${CRIU_CKP_DIR}/*
-mkdir -p ${CRIU_CKP_DIR}
 sudo killall ${CUDA_APP_NAME}
+sudo killall patched_binary
+rm -rf /tmp/cricket-ckp/patched_binary
 
-${CRICKET_BIN} start ${CUDA_APP} &
+${CRICKET_BIN} restore ${CUDA_APP} &
 
 sleep 1
-server_pid=$(pgrep ${CUDA_APP_NAME})
+server_pid=$(pgrep patched_binary)
 echo "server pid:" $server_pid
 
-LD_PRELOAD=${CRICKET_CLIENT} ${CUDA_APP} &
-client_pid=$!
-echo "client pid:" $client_pid
+sleep 10
 
-sleep 5
+sudo ${CRIU} restore -vvvvvv --tcp-established --shell-job --images-dir ${CRIU_CKP_DIR} -W ${CRIU_CKP_DIR} --action-script ${CRICKET_PATH}/criu-restore-hook.sh -o restore.log 
 
-sudo ${CRIU} dump -vvvvvv -t $client_pid --tcp-established --shell-job --images-dir ${CRIU_CKP_DIR} -W ${CRIU_CKP_DIR} -o dump.log
-
-echo $client_pid > ${CRIU_CKP_DIR}/client_pid
-
-${CRICKET_BIN} checkpoint $server_pid
-
-sleep 2
-
-kill $server_pid
-
+#sleep 5
+#
+#kill $server_pid
+#
