@@ -225,11 +225,11 @@ void cricket_main(char* app_command)
     svc_run ();
 
     server_runtime_deinit();
-    LOGE(LOG_DEBUG, "svc_run returned. Cleaning up.");
+    LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
-    LOGE(LOG_DEBUG, "have a nice day!");
+    LOG(LOG_DEBUG, "have a nice day!");
     exit(0);
 }
 
