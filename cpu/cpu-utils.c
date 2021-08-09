@@ -402,7 +402,7 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
         goto out;
     }
 
-    if (S_ISLNK(filestat.st_mode)) {
+    if (S_ISLNK(filestat.st_mode) || strcmp(path, "/proc/self/exe") == 0) {
         if (readlink("/proc/self/exe", linktarget, PATH_MAX) == PATH_MAX) {
             LOGE(LOG_ERROR, "executable path length is too long");
             goto out;
