@@ -19,10 +19,11 @@ cricket
 bin
 *.test
 submodules/cuda-gdb
-submodules/libtirpc
 submodules/lib
 ckp
 cpu/cricket-rpc-server
+.nfs*
+*.rpm
 
 # YouCompleteMe
 .ycm_extra_conf.py

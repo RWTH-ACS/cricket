@@ -25,9 +25,8 @@ LIBCUDA_LIBS = -ldl
 
 FILES := matmul.cu
 
-.PHONY: all depend clean dmtcpclean
-all : $(TEST_API_BIN) $(TEST_CPU_BIN) $(TEST_KERNEL_BIN) $(BINARY)
-# we are not building $(LIBCUDA_WRAPPER) here, because this currently breaks the tests
+.PHONY: all depend clean 
+all : $(TEST_KERNEL_BIN)
 
 $(TEST_CPU_O) : $(FILES)
 	$(CC) -DTEST_CPU $(CFLAGS) -dc -o $@ $<
@@ -60,16 +59,7 @@ $(LIBCUDA_WRAPPER) : $(LIBCUDA_OBJ)
 	$(HOST_LD) -shared -o $@ $^
 
 
-#.depend : $(FILES:.o=.cu)
-#	$(CC) -MM $(CFLAGS) $(FILES:.o=.cu) > $@
-
-#depend : .depend
-
 clean :
 	rm -f *.elf *.hex *.o *.d .depend *~ $(BINARY) $(LIBCUDA_WRAPPER) $(TEST_CPU_BIN) $(TEST_API_BIN) $(TEST_KERNEL_BIN)
 
-dmtcpclean :
-	rm -f *.dmtcp dmtcp_restart_script* timings.*
-
-#include .depend
 
