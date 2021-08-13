@@ -31,22 +31,15 @@ cpu: libtirpc
 tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
-	@echo -e "\033[36m----> Building test programs\033[0m"
-	$(MAKE) -C tests/cpu
-
 
 install-cpu: bin/cricket-client.so bin/cricket-server.so bin/test_kernel bin/libtirpc.so bin/libtirpc.so.3
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
-install: install-cpu bin/cricket bin/tests
+install: install-cpu bin/cricket
 	@echo -e "\033[36m----> Copying to build/bin\033[0m"
 
 bin:
 	mkdir bin
-
-bin/tests: tests
-	mkdir -p bin/tests
-	cp tests/cpu/*.test bin/tests
 
 bin/cricket-client.so: bin cpu
 	cp cpu/cricket-client.so bin
@@ -56,9 +49,6 @@ bin/cricket-server.so: bin cpu
 
 bin/cricket: bin gpu
 	cp gpu/cricket bin
-
-bin/test_kernel: bin tests
-	cp tests/test_kernel bin
 
 bin/libtirpc.so: bin libtirpc
 	cp submodules/libtirpc/install/lib/libtirpc.so bin

@@ -70,7 +70,7 @@ build:
     paths:
       - gpu/build
       - cpu/*.o
-      - tests/*.o
+      - tests/test_apps/*.o
       - tests/cpu/*.o
       - submodules/libtirpc/install
       - submodules/cuda-gdb/build
