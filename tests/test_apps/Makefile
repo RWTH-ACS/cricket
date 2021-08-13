@@ -11,13 +11,13 @@ CFLAGS = -arch=$(ARCH) -cudart shared
 LD = nvcc -ccbin g++
 LDFLAGS = -arch=$(ARCH) -cudart shared
 #LDFLAGS = -lcuda -arch=$(ARCH)
-TEST_CPU_BIN = test_cpu
+TEST_CPU_BIN = cpu.testapp
 TEST_CPU_O = test_cpu.o
-TEST_API_BIN = test_api
+TEST_API_BIN = api.testapp
 TEST_API_O = test_api.o
-TEST_KERNEL_BIN = test_kernel
+TEST_KERNEL_BIN = kernel.testapp
 TEST_KERNEL_O = test_kernel.o
-BINARY = test-cricket
+BINARY = cricket.testapp
 
 LIBCUDA_WRAPPER = libcuda.so.1
 LIBCUDA_OBJ = libcuda.o

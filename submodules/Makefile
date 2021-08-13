@@ -21,11 +21,19 @@ libtirpc:
 	$(MAKE) -C libtirpc install
 
 cuda-gdb:
+ifeq (,$(wildcard ./cuda-gdb-src.rpm))
 	@echo -e "\033[36m----> downloading cuda-gdb 11.1\033[0m"
-	wget https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-gdb-src-11-1-11.1.105-1.x86_64.rpm
+	wget https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-gdb-src-11-1-11.1.105-1.x86_64.rpm -O cuda-gdb-src.rpm
+else
+		@echo -e "\033[36m----> cuda-gdb 11.1 already present. Skipping download.\033[0m"
+endif
+ifeq (,$(wildcard ./cuda-gdb))
 	@echo -e "\033[36m----> extracting cuda-gdb\033[0m"
 	mkdir -p cuda-gdb
-	rpm2cpio ./cuda-gdb-src-11-1-11.1.105-1.x86_64.rpm | cpio -i --to-stdout ./usr/local/cuda-11.1/extras/cuda-gdb-11.1.105.src.tar.gz | tar zxf - -C cuda-gdb --strip-components=1
+	rpm2cpio ./cuda-gdb-src.rpm | cpio -i --to-stdout ./usr/local/cuda-11.1/extras/cuda-gdb-11.1.105.src.tar.gz | tar zxf - -C cuda-gdb --strip-components=1
+else
+	@echo -e "\033[36m----> cuda-gdb directory present. Skipping extracting cuda-gdb\033[0m"
+endif
 
 cuda-gdb/build:
 	@echo -e "\033[36m----> Configuring cuda-gdb\033[0m"

@@ -19,7 +19,7 @@ RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \
                    ncurses-devel zlib-devel binutils-devel mesa-libGL-devel \
                    libvdpau-devel mesa-libEGL-devel openssl-devel rpcbind \
                    texinfo bison flex python3 which libibverbs libibverbs-devel \
-                   libasan cppcheck wget expat-devel xz-devel
+                   libasan cppcheck wget expat-devel xz-devel mesa-libGLU-devel freeglut-devel
 
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 

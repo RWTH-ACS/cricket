@@ -57,6 +57,7 @@ prepare:centos8:cuda10:
 
 build:
   stage: build
+  needs: ["prepare:centos8:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -65,22 +66,22 @@ build:
     expire_in: 1 week
     paths:
       - bin
+      - tests/bin
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   cache:
     paths:
       - gpu/build
       - cpu/*.o
-      - tests/test_apps/*.o
-      - tests/cpu/*.o
-      - submodules/libtirpc/install
-      - submodules/cuda-gdb/build
-      - bin
+      - submodules/libtirpc
+      - submodules/cuda-gdb
+      - submodules/cuda-gdb-src.rpm
     key: build
   tags:
     - docker
 
 build:ib:
   stage: build
+  needs: ["prepare:centos8:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -89,22 +90,25 @@ build:ib:
     expire_in: 1 week
     paths:
       - bin
+      - tests/bin
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   cache:
     paths:
       - gpu/build
       - cpu/*.o
       - tests/*.o
+      - tests/test_apps/*.o
       - tests/cpu/*.o
-      - submodules/libtirpc/install
-      - submodules/cuda-gdb/build
-      - bin
+      - submodules/libtirpc
+      - submodules/cuda-gdb
+      - submodules/cuda-gdb-src.rpm
     key: buildib
   tags:
     - docker
 
 build:cuda10:
   stage: build
+  needs: ["prepare:centos8:cuda10"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -113,22 +117,24 @@ build:cuda10:
     expire_in: 1 week
     paths:
       - bin
+      - tests/bin
   image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
   cache:
     paths:
       - gpu/build
       - cpu/*.o
-      - tests/*.o
       - tests/cpu/*.o
-      - submodules/libtirpc/install
-      - submodules/cuda-gdb/build
-      - bin
+      - tests/test_apps/*.o
+      - submodules/libtirpc
+      - submodules/cuda-gdb
+      - submodules/cuda-gdb-src.rpm
     key: build_cuda10
   tags:
     - docker
 
 build:debug:
   stage: build
+  needs: ["prepare:centos8:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -137,27 +143,30 @@ build:debug:
     expire_in: 1 week
     paths:
       - bin
-  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+      - tests/bin
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   cache:
     paths:
       - gpu/build
       - cpu/*.o
-      - tests/*.o
       - tests/cpu/*.o
-      - submodules/libtirpc/install
-      - submodules/cuda-gdb/build
-      - bin
+      - tests/test_apps/*.o
+      - submodules/libtirpc
+      - submodules/cuda-gdb
+      - submodules/cuda-gdb-src.rpm
     key: build_debug
   tags:
     - docker
 
 .remote-gpu:
   stage: test
+  needs: ["build"]
   variables:
     GPU_TARGET: 'gitlab-runner@ghost'
     RDIR: '/tmp/gitlab-jobs/$CI_PROJECT_NAME/$CI_JOB_ID'
     LDIR: '$CI_BUILDS_DIR/$CI_PROJECT_PATH/bin'
     SAMPLES_PATH: '/usr/local/cuda/samples'
+    PARAMETER: ''
   script:
     - mkdir ~/.ssh &&
       echo "-----BEGIN OPENSSH PRIVATE KEY-----" > ~/.ssh/id_rsa &&
@@ -169,21 +178,22 @@ build:debug:
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
     - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/$TEST_BINARY" &
     - sleep 2
-    - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY
+    - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY $PARAMETER
   after_script:
     - ssh $GPU_TARGET rm -rf $RDIR
     - ssh $GPU_TARGET pkill -fe -2 $RDIR/test_kernel
-  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   dependencies:
-    - build:cuda10
+    - build
   tags:
     - docker
 
 test:test_programs(1/2):
   stage: test
+  needs: ["build:debug"]
   script:
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_list.test
-  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   dependencies:
     - build:debug
   tags:
@@ -191,37 +201,33 @@ test:test_programs(1/2):
 
 test:test_programs(2/2):
   stage: test
+  needs: ["build:debug"]
   script:
       - CRICKET_DISABLE_RPC=yes LD_LIBRARY_PATH="./bin:$LD_LIBRARY_PATH" bin/tests/test_resource_mg.test
-  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
+  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   dependencies:
     - build:debug
   tags:
     - docker
 
-
 test:test_kernel:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'test_kernel'
-    before_script:
-      - source /global/modules_init.bash && module load gcc/4.9.4
+      TEST_BINARY: 'tests/kernel.testapp'
 
 test:samples:matrixMul:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'matrixMul'
-    before_script:
-      - source /global/modules_init.bash && module load gcc/4.9.4
-      - make -C $SAMPLES_PATH/0_Simple/matrixMul NVCCFLAGS="-m64 -cudart shared" GENCODE_FLAGS="-arch=sm_61" HOST_COMPILER=$(which g++)
-      - cp $SAMPLES_PATH/0_Simple/matrixMul/matrixMul $LDIR
+      TEST_BINARY: 'tests/matrixMul'
 
 test:samples:bandwidthTest:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'bandwidthTest'
-    before_script:
-      - source /global/modules_init.bash && module load gcc/4.9.4
-      - make -C $SAMPLES_PATH/1_Utilities/bandwidthTest NVCCFLAGS="-m64 -cudart shared" GENCODE_FLAGS="-arch=sm_61" HOST_COMPILER=$(which g++)
-      - cp $SAMPLES_PATH/1_Utilities/bandwidthTest/bandwidthTest $LDIR
+      TEST_BINARY: 'tests/bandwidthTest'
+
+test:samples:nbody:
+    extends: .remote-gpu
+    variables:
+      TEST_BINARY: 'tests/nbody'
+      PARAMETER: '-benchmark'
 
