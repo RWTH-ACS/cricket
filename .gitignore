@@ -25,6 +25,7 @@ cpu/cricket-rpc-server
 .nfs*
 *.rpm
 *.test
+tests/samples/matrixMul
 
 # YouCompleteMe
 .ycm_extra_conf.py
