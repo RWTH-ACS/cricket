@@ -443,8 +443,8 @@ bool cricket_elf_print_symtab(bfd *abfd)
         LOGE(LOG_DEBUG, "%lu symtab entries", symtab_length);
     }
 
-    IFLOG(LOG_DEBUG) {
-        LOG(LOG_DEBUG, "symtab:");
+    IFLOG(LOG_DBG(1)) {
+        LOG(LOG_DBG(1), "symtab:");
         for (int i = 0; i < symtab_length; ++i) {
             printf("\t%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
                    bfd_asymbol_value(symtab[i]));
@@ -1440,7 +1440,7 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
         goto cleanup;
     }
 
-    IFLOG(LOG_DEBUG) {
+    IFLOG(LOG_DBG(1)) {
         cricket_elf_print_symtab(cudabfd);
     }
 
@@ -1458,7 +1458,7 @@ bool cricket_elf_get_sass_info(const char *filename, const char *section_name,
         info->fun_size = section->size;
     }
 
-    IFLOG(LOG_DEBUG) {
+    IFLOG(LOG_DBG(1)) {
         cricket_elf_print_mem((fatbin + (size_t)section->filepos), section->size);
     }
 

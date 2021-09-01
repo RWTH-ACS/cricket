@@ -2,8 +2,20 @@
 
 CRICKET_PATH=$(pwd)/../..
 CRICKET_BIN=${CRICKET_PATH}/gpu/cricket
-export CUDA_APP_NAME=test_kernel
-CUDA_APP=${CRICKET_PATH}/tests/test_kernel
+
+if [ -z $1 ]; then
+    CUDA_APP=${CRICKET_PATH}/bin/tests/kernel.testapp
+elif [ -f $1 ]; then
+    CUDA_APP=$1
+elif [ -f ${CRICKET_PATH}/bin/tests/$1 ]; then
+    CUDA_APP=${CRICKET_PATH}/bin/tests/$1
+else
+    echo "file $1 does not exist"
+    exit 1
+fi
+echo "using $CUDA_APP"
+
+CUDA_APP_NAME="$(basename -- $CUDA_APP)"
 CRICKET_CLIENT=${CRICKET_PATH}/cpu/cricket-client.so
 CRICKET_SERVER=${CRICKET_PATH}/cpu/cricket-server.so
 CRIU=/home/eiling/tmp/criu/criu/criu
