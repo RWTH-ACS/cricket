@@ -27,7 +27,6 @@ ckp
 *.testapp
 tests/samples/matrixMul
 tests/samples/bandwidthTest
-tests/samples/nbody
 
 # YouCompleteMe
 .ycm_extra_conf.py
