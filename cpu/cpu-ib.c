@@ -823,10 +823,10 @@ int ib_init(int _device_id)
         exit(EXIT_FAILURE);
     }
 
-    /*fprintf(stderr, "[INFO] Using device '%s' and port %u\n",
+    fprintf(stderr, "[INFO] Using device '%s' and port %u\n",
             ibv_get_device_name(device_list[cur_dev]),
             ib_com_hndl.used_port);
-*/
+
     /* allocate protection domain */
     if ((ib_com_hndl.pd = ibv_alloc_pd(ib_com_hndl.ctx)) == NULL) {
         fprintf(stderr,

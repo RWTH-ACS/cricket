@@ -45,6 +45,10 @@ static resource_mg rm_events;
 static resource_mg rm_arrays;
 static resource_mg rm_memory;
 
+#ifdef WITH_IB
+static char ib_client[256];
+#endif //WITH_IB
+
 static int hainfo_getserverindex(void *server_ptr)
 {
     int i;
@@ -58,8 +62,12 @@ static int hainfo_getserverindex(void *server_ptr)
     return -1;
 }
 
-int server_runtime_init(int restore)
+int server_runtime_init(int restore, char * client)
 {
+    #ifdef WITH_IB
+    strncpy(ib_client, client, 256);
+    #endif //WITH_IB
+   
     int ret = 0;
     ret = list_init(&api_records, sizeof(api_record_t));
     if (!restore) {
@@ -1423,10 +1431,10 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     } else if (kind == cudaMemcpyDeviceToHost) {
 
           *result = 0;
-          ib_requester_send(hainfo[index].server_ptr, index, size, "epyc4", true);
+          ib_requester_send(hainfo[index].server_ptr, index, size, ib_client, true);
 
-        //TODO: Replace hardcoded IB destination below (Environment variable?)
-        //first arg will bei ib registered device mem reg
+        //TODO: Replace hardcoded IB destination below (Environment variable?) -> DONE
+        //first arg will bei ib registered device mem reg -> ?
     }
 out:
     RECORD_RESULT(integer, *result);

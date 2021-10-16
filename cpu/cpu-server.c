@@ -132,6 +132,23 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 
     init_log(LOG_LEVEL, __FILE__);
 
+    #ifdef WITH_IB
+    char client[256];
+    char envvar[] = "CLIENT_ADDRESS";
+
+    if(!getenv(envvar)) {
+        LOG(LOG_ERROR, "Environment variable %s does not exist. For memory transports using InfiniBand it must contain the address of the client.", envvar);
+        exit(1);
+    }
+    if(strncpy(client, getenv(envvar), 256) == NULL) {
+        LOGE(LOG_ERROR, "strncpy failed.");
+        exit(1);
+    }
+    LOG(LOG_INFO, "connection to client \"%s\"", client);
+
+    #endif //WITH_IB
+
+
     if (getenv("CRICKET_DISABLE_RPC")) {
         LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
         return;
@@ -223,16 +240,22 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
         cudaRegisterAllv();
     }
 
-    if (server_runtime_init(restore) != 0) {
+#ifdef WITH_IB
+    if (server_runtime_init(restore, client) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         exit(1);
     }
 
-#ifdef WITH_IB
     if (ib_init(0) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
-#endif //WITH_IB
+#else
+
+    if (server_runtime_init(restore, NULL) != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        exit(1);
+    }
+#endif // WITH_IB
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
@@ -241,7 +264,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 
     LOG(LOG_INFO, "waiting for RPC requests...");
 
-    svc_run ();
+    svc_run();
 
     server_runtime_deinit();
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
