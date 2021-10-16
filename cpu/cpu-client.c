@@ -31,6 +31,10 @@ int connection_is_local = 0;
 int shm_enabled = 1;
 int initialized = 0;
 
+#ifdef WITH_IB
+    int ib_device = 0;
+#endif //WITH_IB
+
 #ifdef WITH_API_CNT
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif //WITH_API_CNT
@@ -57,6 +61,15 @@ static void rpc_connect(void)
         exit(1);
     }
     LOG(LOG_INFO, "connection to host \"%s\"", server);
+
+#ifdef WITH_IB
+
+    if(getenv("IB_DEVICE_ID")) {
+        ib_device = atoi(getenv("IB_DEVICE_ID"));
+    }
+    LOG(LOG_INFO, "Using IB device: %d.", ib_device);
+
+#endif //WITH_IB
 
     if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum");
@@ -164,7 +177,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)");
     }
 #ifdef WITH_IB
-    if (ib_init(0) != 0) {
+    if (ib_init(ib_device) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif //WITH_IB
