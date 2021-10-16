@@ -228,9 +228,5 @@ test:samples:bandwidthTest:
     variables:
       TEST_BINARY: 'tests/bandwidthTest'
 
-test:samples:nbody:
-    extends: .remote-gpu
-    variables:
-      TEST_BINARY: 'tests/nbody'
-      PARAMETER: '-benchmark'
+
 

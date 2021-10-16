@@ -11,6 +11,8 @@ clean:
 	$(MAKE) -C cpu clean
 	@echo -e "\033[31m----> Cleaning up test kernels\033[0m"
 	$(MAKE) -C tests clean
+	@echo -e "\033[31m----> Removing bin\033[0m"
+	rm -rf bin/
 
 cuda-gdb:
 	@echo -e "\033[36m----> Building submodules\033[0m"
