@@ -22,6 +22,11 @@ INIT_SOCKTYPE
 int connection_is_local = 0;
 int shm_enabled = 1;
 
+#ifdef WITH_IB
+    int ib_device = 0;
+#endif //WITH_IB
+
+
 unsigned long prog=0, vers=0;
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
@@ -135,6 +140,11 @@ void cricket_main(char* app_command)
     }
     LOG(LOG_INFO, "connection to client \"%s\"", client);
 
+    if(getenv("IB_DEVICE_ID")) {
+        ib_device = atoi(getenv("IB_DEVICE_ID"));
+    }
+    LOG(LOG_INFO, "Using IB device: %d.", ib_device);
+
     #endif //WITH_IB
 
 
@@ -227,7 +237,7 @@ void cricket_main(char* app_command)
         exit(1);
     }
 
-    if (ib_init(0) != 0) {
+    if (ib_init(ib_device) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #else
