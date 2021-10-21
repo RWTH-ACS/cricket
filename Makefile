@@ -2,7 +2,7 @@
 
 .PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu bin/tests
 
-all: gpu cpu tests install
+all: gpu cpu install
 
 clean:
 	@echo -e "\033[31m----> Cleaning up gpu\033[0m"

@@ -62,6 +62,7 @@ build:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
    - make -j 1 LOG=INFO
+   - make -j 1 tests LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:
@@ -86,6 +87,7 @@ build:ib:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
    - make -j 1 LOG=INFO WITH_IB=yes
+   - make -j 1 tests LOG=INFO
   artifacts:
     expire_in: 1 week
     paths:
@@ -139,6 +141,7 @@ build:debug:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
    - make -j 1 LOG=INFO WITH_DEBUG=yes
+   - make -j 1 tests LOG=INFO WITH_DEBUG=yes
   artifacts:
     expire_in: 1 week
     paths:
