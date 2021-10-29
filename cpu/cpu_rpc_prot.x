@@ -354,6 +354,12 @@ program RPC_CD_PROG {
         int         rpc_cusolverDnDgetrs(ptr, int, int, int, ptr,
                                          int, ptr, ptr, int, ptr)       = 2005;
         int         rpc_cusolverDnDestroy(ptr)                          = 2006;
-        
+
+        ptr_result  rpc_cublasCreate(void)                              = 3001;
+        int         rpc_cublasDgemm(ptr, int, int, int, int, int, double,
+                                         ptr, int,
+                                         ptr, int, double,
+                                         ptr, int)                      = 3002;
+        int         rpc_cublasDestroy(ptr)                              = 3003;
     } = 1;
 } = 99;

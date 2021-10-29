@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <rpc/clnt.h>
 #include <cusolverDn.h>
+#include <cublas_v2.h>
 #include <errno.h>
 
 #include "cpu-common.h"
@@ -213,6 +214,27 @@ static int cr_restore_cusolver(api_record_t *record, resource_mg *rm_cusolver)
         return 1;
     }
     if (resource_mg_add_sorted(rm_cusolver, (void*)res.ptr_result_u.ptr, new_handle) != 0) {
+        LOGE(LOG_ERROR, "error adding to event resource manager");
+        return 1;
+    }
+    return 0;
+}
+
+static int cr_restore_cublas(api_record_t *record, resource_mg *rm_cublas)
+{
+    cublasHandle_t new_handle = NULL;
+    cublasStatus_t err;
+    ptr_result res = record->result.ptr_result_u;
+    if (record->function == rpc_cublasCreate) {
+        if ((err = cublasCreate_v2(&new_handle)) != CUBLAS_STATUS_SUCCESS) {
+            LOGE(LOG_ERROR, "cublas error while restoring event");
+            return 1;
+        }
+    } else {
+        LOGE(LOG_ERROR, "cannot restore a cublas handle from a record that is not a cublas_create record");
+        return 1;
+    }
+    if (resource_mg_add_sorted(rm_cublas, (void*)res.ptr_result_u.ptr, new_handle) != 0) {
         LOGE(LOG_ERROR, "error adding to event resource manager");
         return 1;
     }
@@ -693,7 +715,7 @@ int cr_call_record(api_record_t *record)
     return (retval==1 ? 0 : 1);
 }
 
-static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver)
+static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver, resource_mg *rm_cublas)
 {
     int ret = 1;
     switch (record->function) {
@@ -737,6 +759,12 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     case rpc_cusolverDnCreate:
         if (cr_restore_cusolver(record, rm_cusolver) != 0) {
             LOGE(LOG_ERROR, "error restoring cusolver");
+            goto cleanup;
+        }
+        break;
+    case rpc_cublasCreate:
+        if (cr_restore_cublas(record, rm_cublas) != 0) {
+            LOGE(LOG_ERROR, "error restoring cublas");
             goto cleanup;
         }
         break;
@@ -804,7 +832,7 @@ int cr_launch_kernel(void)
     return ret;
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver)
+int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver, resource_mg *rm_cublas)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -843,7 +871,7 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
         }
         api_records_print_records(record);
         if (cr_restore_resources(path, record, rm_memory, rm_streams,
-                                 rm_events, rm_arrays, rm_cusolver) != 0) {
+                                 rm_events, rm_arrays, rm_cusolver, rm_cublas) != 0) {
             LOGE(LOG_ERROR, "error restoring resources");
             goto cleanup;
         }

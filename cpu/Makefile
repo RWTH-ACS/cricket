@@ -32,6 +32,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 log.c                      \
 			 cpu-libwrap.c              \
 			 cpu-server-cusolver.c 		\
+			 cpu-server-cublas.c 		\
 			 list.c                     \
 			 api-recorder.c 			\
 			 resource-mg.c 			    \
@@ -84,7 +85,7 @@ ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lbfd -lrt -lpthread
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcublas -lbfd -lrt -lpthread
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
 CLIENT_LD_FLAGS = $(LD_FLAGS) -lbfd
 

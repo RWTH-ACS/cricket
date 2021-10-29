@@ -29,6 +29,7 @@
 #include "cpu-server-runtime.h"
 #include "cr.h"
 #include "cpu-server-cusolver.h"
+#include "cpu-server-cublas.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -67,12 +68,14 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= resource_mg_init(&rm_memory, 1);
         ret &= cusolver_init(1, &rm_streams, &rm_memory);
+        ret &= cublas_init(1, &rm_memory);
     } else {
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
         ret &= resource_mg_init(&rm_memory, 0);
         ret &= cusolver_init(0, &rm_streams, &rm_memory);
+        ret &= cublas_init(0, &rm_memory);
         ret &= server_runtime_restore("ckp");
     }
     return ret;
@@ -88,6 +91,7 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_arrays);
     resource_mg_free(&rm_memory);
     cusolver_deinit();
+    cublas_deinit();
     return 0;
 
 }
@@ -116,7 +120,7 @@ int server_runtime_restore(const char *path)
     struct timeval start, end;
     double time = 0;
     gettimeofday(&start, NULL);
-    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm()) != 0) {
+    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm(), cublas_get_rm()) != 0) {
         LOGE(LOG_ERROR, "error restoring api_records");
         return 1;
     }

@@ -52,7 +52,7 @@ bin/cricket-server.so: bin cpu
 	cp cpu/cricket-server.so bin
 
 bin/cricket-rpc-server: bin cpu
-	cp cpu/cricket-rpc-server bin
+	mv cpu/cricket-rpc-server bin/cricket-rpc-server
 
 bin/cricket: bin gpu
 	cp gpu/cricket bin
