@@ -8,7 +8,7 @@ PWD = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 .PHONY: all clean distclean
 
-all : matrixMul/matrixMul bandwidthTest/bandwidthTest 
+all : matrixMul/matrixMul bandwidthTest/bandwidthTest nbody/nbody
 
 matrixMul :
 	mkdir -p $(PWD)/matrixMul
@@ -32,12 +32,24 @@ bandwidthTest/bandwidthTest : bandwidthTest
 		GENCODE_FLAGS="-arch=$(ARCH)" \
 		CPATH="$(CUDA_DIR)/samples/common/inc"
 
+nbody :
+	mkdir -p $(PWD)/nbody
+	cp -r $(CUDA_DIR)/samples/5_Simulations/nbody $(PWD)
+	make -C nbody clean
+
+nbody/nbody : nbody
+	make -C nbody \
+		NVCCFLAGS="-m64 -cudart shared" \
+		GENCODE_FLAGS="-arch=$(ARCH)" \
+		CPATH="$(CUDA_DIR)/samples/common/inc"
 
 clean :
 	rm -f *.elf *.hex *.o *.d .depend *~
 	make -C matrixMul clean
 	make -C bandwidthTest clean
+	make -C nbody clean
 
 distclean : clean
 	rm -r matrixMul
 	rm -r bandwidthTest
+	rm -r nbody

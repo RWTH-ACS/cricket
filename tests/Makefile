@@ -25,6 +25,7 @@ bin: cpu samples test_apps
 	cp test_apps/*.testapp bin
 	cp samples/matrixMul/matrixMul bin
 	cp samples/bandwidthTest/bandwidthTest bin
+	cp samples/nbody/nbody bin
 
 clean:
 	@echo -e "\033[31m----> Cleaning up tests/test_apps\033[0m"
