@@ -26,6 +26,8 @@ CLIENT *clnt = NULL;
 
 list kernel_infos = {0};
 
+char server[256];
+
 INIT_SOCKTYPE
 int connection_is_local = 0;
 int shm_enabled = 1;
@@ -49,7 +51,6 @@ static void rpc_connect(void)
     socklen_t sockaddr_len = sizeof(struct sockaddr_in);
     unsigned long prog=0, vers=0;
 
-    char server[256];
     char envvar[] = "REMOTE_GPU_ADDRESS";
 
     if(!getenv(envvar)) {
@@ -177,7 +178,7 @@ void __attribute__ ((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "error while getting parameter size. Check whether cuobjdump binary is in PATH! Trying anyway (will only work if there is no kernel in this binary)");
     }
 #ifdef WITH_IB
-    if (ib_init(ib_device) != 0) {
+    if (ib_init(ib_device, server) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif //WITH_IB

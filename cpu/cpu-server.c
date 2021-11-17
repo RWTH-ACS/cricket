@@ -250,22 +250,19 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
         cudaRegisterAllv();
     }
 
-#ifdef WITH_IB
-    if (server_runtime_init(restore, client) != 0) {
+    if (server_runtime_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         exit(1);
     }
 
-    if (ib_init(ib_device) != 0) {
+#ifdef WITH_IB
+
+    if (ib_init(ib_device, client) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
-#else
-
-    if (server_runtime_init(restore, NULL) != 0) {
-        LOGE(LOG_ERROR, "initializing server_runtime failed.");
-        exit(1);
-    }
+    
 #endif // WITH_IB
+
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
