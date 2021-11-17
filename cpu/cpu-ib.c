@@ -98,6 +98,7 @@ static struct sockaddr_in ib_responder;
 static int com_sock = 0;
 static int listen_sock = 0;
 static int device_id = 0;
+static char peer[256];
 
 
 static struct ibv_mr *mrs[32];
@@ -733,9 +734,10 @@ ib_msg_recv(ib_com_hndl_t *com_hndl, uint32_t length, int mr_id)
 	ibv_ack_cq_events(com_hndl->cq, 1);
 }
 
-int ib_init(int _device_id)
+int ib_init(int _device_id, char* ib_peer)
 {
     device_id = _device_id;
+    strcpy(peer, ib_peer);
     /* initialize com_hndl */
     memset(&ib_com_hndl, 0, sizeof(ib_com_hndl));
 
@@ -823,9 +825,9 @@ int ib_init(int _device_id)
         exit(EXIT_FAILURE);
     }
 
-    fprintf(stderr, "[INFO] Using device '%s' and port %u\n",
+/*    fprintf(stderr, "[INFO] Using device '%s' and port %u\n",
             ibv_get_device_name(device_list[cur_dev]),
-            ib_com_hndl.used_port);
+            ib_com_hndl.used_port); */
 
     /* allocate protection domain */
     if ((ib_com_hndl.pd = ibv_alloc_pd(ib_com_hndl.ctx)) == NULL) {
@@ -999,9 +1001,9 @@ int ib_responder_recv(void *memptr, int mr_id, size_t length, bool togpumem)
     return 0;
 }
 
-int ib_requester_send(void *memptr, int mr_id, size_t length, char *peer_node, bool fromgpumem)
+int ib_requester_send(void *memptr, int mr_id, size_t length, bool fromgpumem)
 {
-    ib_connect_requester(memptr, mr_id, peer_node);
+    ib_connect_requester(memptr, mr_id, peer);
 
     /*printf("local address :  LID 0x%04x, QPN 0x%06x, PSN 0x%06x, ADDR %p, KEY 0x%08x\n",
            ib_com_hndl.loc_com_buf.qp_info.lid,
