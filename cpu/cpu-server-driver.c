@@ -64,13 +64,13 @@ bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result
     return 1;
 }
 
-bool_t rpc_cudevicegetuuid_1_svc(int dev, uuid_result *result, struct svc_req *rqstp)
+bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rqstp)
 {
     CUuuid uuid;
     printf("%s\n", __FUNCTION__);
     result->err = cuDeviceGetUuid(&uuid, dev);
     if (result->err == 0) {
-        memcpy(result->uuid_result_u.bytes, uuid.bytes, 16);
+        memcpy(result->str_result_u.str, uuid.bytes, 16);
     }
     return 1;
 }
@@ -112,17 +112,17 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
 }
 
 
-bool_t rpc_cugetexporttable_1_svc(rpc_uuid rpc_uuid, ptr_result *result,
+bool_t rpc_cugetexporttable_1_svc(char *rpc_uuid, ptr_result *result,
                                   struct svc_req *rqstp)
 {
     void *exportTable = NULL;
     size_t tablesize = 0;
     CUuuid uuid;
     printf("%s\n", __FUNCTION__);
-    if (rpc_uuid.rpc_uuid_val == NULL)
+    if (rpc_uuid == NULL)
         return 0;
 
-    memcpy(uuid.bytes, rpc_uuid.rpc_uuid_val, 16);
+    memcpy(uuid.bytes, rpc_uuid, 16);
     if ((result->err = cuGetExportTable((const void**)&exportTable,
                                         (const CUuuid*)&uuid) != 0)) {
         return 1;

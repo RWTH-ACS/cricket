@@ -199,7 +199,7 @@ CUresult cuDeviceGetName(char* name, int len, CUdevice dev)
 CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 {
 	enum clnt_stat retval;
-    uuid_result result;
+    str_result result;
     retval = rpc_cudevicegetuuid_1(dev, &result, clnt);
     printf("[rpc] %s = %d, result (uuid)\n", __FUNCTION__, result.err);
 
@@ -207,7 +207,7 @@ CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
-    memcpy(uuid->bytes, result.uuid_result_u.bytes, 16);
+    memcpy(uuid->bytes, result.str_result_u.str, 16);
     return result.err;
 }
 
@@ -545,7 +545,7 @@ DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, un
 CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
 {
 	enum clnt_stat retval;
-    rpc_uuid uuid;
+    char *uuid = NULL;
     ptr_result result;
     char idstr[64];
     void *orig_table;
@@ -555,9 +555,8 @@ CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTable
     for (int i=0; i < 16;++i) {
         sprintf(idstr+i*3, "%02x ", pExportTableId->bytes[i] & 0xFF);
     }
-    uuid.rpc_uuid_val = malloc(16);
-    uuid.rpc_uuid_len = 16;
-    memcpy(uuid.rpc_uuid_val, pExportTableId->bytes, 16);
+    uuid = malloc(16);
+    memcpy(uuid, pExportTableId->bytes, 16);
     //printf("precall %p->%p\n", ppExportTable, *ppExportTable);
     retval = rpc_cugetexporttable_1(uuid, &result, clnt);
     orig_table = (void*)result.ptr_result_u.ptr;
