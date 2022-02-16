@@ -9,6 +9,8 @@ LABEL \
 	org.label-schema.author.email = "niklas.eiling@eonerc.rwth-aachen.de" \
 	org.label-schema.vcs-url = "https://git.rwth-aachen.de/niklas.eiling/cricket"
 
+RUN cd /etc/yum.repos.d/ && sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* && yum update -y
+
 RUN dnf -y update && \
     dnf install -y epel-release dnf-plugins-core && \
     dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm && \
