@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <cuda_runtime_api.h>
 #include <cuda.h>
+#include <driver_types.h>
 
 //for strerror
 #include <string.h>
