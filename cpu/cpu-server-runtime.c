@@ -41,11 +41,6 @@ typedef struct host_alloc_info {
 static host_alloc_info_t hainfo[64];
 static size_t hainfo_cnt = 1;
 
-static resource_mg rm_streams;
-static resource_mg rm_events;
-static resource_mg rm_arrays;
-static resource_mg rm_memory;
-
 static int hainfo_getserverindex(void *server_ptr)
 {
     int i;

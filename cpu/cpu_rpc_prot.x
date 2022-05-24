@@ -317,6 +317,9 @@ program RPC_CD_PROG {
         int          rpc_cuLaunchKernel(ptr, unsigned int, unsigned int,
                          unsigned int, unsigned int, unsigned int,
                          unsigned int, unsigned int, ptr, mem_data)            = 1018;
+        ptr_result   rpc_cuModuleLoad(string<>)                                = 1019;
+        str_result   rpc_cuGetErrorString(int)                                 = 1020;
+        int          rpc_cuModuleUnload(ptr)                                   = 1021;
 
         /* HIDDEN DRIVER API */
         ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;

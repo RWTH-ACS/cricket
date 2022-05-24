@@ -18,16 +18,11 @@
 #include "cpu-server-cusolver.h"
 
 
-static resource_mg rm_cusolver;
-static resource_mg *rm_memory;
-static resource_mg *rm_streams;
 
 int cusolver_init(int bypass, resource_mg *streams, resource_mg *memory)
 {
     int ret = 0;
     ret &= resource_mg_init(&rm_cusolver, bypass);
-    rm_streams = streams;
-    rm_memory = memory;
     return ret;
 }
 
@@ -61,7 +56,7 @@ bool_t rpc_cusolverdnsetstream_1_svc(ptr handle, ptr stream, int *result, struct
     RECORD_ARG(2, stream);
     LOGE(LOG_DEBUG, "cusolverDnSetStream");
     *result = cusolverDnSetStream(resource_mg_get(&rm_cusolver, (void*)handle),
-                                  resource_mg_get(rm_streams, (void*)stream));
+                                  resource_mg_get(&rm_streams, (void*)stream));
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -71,7 +66,7 @@ bool_t rpc_cusolverdndgetrf_buffersize_1_svc(ptr handle, int m, int n, ptr A, in
     LOGE(LOG_DEBUG, "cusolverDnDgetrf_buffersize");
     result->err = cusolverDnDgetrf_bufferSize(resource_mg_get(&rm_cusolver, (void*)handle),
                                               m, n,
-                                              resource_mg_get(rm_memory, (void*)A),
+                                              resource_mg_get(&rm_memory, (void*)A),
                                               lda, &result->int_result_u.data);
     return 1;
 }
@@ -81,11 +76,11 @@ bool_t rpc_cusolverdndgetrf_1_svc(ptr handle, int m, int n, ptr A, int lda, ptr 
     LOGE(LOG_DEBUG, "cusolverDnDgetrf");
     *result = cusolverDnDgetrf(resource_mg_get(&rm_cusolver, (void*)handle),
                                m, n,
-                               resource_mg_get(rm_memory, (void*)A),
+                               resource_mg_get(&rm_memory, (void*)A),
                                lda,
-                               resource_mg_get(rm_memory, (void*)Workspace),
-                               resource_mg_get(rm_memory, (void*)devIpiv),
-                               resource_mg_get(rm_memory, (void*)devInfo));
+                               resource_mg_get(&rm_memory, (void*)Workspace),
+                               resource_mg_get(&rm_memory, (void*)devIpiv),
+                               resource_mg_get(&rm_memory, (void*)devInfo));
     return 1;
 }
 
@@ -94,12 +89,12 @@ bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A,
     LOGE(LOG_DEBUG, "cusolverDnDgetrs");
     *result = cusolverDnDgetrs(resource_mg_get(&rm_cusolver, (void*)handle),
                                (cublasOperation_t)trans, n, nrhs,
-                               resource_mg_get(rm_memory, (void*)A),
+                               resource_mg_get(&rm_memory, (void*)A),
                                lda,
-                               resource_mg_get(rm_memory, (void*)devIpiv),
-                               resource_mg_get(rm_memory, (void*)B),
+                               resource_mg_get(&rm_memory, (void*)devIpiv),
+                               resource_mg_get(&rm_memory, (void*)B),
                                ldb,
-                               resource_mg_get(rm_memory, (void*)devInfo));
+                               resource_mg_get(&rm_memory, (void*)devInfo));
     return 1;
 }
 

@@ -12,11 +12,11 @@ BIN_SERVER_TESTS = $(SRC_SERVER_TESTS:%.c=%.test)
 # Compiler flags
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
-INC_FLAGS += -I../../cpu/
+INC_FLAGS += -I../../../cpu/
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
-LIB_FLAGS += -L../../cpu/
+LIB_FLAGS += -L../../../cpu/
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 LD_FLAGS = $(LIB_FLAGS)
 

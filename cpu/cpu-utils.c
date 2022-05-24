@@ -195,7 +195,6 @@ kernel_info_t* cricketd_utils_search_info(list *kernel_infos, char *kernelname)
         if (list_at(kernel_infos, i, (void**)&info) != 0) {
             LOGE(LOG_ERROR, "no element at index %d", i);
         }
-        LOGE(LOG_DEBUG, "%s", info->name);
         if (strcmp(kernelname, info->name) == 0) {
             return info;
         }

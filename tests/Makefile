@@ -9,7 +9,8 @@ test_apps:
 
 cpu:
 	@echo -e "\033[36m----> Building tests/cpu\033[0m"
-	$(MAKE) -C cpu
+	$(MAKE) -C cpu/unit
+	$(MAKE) -C cpu/cubin
 
 gpu:
 	@echo -e "\033[36m----> Building tests/gpu\033[0m"
@@ -21,7 +22,7 @@ samples:
 
 bin: cpu samples test_apps
 	mkdir -p bin
-	cp cpu/*.test bin
+	cp cpu/unit/*.test bin
 	cp test_apps/*.testapp bin
 	cp samples/matrixMul/matrixMul bin
 	cp samples/bandwidthTest/bandwidthTest bin

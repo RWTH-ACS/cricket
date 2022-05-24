@@ -72,7 +72,11 @@ static void rpc_connect(void)
 
 #endif //WITH_IB
 
-    if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+    LOGE(LOG_INFO, "test\n");
+    if(getenv("CRICKET_NOHASH")) {
+        prog=99;
+        vers=1;
+    } else if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum");
         exit(0);
     }

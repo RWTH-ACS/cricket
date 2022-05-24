@@ -319,17 +319,53 @@ DEF_FN(CUresult, cuCtxGetSharedMemConfig, CUsharedconfig*, pConfig)
 DEF_FN(CUresult, cuCtxGetStreamPriorityRange, int*, leastPriority, int*, greatestPriority)
 DEF_FN(CUresult, cuCtxSetSharedMemConfig, CUsharedconfig, config)
 DEF_FN(CUresult, cuCtxSynchronize, void)
-DEF_FN(CUresult, cuModuleLoad, CUmodule*, module, const char*, fname)
+CUresult cuModuleLoad(CUmodule* module, const char* fname)
+{
+	enum clnt_stat retval;
+    ptr_result result;
+
+    if (fname == NULL) {
+        LOGE(LOG_ERROR, "fname is NULL!");
+        return CUDA_ERROR_FILE_NOT_FOUND;
+    }
+    if (cpu_utils_parameter_info(&kernel_infos, (char*)fname) != 0) {
+        LOGE(LOG_ERROR, "could not get kernel infos from %s", fname);
+        return CUDA_ERROR_FILE_NOT_FOUND;
+    }
+
+    retval = rpc_cumoduleload_1((char*)fname, &result, clnt);
+    printf("[rpc] %s(%s) = %d, result %p\n", __FUNCTION__, fname, result.err, (void*)result.ptr_result_u.ptr);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    if (module != NULL) {
+       *module = (CUmodule)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
 DEF_FN(CUresult, cuModuleLoadData, CUmodule*, module, const void*, image)
 //DEF_FN(CUresult, cuModuleLoadDataEx, CUmodule*, module, const void*, image, unsigned int, numOptions, CUjit_option*, options, void**, optionValues)
 DEF_FN(CUresult, cuModuleLoadFatBinary, CUmodule*, module, const void*, fatCubin)
-DEF_FN(CUresult, cuModuleUnload, CUmodule, hmod)
+CUresult cuModuleUnload(CUmodule hmod)
+{
+	enum clnt_stat retval;
+    int result;
+
+    retval = rpc_cumoduleunload_1((ptr)hmod, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%p) = %d", __FUNCTION__, hmod, result);
+	if (retval != RPC_SUCCESS) {
+		LOGE(LOG_ERROR, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result;
+}
 //DEF_FN(CUresult, cuModuleGetFunction, CUfunction*, hfunc, CUmodule, hmod, const char*, name)
 CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
 {
 	enum clnt_stat retval;
     ptr_result result;
-    //printf("pre %s(%p->%p, %p, %s) = %d\n", __FUNCTION__, hfun, *hfun, hmod, name, ret);
+    kernel_info_t *info;
     retval = rpc_cumodulegetfunction_1((uint64_t)hmod, (char*)name, &result, clnt);
     printf("[rpc] %s(%p, %s) = %d, result %p\n", __FUNCTION__, hmod, name, result.err, result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
@@ -337,7 +373,12 @@ CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
         return CUDA_ERROR_UNKNOWN;
 	}
     *hfun = (CUfunction)result.ptr_result_u.ptr;
-    //printf("post %s(%p->%p, %p, %s) = %d\n", __FUNCTION__, hfun, *hfun, hmod, name, ret);
+    if ((info = cricketd_utils_search_info(&kernel_infos, (char*)name)) == NULL) {
+        LOGE(LOG_ERROR, "cannot find kernel %s kernel_info_t");
+        return CUDA_ERROR_UNKNOWN;
+    }
+    info->host_fun = *hfun;
+    LOGE(LOG_DEBUG, "add host_fun %p to %s", info->host_fun, info->name);
     return result.err;
 }
 
@@ -463,21 +504,52 @@ DEF_FN(CUresult, cuDestroyExternalSemaphore, CUexternalSemaphore, extSem)
 CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream, void** kernelParams, void** extra)
 {
 	enum clnt_stat retval;
-    mem_data params = {0};
+    mem_data rpc_args = {0};
     int result;
-    if (kernelParams != NULL) {
-        params.mem_data_val = (void*)kernelParams;
-        //We know nothing about the parameter length. Just assume 512 bytes
-        //for now.
-        params.mem_data_len = 512;
-    } else if (extra != NULL) {
-        params.mem_data_val = extra[1];
-        params.mem_data_len = (uint64_t)extra[3];
+    int found_kernel = 0;
+    int i;
+    kernel_info_t *info;
+    LOGE(LOG_DEBUG, "cuLaunchKernel(%p)", f);
+
+    for (i=0; i < kernel_infos.length; ++i) {
+        if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "error getting element at %d", i);
+            return CUDA_ERROR_INVALID_CONTEXT;
+        }
+        if (f != NULL && info != NULL && info->host_fun == f) {
+            LOG(LOG_DEBUG, "calling kernel \"%s\" (param_size: %zd, param_num: %zd)", info->name, info->param_size, info->param_num);
+            found_kernel = 1;
+            break;
+        }
     }
-    retval = rpc_culaunchkernel_1((uint64_t)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (uint64_t)hStream, params, &result, clnt);
-    printf("[rpc] %s = %d\n", __FUNCTION__, result);
+
+    if (!found_kernel) {
+        LOGE(LOG_ERROR, "request to call unknown kernel.");
+        return CUDA_ERROR_INVALID_CONTEXT;
+    }
+
+
+    if (kernelParams != NULL) {
+        rpc_args.mem_data_len = sizeof(size_t)+info->param_num*sizeof(uint16_t)+info->param_size;
+        rpc_args.mem_data_val = malloc(rpc_args.mem_data_len);
+        memcpy(rpc_args.mem_data_val, &info->param_num, sizeof(size_t));
+        memcpy(rpc_args.mem_data_val + sizeof(size_t), info->param_offsets, info->param_num*sizeof(uint16_t));
+        for (size_t j=0, size=0; j < info->param_num; ++j) {
+            size = info->param_sizes[j];
+            memcpy(rpc_args.mem_data_val + sizeof(size_t) + info->param_num*sizeof(uint16_t) +
+                   info->param_offsets[j],
+                   kernelParams[j],
+                   size);
+        }
+    } else if (extra != NULL) {
+        LOGE(LOG_ERROR, "this way of passing kernel parameters is not yet supported");
+        rpc_args.mem_data_val = extra[1];
+        rpc_args.mem_data_len = (uint64_t)extra[3];
+    }
+    retval = rpc_culaunchkernel_1((uint64_t)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (uint64_t)hStream, rpc_args, &result, clnt);
+    LOGE(LOG_DEBUG,"[rpc] %s = %d", __FUNCTION__, result);
 	if (retval != RPC_SUCCESS) {
-		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+		LOGE(LOG_ERROR, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
     return result;
@@ -560,7 +632,7 @@ CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTable
     //printf("precall %p->%p\n", ppExportTable, *ppExportTable);
     retval = rpc_cugetexporttable_1(uuid, &result, clnt);
     orig_table = (void*)result.ptr_result_u.ptr;
-    printf("[rpc] %s(%p, %s) = %d, result = %p\n", __FUNCTION__, ppExportTable,
+    LOGE(LOG_DEBUG, "[rpc] %s(%p, %s) = %d, result = %p", __FUNCTION__, ppExportTable,
                                                idstr, result.err, orig_table);
 
 	if (retval != RPC_SUCCESS) {
@@ -580,7 +652,24 @@ DEF_FN(CUresult, cuMemPrefetchAsync, CUdeviceptr, devPtr, size_t, count, CUdevic
 DEF_FN(CUresult, cuMemPrefetchAsync_ptsz, CUdeviceptr, devPtr, size_t, count, CUdevice, dstDevice, CUstream, hStream)
 DEF_FN(CUresult, cuMemRangeGetAttribute, void*, data, size_t, dataSize, CUmem_range_attribute, attribute, CUdeviceptr, devPtr, size_t, count)
 DEF_FN(CUresult, cuMemRangeGetAttributes, void**, data, size_t*, dataSizes, CUmem_range_attribute*, attributes, size_t, numAttributes, CUdeviceptr, devPtr, size_t, count)
-DEF_FN(CUresult, cuGetErrorString, CUresult, error, const char**, pStr)
+CUresult cuGetErrorString(CUresult error, const char** pStr)
+{
+	enum clnt_stat retval;
+    str_result result;
+    result.str_result_u.str = malloc(128);
+    retval = rpc_cugeterrorstring_1(error, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%d) = %d, result %s", __FUNCTION__, error, result.err, result.str_result_u.str);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    if (pStr != NULL) {
+       if ((*pStr = malloc(128)) != NULL) {
+           strncpy((char*)(*pStr), result.str_result_u.str, 128);
+        }
+    }
+    return result.err;
+}
 DEF_FN(CUresult, cuGetErrorName, CUresult, error, const char**, pStr)
 DEF_FN(CUresult, cuGraphCreate, CUgraph*, phGraph, unsigned int, flags)
 DEF_FN(CUresult, cuGraphAddKernelNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)

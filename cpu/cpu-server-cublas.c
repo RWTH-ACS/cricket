@@ -18,14 +18,11 @@
 #include "cpu-server-cublas.h"
 
 
-static resource_mg rm_cublas;
-static resource_mg *rm_memory;
 
 int cublas_init(int bypass, resource_mg *memory)
 {
     int ret = 0;
     ret &= resource_mg_init(&rm_cublas, bypass);
-    rm_memory = memory;
     return ret;
 }
 

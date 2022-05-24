@@ -22,6 +22,14 @@ typedef struct resource_mg_t {
     int bypass;
 } resource_mg;
 
+
+resource_mg rm_streams;
+resource_mg rm_events;
+resource_mg rm_arrays;
+resource_mg rm_memory;
+resource_mg rm_cusolver;
+resource_mg rm_cublas;
+
 /** initializes the resource manager
  *
  * @bypass: if unequal to zero, searches for resources
