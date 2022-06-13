@@ -12,11 +12,14 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "cpu-server-runtime.h"
+#include "cpu-server-driver.h"
 #include "rpc/xdr.h"
 #include "cr.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
+#define WITH_RECORDER
+#include "api-recorder.h"
 
 INIT_SOCKTYPE
 
@@ -250,7 +253,17 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
         cudaRegisterAllv();
     }
 
+    if (list_init(&api_records, sizeof(api_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing api recorder failed.");
+        exit(1);
+    }
+
     if (server_runtime_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        exit(1);
+    }
+
+    if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         exit(1);
     }
@@ -273,8 +286,13 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 
     svc_run();
 
-    server_runtime_deinit();
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
+    //api_records_print();
+    api_records_free_args();
+    list_free(&api_records);
+
+    server_runtime_deinit();
+    server_driver_deinit();
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);

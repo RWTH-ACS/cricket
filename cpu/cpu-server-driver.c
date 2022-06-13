@@ -9,7 +9,32 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "resource-mg.h"
+#define WITH_RECORDER
+#include "api-recorder.h"
 
+int server_driver_init(int restore)
+{
+    #ifdef WITH_IB
+    #endif //WITH_IB
+   
+    int ret = 0;
+    if (!restore) {
+        ret &= resource_mg_init(&rm_modules, 1);
+        ret &= resource_mg_init(&rm_functions, 1);
+    } else {
+        ret &= resource_mg_init(&rm_modules, 0);
+        ret &= resource_mg_init(&rm_functions, 0);
+        //ret &= server_driver_restore("ckp");
+    }
+    return ret;
+}
+
+int server_driver_deinit(void)
+{
+    resource_mg_free(&rm_modules);
+    resource_mg_free(&rm_functions);
+    return 0;
+}
 
 bool_t rpc_cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
 {
@@ -102,25 +127,42 @@ bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
 bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *result,
                                      struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    RECORD_API(rpc_cumodulegetfunction_1_argument);
+    RECORD_ARG(1, module);
+    RECORD_ARG(2, name);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
-                                      (CUmodule)module, name);
+                    resource_mg_get(&rm_streams, (void*)module),
+                    name);
+    if (resource_mg_create(&rm_functions, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
 bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
                                      struct svc_req *rqstp)
 {
+    RECORD_API(char*);
+    RECORD_SINGLE_ARG(path);
     LOG(LOG_DEBUG, "%s(%s)", __FUNCTION__, path);
     result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, path);
+    if (resource_mg_create(&rm_modules, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
 bool_t rpc_cumoduleunload_1_svc(ptr module, int *result,
                                      struct svc_req *rqstp)
 {
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(module);
     LOG(LOG_DEBUG, "%s(%p)", __FUNCTION__, (void*)module);
-    *result = cuModuleUnload((CUmodule)module);
+    *result = cuModuleUnload(resource_mg_get(&rm_streams, (void*)module));
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -207,7 +249,25 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     void **cuda_args;
     uint16_t *arg_offsets;
-    size_t param_num = *((size_t*)args.mem_data_val);
+    size_t param_num;
+    if (args.mem_data_val == NULL) {
+        LOGE(LOG_ERROR, "param.mem_data_val is NULL");
+        *result = CUDA_ERROR_INVALID_VALUE;
+        return 1;
+    }
+    if (args.mem_data_len < sizeof(size_t)) {
+        LOGE(LOG_ERROR, "param.mem_data_len is too small");
+        *result = CUDA_ERROR_INVALID_VALUE;
+        return 1;
+    }
+    param_num = *((size_t*)args.mem_data_val);
+
+    if (args.mem_data_len < sizeof(size_t)+sizeof(uint16_t)*param_num) {
+        LOGE(LOG_ERROR, "param.mem_data_len is too small");
+        *result = CUDA_ERROR_INVALID_VALUE;
+        return 1;
+    }
+
     arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {

@@ -23,12 +23,20 @@ typedef struct resource_mg_t {
 } resource_mg;
 
 
+//Runtime API RMs
 resource_mg rm_streams;
 resource_mg rm_events;
 resource_mg rm_arrays;
 resource_mg rm_memory;
+
+//Driver API RMs
+resource_mg rm_modules;
+resource_mg rm_functions;
+
+//Other RMs
 resource_mg rm_cusolver;
 resource_mg rm_cublas;
+
 
 /** initializes the resource manager
  *

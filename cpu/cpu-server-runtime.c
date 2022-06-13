@@ -60,7 +60,6 @@ int server_runtime_init(int restore)
     #endif //WITH_IB
    
     int ret = 0;
-    ret = list_init(&api_records, sizeof(api_record_t));
     if (!restore) {
         ret &= resource_mg_init(&rm_streams, 1);
         ret &= resource_mg_init(&rm_events, 1);
@@ -82,9 +81,6 @@ int server_runtime_init(int restore)
 
 int server_runtime_deinit(void)
 {
-    //api_records_print();
-    api_records_free_args();
-    list_free(&api_records);
     resource_mg_free(&rm_streams);
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
