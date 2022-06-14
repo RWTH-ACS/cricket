@@ -614,7 +614,7 @@ DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, un
 //DEF_FN(CUresult, cuGetExportTable, const void**, ppExportTable, const CUuuid*, pExportTableId)
 
 // This function returns an array of 8 function pointers to hidden functions inside libcuda.so
-CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
+/*CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
 {
 	enum clnt_stat retval;
     char *uuid = NULL;
@@ -644,7 +644,7 @@ CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTable
 
     cd_client_hidden_incr();
     return result.err;
-}
+}*/
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize)
 DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize, unsigned int, flags)
 DEF_FN(CUresult, cuMemAdvise, CUdeviceptr, devPtr, size_t, count, CUmem_advise, advice, CUdevice, device)

@@ -11,7 +11,7 @@
 #include "resource-mg.h"
 #define WITH_RECORDER
 #include "api-recorder.h"
-#include "sched.h"
+#include "gsched.h"
 
 int server_driver_init(int restore)
 {

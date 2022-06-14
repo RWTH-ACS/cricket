@@ -37,7 +37,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 api-recorder.c 			\
 			 resource-mg.c 			    \
 			 cr.c 					    \
-			 sched_none.c
+			 gsched_none.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -48,11 +48,12 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-utils.c                \
 			 cpu-client-runtime.c       \
 			 cpu-client-driver.c        \
-			 cpu-client-driver-hidden.c \
 			 list.c 				    \
 			 log.c                      \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c
+
+# 			 cpu-client-driver-hidden.c \
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

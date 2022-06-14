@@ -310,7 +310,7 @@ program RPC_CD_PROG {
         int          rpc_cuCtxSetCurrent(ptr)                                  = 1011;
         ptr_result   rpc_cuDevicePrimaryCtxRetain(int)                         = 1012;
         ptr_result   rpc_cuModuleGetFunction(ptr, string)                      = 1013;
-        ptr_result   rpc_cuGetExportTable(string)                              = 1014;
+/*        ptr_result   rpc_cuGetExportTable(string)                              = 1014;*/
         ptr_result   rpc_cuMemAlloc(ptr)                                       = 1015;
         int_result   rpc_cuCtxGetDevice(void)                                  = 1016;
         int          rpc_cuMemcpyHtoD(ptr, mem_data)                           = 1017;
@@ -322,14 +322,14 @@ program RPC_CD_PROG {
         int          rpc_cuModuleUnload(ptr)                                   = 1021;
 
         /* HIDDEN DRIVER API */
-        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;
+/*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;
         ptr_result   rpc_hidden_get_module(ptr, ptr, ptr, int)                 = 1105;
         ptr_result   rpc_hidden_1_1(void)                                      = 1111;
         void         rpc_hidden_1_3(ptr, ptr)                                  = 1113;
         ptr_result   rpc_hidden_1_5(void)                                      = 1115;
         void         rpc_hidden_2_1(ptr)                                       = 1121;
         int          rpc_hidden_3_0(int, ptr, ptr)                             = 1130;
-        mem_result   rpc_hidden_3_2(int, ptr)                                  = 1132;
+        mem_result   rpc_hidden_3_2(int, ptr)                                  = 1132;*/
 
         /* CUSOLVER */
         ptr_result   rpc_cusolverDnCreate(void)                                = 2001;
