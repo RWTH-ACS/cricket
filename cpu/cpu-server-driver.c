@@ -61,7 +61,9 @@ bool_t rpc_cudrivergetversion_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
+    SCHED_RELEASE;
     return 1;
 }
 
@@ -69,21 +71,27 @@ bool_t rpc_cudevicegetname_1_svc(int dev, str_result *result, struct svc_req *rq
 {
     result->str_result_u.str = malloc(128);
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuDeviceGetName(result->str_result_u.str, 128, dev);
+    SCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cudevicetotalmem_1_svc(int dev, u64_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuDeviceTotalMem(&result->u64_result_u.u64, dev);
+    SCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuDeviceGetAttribute(&result->int_result_u.data, attribute, dev);
+    SCHED_RELEASE;
     return 1;
 }
 
@@ -91,7 +99,9 @@ bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rq
 {
     CUuuid uuid;
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuDeviceGetUuid(&uuid, dev);
+    SCHED_RELEASE;
     if (result->err == 0) {
         memcpy(result->str_result_u.str, uuid.bytes, 16);
     }
@@ -101,7 +111,9 @@ bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rq
 bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuCtxGetCurrent((struct CUctx_st**)&result->ptr_result_u.ptr);
+    SCHED_RELEASE;
     if ((void*)result->ptr_result_u.ptr != NULL) {
         unsigned int version = 0;
         cuCtxGetApiVersion((CUcontext)result->ptr_result_u.ptr, &version);
@@ -110,6 +122,7 @@ bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
     return 1;
 }
 
+//TODO: Calling this might break things within the scheduler.
 bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
@@ -117,6 +130,7 @@ bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqst
     return 1;
 }
 
+//TODO: Calling this might break things within the scheduler.
 bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
                                           struct svc_req *rqstp)
 {
@@ -132,9 +146,11 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
     RECORD_ARG(1, module);
     RECORD_ARG(2, name);
     LOG(LOG_DEBUG, "(fd:%d) %s(%s)", rqstp->rq_xprt->xp_fd, __FUNCTION__, name);
+    SCHED_RETAIN;
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
                     resource_mg_get(&rm_streams, (void*)module),
                     name);
+    SCHED_RELEASE;
     if (resource_mg_create(&rm_functions, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
@@ -148,7 +164,9 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
     RECORD_API(char*);
     RECORD_SINGLE_ARG(path);
     LOG(LOG_DEBUG, "%s(%s)", __FUNCTION__, path);
+    SCHED_RETAIN;
     result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, path);
+    SCHED_RELEASE;
     if (resource_mg_create(&rm_modules, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
@@ -162,7 +180,9 @@ bool_t rpc_cumoduleunload_1_svc(ptr module, int *result,
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(module);
     LOG(LOG_DEBUG, "%s(%p)", __FUNCTION__, (void*)module);
+    SCHED_RETAIN;
     *result = cuModuleUnload(resource_mg_get(&rm_streams, (void*)module));
+    SCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -225,14 +245,18 @@ bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
                                      struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuMemAlloc_v2((CUdeviceptr*)&result->ptr_result_u.ptr, (size_t)size);
+    SCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    SCHED_RETAIN;
     result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
+    SCHED_RELEASE;
     return 1;
 }
 
@@ -240,8 +264,10 @@ bool_t rpc_cumemcpyhtod_1_svc(uint64_t dptr, mem_data hptr, int *result,
                                      struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s(%p,%p,%d)", __FUNCTION__, dptr, hptr.mem_data_val, hptr.mem_data_len);
+    SCHED_RETAIN;
     *result = cuMemcpyHtoD_v2((CUdeviceptr)dptr, hptr.mem_data_val,
                               hptr.mem_data_len);
+    SCHED_RELEASE;
     return 1;
 }
 
@@ -279,7 +305,9 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
 
     LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
 
+    SCHED_RETAIN;
     *result = cuLaunchKernel((CUfunction)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (CUstream)hStream, cuda_args, NULL);
+    SCHED_RELEASE;
 
     free(cuda_args);
     return 1;

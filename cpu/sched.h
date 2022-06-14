@@ -11,4 +11,7 @@ typedef struct _sched_t {
 
 sched_t *sched;
 
+#define SCHED_RETAIN sched->retain(rqstp->rq_xprt->xp_fd)
+#define SCHED_RELEASE sched->release(rqstp->rq_xprt->xp_fd)
+
 #endif //_SCHED_H_
