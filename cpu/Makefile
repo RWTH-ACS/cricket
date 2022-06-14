@@ -36,7 +36,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 list.c                     \
 			 api-recorder.c 			\
 			 resource-mg.c 			    \
-			 cr.c
+			 cr.c 					    \
+			 sched_none.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c

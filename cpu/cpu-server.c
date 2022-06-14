@@ -20,6 +20,7 @@
 #endif //WITH_IB
 #define WITH_RECORDER
 #include "api-recorder.h"
+#include "sched.h"
 
 INIT_SOCKTYPE
 
@@ -30,6 +31,8 @@ int shm_enabled = 1;
     int ib_device = 0;
 #endif //WITH_IB
 
+sched_t *sched;
+extern sched_t sched_none;
 
 unsigned long prog=0, vers=0;
 
@@ -251,6 +254,12 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
         LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
     } else {
         cudaRegisterAllv();
+    }
+
+    sched = &sched_none; 
+    if (sched->init() != 0) {
+        LOGE(LOG_ERROR, "initializing scheduler failed.");
+        exit(1);
     }
 
     if (list_init(&api_records, sizeof(api_record_t)) != 0) {

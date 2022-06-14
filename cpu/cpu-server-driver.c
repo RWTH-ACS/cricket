@@ -11,6 +11,7 @@
 #include "resource-mg.h"
 #define WITH_RECORDER
 #include "api-recorder.h"
+#include "sched.h"
 
 int server_driver_init(int restore)
 {
@@ -38,28 +39,28 @@ int server_driver_deinit(void)
 
 bool_t rpc_cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceGetCount(&result->int_result_u.data);
     return 1;
 }
 
 bool_t rpc_cuinit_1_svc(int argp, int *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     *result = cuInit(argp);
     return 1;
 }
 
 bool_t rpc_cudrivergetversion_1_svc(int_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDriverGetVersion(&result->int_result_u.data);
     return 1;
 }
 
 bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
     return 1;
 }
@@ -67,21 +68,21 @@ bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rq
 bool_t rpc_cudevicegetname_1_svc(int dev, str_result *result, struct svc_req *rqstp)
 {
     result->str_result_u.str = malloc(128);
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceGetName(result->str_result_u.str, 128, dev);
     return 1;
 }
 
 bool_t rpc_cudevicetotalmem_1_svc(int dev, u64_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceTotalMem(&result->u64_result_u.u64, dev);
     return 1;
 }
 
 bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceGetAttribute(&result->int_result_u.data, attribute, dev);
     return 1;
 }
@@ -89,7 +90,7 @@ bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result
 bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rqstp)
 {
     CUuuid uuid;
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDeviceGetUuid(&uuid, dev);
     if (result->err == 0) {
         memcpy(result->str_result_u.str, uuid.bytes, 16);
@@ -99,19 +100,19 @@ bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rq
 
 bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuCtxGetCurrent((struct CUctx_st**)&result->ptr_result_u.ptr);
     if ((void*)result->ptr_result_u.ptr != NULL) {
         unsigned int version = 0;
         cuCtxGetApiVersion((CUcontext)result->ptr_result_u.ptr, &version);
-        printf("ctxapi version: %d\n", version);
+        LOG(LOG_DEBUG, "ctxapi version: %d", version);
     }
     return 1;
 }
 
 bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
     return 1;
 }
@@ -119,7 +120,7 @@ bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqst
 bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
                                           struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
     return 1;
 }
@@ -130,7 +131,7 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
     RECORD_API(rpc_cumodulegetfunction_1_argument);
     RECORD_ARG(1, module);
     RECORD_ARG(2, name);
-    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    LOG(LOG_DEBUG, "(fd:%d) %s(%s)", rqstp->rq_xprt->xp_fd, __FUNCTION__, name);
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
                     resource_mg_get(&rm_streams, (void*)module),
                     name);
@@ -181,14 +182,14 @@ bool_t rpc_cugeterrorstring_1_svc(int err, str_result *result,
     return 1;
 }
 
-
+/*
 bool_t rpc_cugetexporttable_1_svc(char *rpc_uuid, ptr_result *result,
                                   struct svc_req *rqstp)
 {
     void *exportTable = NULL;
     size_t tablesize = 0;
     CUuuid uuid;
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, printf("%s\n", __FUNCTION__);
     if (rpc_uuid == NULL)
         return 0;
 
@@ -218,19 +219,19 @@ bool_t rpc_cugetexporttable_1_svc(char *rpc_uuid, ptr_result *result,
     result->ptr_result_u.ptr = (uint64_t)exportTable;
 
     return 1;
-}
+}*/
 
 bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
                                      struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuMemAlloc_v2((CUdeviceptr*)&result->ptr_result_u.ptr, (size_t)size);
     return 1;
 }
 
 bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
 {
-    printf("%s\n", __FUNCTION__);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
     return 1;
 }
@@ -238,7 +239,7 @@ bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t rpc_cumemcpyhtod_1_svc(uint64_t dptr, mem_data hptr, int *result,
                                      struct svc_req *rqstp)
 {
-    printf("%s(%p,%p,%d)\n", __FUNCTION__, dptr, hptr.mem_data_val, hptr.mem_data_len);
+    LOG(LOG_DEBUG, "%s(%p,%p,%d)", __FUNCTION__, dptr, hptr.mem_data_val, hptr.mem_data_len);
     *result = cuMemcpyHtoD_v2((CUdeviceptr)dptr, hptr.mem_data_val,
                               hptr.mem_data_len);
     return 1;
@@ -246,10 +247,10 @@ bool_t rpc_cumemcpyhtod_1_svc(uint64_t dptr, mem_data hptr, int *result,
 
 bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, uint64_t hStream, mem_data args, int* result, struct svc_req *rqstp)
 {
-    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     void **cuda_args;
     uint16_t *arg_offsets;
     size_t param_num;
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     if (args.mem_data_val == NULL) {
         LOGE(LOG_ERROR, "param.mem_data_val is NULL");
         *result = CUDA_ERROR_INVALID_VALUE;
@@ -287,6 +288,7 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
 
 /* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
+/*
 bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
                                      struct svc_req *rqstp)
 {
@@ -296,7 +298,7 @@ bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
                                         ((void**)&result->ptr_result_u.ptr, dev);
     return 1;
 }
-
+*/
 /* This function loads the module (the device code)
  * It could be replaced by cuModuleLoad which loads a module via a path
  * string. However, this seems to only work for cubin files that were
@@ -305,7 +307,7 @@ bool_t rpc_hidden_get_device_ctx_1_svc(int dev, ptr_result *result,
  * compiled for the wrong compute capabilities (e.g. Pascal needs sm_61 and
  * Turing needs sm_75).
  */
-bool_t rpc_hidden_get_module_1_svc(uint64_t arg2, uint64_t arg3,
+/*bool_t rpc_hidden_get_module_1_svc(uint64_t arg2, uint64_t arg3,
                                    uint64_t arg4, int arg5,
                                    ptr_result *result, struct svc_req *rqstp)
 {
@@ -393,4 +395,4 @@ bool_t rpc_hidden_3_2_1_svc(int arg2, uint64_t arg3, mem_result *result,
     //printf("\terr: %d, result: %p\n", result->err, result->ptr_result_u.ptr);
     return 1;
 }
-
+*/

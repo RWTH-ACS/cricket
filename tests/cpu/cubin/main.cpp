@@ -2,6 +2,7 @@
 
 #include <cuda_runtime.h>
 #include <cuda.h>
+#include <unistd.h>
 
 
 #define printCudaErrors(err) __printCudaErrors (err, __FILE__, __LINE__)
@@ -89,7 +90,7 @@ int main(int argc, char** argv)
     if ((err = cuModuleGetFunction(&func, module, "kernel")) != CUDA_SUCCESS) {
         printCudaErrors(err);
     }
-
+    sleep(5);
     int a = 4;
     void *params[] = {&a, &mem, &len};
     if ((err = cuLaunchKernel(func, 1, 1, 1, len, 1, 1, 8, CU_STREAM_PER_THREAD, params, NULL)) != CUDA_SUCCESS) {

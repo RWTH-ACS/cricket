@@ -214,6 +214,7 @@ int cpu_utils_is_local_connection(struct svc_req *rqstp)
     socklen_t sockaddr_len = sizeof(struct sockaddr_in);
     getpeername(rqstp->rq_xprt->xp_fd, &remote_addr, &sockaddr_len);
     getsockname(rqstp->rq_xprt->xp_fd, &local_addr, &sockaddr_len);
+    //alternative (char*)inet_ntoa(((struct sockaddr_in*)rqstp->rq_xprt->xp_rtaddr.buf)->sin_addr)
     return (local_addr.sin_addr.s_addr == remote_addr.sin_addr.s_addr);
 }
 
