@@ -31,8 +31,7 @@ int shm_enabled = 1;
     int ib_device = 0;
 #endif //WITH_IB
 
-sched_t *sched;
-extern sched_t sched_none;
+extern gsched_t sched_none;
 
 unsigned long prog=0, vers=0;
 

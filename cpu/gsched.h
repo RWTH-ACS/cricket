@@ -1,17 +1,17 @@
-#ifndef _SCHED_H_
-#define _SCHED_H_
+#ifndef _GSCHED_H_
+#define _GSCHED_H_
 
-typedef struct _sched_t {
+typedef struct _gsched_t {
     int (*init)(void);
     int (*retain)(int id);
     int (*release)(int id);
     int (*rm)(int id);
     void (*deinit)(void);
-} sched_t;
+} gsched_t;
 
-sched_t *sched;
+gsched_t *sched;
 
-#define SCHED_RETAIN sched->retain(rqstp->rq_xprt->xp_fd)
-#define SCHED_RELEASE sched->release(rqstp->rq_xprt->xp_fd)
+#define GSCHED_RETAIN sched->retain(rqstp->rq_xprt->xp_fd)
+#define GSCHED_RELEASE sched->release(rqstp->rq_xprt->xp_fd)
 
-#endif //_SCHED_H_
+#endif //_GSCHED_H_
