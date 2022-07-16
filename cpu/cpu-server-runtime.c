@@ -31,6 +31,7 @@
 #include "cr.h"
 #include "cpu-server-cusolver.h"
 #include "cpu-server-cublas.h"
+#include "mt-memcpy.h"
 
 typedef struct host_alloc_info {
     int cnt;
@@ -1337,6 +1338,36 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
 #endif
 
     RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+mt_memcpy_server_t server = {0};
+
+
+bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, int_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memcpy_mt_htod_1_argument);
+    RECORD_ARG(1, dest);
+    RECORD_ARG(2, size);
+    RECORD_ARG(3, thread_num);
+
+    LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
+    if (mt_memcpy_init_server(&server, (void*)dest, size, 5242) != 0) {
+        LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
+        result->err = cudaErrorUnknown;
+        return 1;
+    }
+    result->int_result_u.data = 5242;
+    result->err = 0;
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, int_result *result, struct svc_req *rqstp)
+{
+    result->err = 0;
+    result->int_result_u.data = 0;
     return 1;
 }
 

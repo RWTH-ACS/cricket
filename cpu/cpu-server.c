@@ -55,7 +55,7 @@ bool_t rpc_printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "RPC deinit requested.");
-    svc_exit();
+    //svc_exit();
     return 1;
 }
 

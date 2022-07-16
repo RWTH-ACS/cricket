@@ -22,6 +22,7 @@
 #include "cpu-common.h"
 #include "cpu-utils.h"
 #include "log.h"
+#include "oob.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -1521,6 +1522,8 @@ void* ib_thread(void* arg)
 }
 #endif //WITH_IB
 
+extern char server[256];
+#define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
     
@@ -1535,10 +1538,36 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         int index = hainfo_getindex((void*)src);
 //         not a cudaHostAlloc'ed memory 
         if (index == -1) {
+#ifdef WITH_MT_MEMCPY
+            int_result result;
+            oob_t oob;
+            retval = cuda_memcpy_mt_htod_1((ptr)dst, count, 1, &result, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                goto cleanup;
+            }
+            
+            if (oob_init_sender(&oob, server, result.int_result_u.data) != 0) {
+                LOGE(LOG_ERROR, "oob_init_sender failed");
+                goto cleanup;
+            }
+
+            if (oob_send(&oob, src, count) != count) {
+                LOGE(LOG_ERROR, "oob_send failed");
+                goto cleanup;
+            }
+
+            if (oob_close(&oob) != 0) {
+                LOGE(LOG_ERROR, "oob_close failed");
+                goto cleanup;
+            }
+            ret = 0;
+#else
             mem_data src_mem;
             src_mem.mem_data_len = count;
             src_mem.mem_data_val = (void*)src;
             retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
+#endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local == 1) { //Use local shared memory
                 retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);

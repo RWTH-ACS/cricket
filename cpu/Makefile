@@ -37,7 +37,9 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 api-recorder.c 			\
 			 resource-mg.c 			    \
 			 cr.c 					    \
-			 gsched_none.c
+			 gsched_none.c 			    \
+			 oob.c 					    \
+			 mt-memcpy.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -51,7 +53,9 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 list.c 				    \
 			 log.c                      \
 			 cpu-libwrap.c              \
-			 cpu-client-cusolver.c
+			 cpu-client-cusolver.c 		\
+			 oob.c 					    \
+			 mt-memcpy.c
 
 # 			 cpu-client-driver-hidden.c \
 
@@ -69,7 +73,7 @@ INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
-CC_FLAGS += -std=gnu99 $(INC_FLAGS)
+CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
 ifdef WITH_DEBUG
