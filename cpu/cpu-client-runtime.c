@@ -1561,7 +1561,11 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 LOGE(LOG_ERROR, "oob_close failed");
                 goto cleanup;
             }
-            ret = 0;
+            retval = cuda_memcpy_mt_sync_1(&ret, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                goto cleanup;
+            }
 #else
             mem_data src_mem;
             src_mem.mem_data_len = count;
@@ -1592,7 +1596,35 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         int index = hainfo_getindex(dst);
         /* not a cudaHostAlloc'ed memory */
         if (index == -1) {
+#ifdef WITH_MT_MEMCPY
+            int_result result;
+            oob_t oob;
+            retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, 1, &result, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                goto cleanup;
+            }
+            
+            if (oob_init_sender(&oob, server, result.int_result_u.data) != 0) {
+                LOGE(LOG_ERROR, "oob_init_sender failed");
+                goto cleanup;
+            }
 
+            if (oob_receive(&oob, dst, count) != count) {
+                LOGE(LOG_ERROR, "oob_send failed");
+                goto cleanup;
+            }
+
+            if (oob_close(&oob) != 0) {
+                LOGE(LOG_ERROR, "oob_close failed");
+                goto cleanup;
+            }
+            retval = cuda_memcpy_mt_sync_1(&ret, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                goto cleanup;
+            }
+#else
             mem_result result;
             result.mem_result_u.data.mem_data_len = count;
             result.mem_result_u.data.mem_data_val = dst;
@@ -1606,6 +1638,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 LOGE(LOG_ERROR, "error");
                 goto cleanup;
             }
+#endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local) { //Use local shared memory
                 retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);

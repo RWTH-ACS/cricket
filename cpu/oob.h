@@ -30,6 +30,7 @@
 typedef struct oob {
     int server_socket;
     int socket;
+    uint16_t port;
 } oob_t;
 
 int oob_init_listener(oob_t *oob, uint16_t port);

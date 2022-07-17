@@ -33,6 +33,7 @@
 int oob_init_listener_socket(oob_t *oob, uint16_t port)
 {
     struct sockaddr_in addr = {0};
+    socklen_t addr_len = sizeof(addr);
 
     if (oob == NULL) return 1;
     memset(oob, 0, sizeof(oob_t));
@@ -49,9 +50,16 @@ int oob_init_listener_socket(oob_t *oob, uint16_t port)
     int sockopt = 1;
     setsockopt(oob->server_socket, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof(int));
 
-    bind(oob->server_socket, (struct sockaddr*)&addr, sizeof(addr));
+    bind(oob->server_socket, (struct sockaddr*)&addr, addr_len);
 
     listen(oob->server_socket, 50);
+
+    if (port == 0) {
+        if (getsockname(oob->server_socket, (struct sockaddr *)&addr, &addr_len) != 0) {
+            LOGE(LOG_ERROR, "oob: failed to get socket name.");
+        }
+    }
+    oob->port = ntohs(addr.sin_port);
     return 0;
 }
 
@@ -94,6 +102,7 @@ int oob_init_sender(oob_t *oob, const char* address, uint16_t port)
 
     if (oob == NULL) return 1;
     memset(oob, 0, sizeof(oob_t));
+    oob->port = port;
 
     if((oob->socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("oob: creating server socket failed.\n");

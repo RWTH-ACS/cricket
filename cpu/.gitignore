@@ -5,3 +5,4 @@ cpu_rpc_prot.h
 cpu_rpc_prot_clnt.c
 cpu_rpc_prot_svc.c
 cpu_rpc_prot_xdr.c
+cricket-rpc-server

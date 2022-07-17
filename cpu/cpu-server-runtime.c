@@ -1352,12 +1352,12 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, int
     RECORD_ARG(3, thread_num);
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
-    if (mt_memcpy_init_server(&server, (void*)dest, size, 5242) != 0) {
+    if (mt_memcpy_init_server(&server, (void*)dest, size, MT_MEMCPY_HTOD) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
         return 1;
     }
-    result->int_result_u.data = 5242;
+    result->int_result_u.data = server.port;
     result->err = 0;
 
     RECORD_RESULT(integer, result->err);
@@ -1366,8 +1366,32 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, int
 
 bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, int_result *result, struct svc_req *rqstp)
 {
+    RECORD_API(cuda_memcpy_mt_dtoh_1_argument);
+    RECORD_ARG(1, src);
+    RECORD_ARG(2, size);
+    RECORD_ARG(3, thread_num);
+
+    LOGE(LOG_DEBUG, "cudaMemcpyMTDtoH");
+    if (mt_memcpy_init_server(&server, (void*)src, size, MT_MEMCPY_DTOH) != 0) {
+        LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
+        result->err = cudaErrorUnknown;
+        return 1;
+    }
+    result->int_result_u.data = server.port;
     result->err = 0;
-    result->int_result_u.data = 0;
+
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
+bool_t cuda_memcpy_mt_sync_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaMemcpyMTSync");
+
+    *result = mt_memcpy_sync_server(&server);
+
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
