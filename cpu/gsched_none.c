@@ -17,11 +17,13 @@ static int cuda_max_devices;
 
 int gsched_none_init(void)
 {
+    cudaError_t res;
     LOG(LOG_DEBUG, "sched_none_init");
     list_init(&ids, sizeof(gsched_none_t));
     pthread_mutex_init(&mutex_device, NULL);
     pthread_mutex_init(&mutex_ids, NULL);
-    if (cudaGetDeviceCount(&cuda_max_devices) != CUDA_SUCCESS) {
+    if ((res = cudaGetDeviceCount(&cuda_max_devices)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaGetDeviceCount failed: %s", cudaGetErrorString(res));
         return 1;
     }
     return 0;

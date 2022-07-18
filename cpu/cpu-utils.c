@@ -481,5 +481,6 @@ void kernel_infos_free(kernel_info_t *infos, size_t kernelnum)
     for (int i=0; i < kernelnum; ++i) {
         free(infos[i].name);
         free(infos[i].param_offsets);
+        free(infos[i].param_sizes);
     }
 }

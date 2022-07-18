@@ -78,10 +78,10 @@ int oob_init_listener_accept(oob_t *oob, int* socket)
         LOGE(LOG_ERROR, "oob: accept failed.");
         return 1;
     }
-    if (inet_ntop(AF_INET, (const void*)&peer_addr.sin_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
+    /*if (inet_ntop(AF_INET, (const void*)&peer_addr.sin_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
         LOGE(LOG_ERROR, "oob: inet_ntop failed");
         return 1;
-    }
+    }*/
     //LOG(LOG_DBG(2), "accepted connection from %s.", peer_addr_str);
     return 0;
 }
@@ -141,6 +141,7 @@ int oob_init_sender_s(int *sock, const char* address, uint16_t port)
         printf("oob: connect failed\n");
         return 1;
     }
+    freeaddrinfo(addr);
 
     /*if (inet_ntop(AF_INET, (const void*)&hp->h_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
         printf("oob: inet_ntop failed\n");
