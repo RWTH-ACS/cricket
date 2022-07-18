@@ -39,7 +39,7 @@ int cpu_utils_command(char **command)
         goto cleanup;
     }
 
-    if ((*command = realloc(*command, comm_len-1)) == NULL) {
+    if ((*command = realloc(*command, comm_len)) == NULL) {
         LOGE(LOG_ERROR, "realloc failed");
         goto cleanup;
     }
