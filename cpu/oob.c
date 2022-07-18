@@ -103,17 +103,9 @@ int oob_init_sender(oob_t *oob, const char* address, uint16_t port)
     if (oob == NULL) return 1;
     memset(oob, 0, sizeof(oob_t));
     oob->port = port;
-    return oob_init_sender_s(&oob->socket, address, port);
-}
-
-int oob_init_sender_s(int *sock, const char* address, uint16_t port)
-{
     struct addrinfo hints;
-    struct addrinfo *addr;
+    struct addrinfo *addr = NULL;
     char port_str[6];
-
-    if (sock == NULL || address == NULL) return 1;
-
     if (sprintf(port_str, "%d", port) < 0) {
         printf("oob: sprintf failed.\n");
         return 1;
@@ -122,15 +114,19 @@ int oob_init_sender_s(int *sock, const char* address, uint16_t port)
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(address, port_str, &hints, &addr) != 0) {
+    if (getaddrinfo(address, port_str, &hints, &addr) != 0 || addr == NULL) {
         printf("error resolving hostname: %s\n", address);
         return 1;
     }
 
-    if (addr == NULL) {
-        printf("error resolving hostname: %s\n", address);
-        return 1;
-    }
+    int ret = oob_init_sender_s(&oob->socket, addr);
+    freeaddrinfo(addr);
+    return ret;
+}
+
+int oob_init_sender_s(int *sock, struct addrinfo *addr)
+{
+    if (sock == NULL) return 1;
 
     if((*sock = socket(addr->ai_family, addr->ai_socktype, 0)) < 0) {
         printf("oob: creating server socket failed.\n");
@@ -138,10 +134,9 @@ int oob_init_sender_s(int *sock, const char* address, uint16_t port)
     }
 
     if (connect(*sock, addr->ai_addr, addr->ai_addrlen) < 0) {
-        printf("oob: connect failed\n");
+        LOGE(LOG_ERROR, "oob: connect failed: %s", strerror(errno));
         return 1;
     }
-    freeaddrinfo(addr);
 
     /*if (inet_ntop(AF_INET, (const void*)&hp->h_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
         printf("oob: inet_ntop failed\n");

@@ -39,7 +39,7 @@ int oob_init_listener_socket(oob_t *oob, uint16_t port);
 int oob_init_listener_accept(oob_t *oob, int *socket);
 
 int oob_init_sender(oob_t *oob, const char* address, uint16_t port);
-int oob_init_sender_s(int *sock, const char* address, uint16_t port);
+int oob_init_sender_s(int *sock, struct addrinfo *addr);
 
 int oob_send(oob_t *oob, const void* buffer, size_t len);
 int oob_send_s(int socket, const void* buffer, size_t len);

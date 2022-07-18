@@ -4,6 +4,7 @@
 #include <cuda.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "mt-memcpy.h"
 #include "log.h"
@@ -189,8 +190,7 @@ int mt_memcpy_sync_server(mt_memcpy_server_t *server)
 }
 
 struct client_args {
-    const char* server;
-    uint16_t port;
+    struct addrinfo *addr;
     void* host_ptr;
     size_t size;
     enum mt_memcpy_direction dir;
@@ -208,7 +208,7 @@ static void* mt_memcpy_client_thread(void* arg)
     size_t ret = 1;
     int sock;
     struct client_thread_args *args = (struct client_thread_args*)arg;
-    if (oob_init_sender_s(&sock, args->client->server, args->client->port) != 0) {
+    if (oob_init_sender_s(&sock, args->client->addr) != 0) {
         LOGE(LOG_ERROR, "oob_init_sender failed");
         goto cleanup;
     }
@@ -253,9 +253,24 @@ static void* mt_memcpy_client_thread(void* arg)
 int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num)
 {
     int ret = 1;
+    struct addrinfo hints;
+    struct addrinfo *addr = NULL;
+    char port_str[6];
+    if (sprintf(port_str, "%d", port) < 0) {
+        printf("oob: sprintf failed.\n");
+        return 1;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(server, port_str, &hints, &addr) != 0 || addr == NULL) {
+        printf("error resolving hostname: %s\n", server);
+        return 1;
+    }
+
     struct client_args client = {
-        .server = server,
-        .port = port,
+        .addr = addr,
         .host_ptr = host_ptr,
         .size = size,
         .dir = dir,
@@ -286,6 +301,7 @@ int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t s
     ret = 0;
  cleanup:
     free(copy_args);
+    freeaddrinfo(addr);
     return ret;
 }
 

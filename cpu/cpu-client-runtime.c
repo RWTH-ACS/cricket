@@ -1524,7 +1524,7 @@ void* ib_thread(void* arg)
 #endif //WITH_IB
 
 extern char server[256];
-#define MT_MEMCPY_MEM_PER_THREAD (16)
+#define MT_MEMCPY_MEM_PER_THREAD (16*1024*1024)
 #define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
