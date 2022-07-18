@@ -41,6 +41,7 @@ typedef struct host_alloc_info {
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64];
 static size_t hainfo_cnt = 1;
+list mt_memcpy_list = {0};
 
 static int hainfo_getserverindex(void *server_ptr)
 {
@@ -59,8 +60,11 @@ int server_runtime_init(int restore)
 {
     #ifdef WITH_IB
     #endif //WITH_IB
-   
     int ret = 0;
+    if (list_init(&mt_memcpy_list, sizeof(mt_memcpy_server_t)) != 0) {
+        LOGE(LOG_ERROR, "mt_memcpy: failed to initialize list.");
+        ret &= 1;
+    }
     if (!restore) {
         ret &= resource_mg_init(&rm_streams, 1);
         ret &= resource_mg_init(&rm_events, 1);
@@ -88,6 +92,7 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_memory);
     cusolver_deinit();
     cublas_deinit();
+    list_free(&mt_memcpy_list);
     return 0;
 
 }
@@ -1341,10 +1346,8 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     return 1;
 }
 
-mt_memcpy_server_t server = {0};
 
-
-bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, int_result *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, dint_result *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_memcpy_mt_htod_1_argument);
     RECORD_ARG(1, dest);
@@ -1352,19 +1355,26 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, int
     RECORD_ARG(3, thread_num);
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
-    if (mt_memcpy_init_server(&server, (void*)dest, size, MT_MEMCPY_HTOD) != 0) {
+    mt_memcpy_server_t *server;
+    if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
+        LOGE(LOG_ERROR, "list_append failed.");
+        result->err = cudaErrorUnknown;
+        return 1;
+    }
+    if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
         return 1;
     }
-    result->int_result_u.data = server.port;
+    result->dint_result_u.data.i1 = server->port;
+    result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
 
     RECORD_RESULT(integer, result->err);
     return 1;
 }
 
-bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, int_result *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint_result *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_memcpy_mt_dtoh_1_argument);
     RECORD_ARG(1, src);
@@ -1372,24 +1382,46 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, int_
     RECORD_ARG(3, thread_num);
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTDtoH");
-    if (mt_memcpy_init_server(&server, (void*)src, size, MT_MEMCPY_DTOH) != 0) {
+    mt_memcpy_server_t *server;
+    if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
+        LOGE(LOG_ERROR, "list_append failed.");
+        result->err = cudaErrorUnknown;
+        return 1;
+    }
+    if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
         return 1;
     }
-    result->int_result_u.data = server.port;
+    result->dint_result_u.data.i1 = server->port;
+    result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
 
     RECORD_RESULT(integer, result->err);
     return 1;
 }
 
-bool_t cuda_memcpy_mt_sync_1_svc(int *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
 {
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaMemcpyMTSync");
 
-    *result = mt_memcpy_sync_server(&server);
+    mt_memcpy_server_t *server;
+    if (list_at(&mt_memcpy_list, id, (void**)&server) != 0) {
+        LOGE(LOG_ERROR, "list_at failed.");
+        *result = cudaErrorUnknown;
+        return 1;
+    }
+
+    *result = mt_memcpy_sync_server(server);
+
+    if (id == mt_memcpy_list.length - 1) {
+        list_rm(&mt_memcpy_list, id);
+        while (mt_memcpy_list.length > 0 &&
+            ((mt_memcpy_server_t*)list_get(&mt_memcpy_list, mt_memcpy_list.length-1))->dev_ptr == NULL) {
+            list_rm(&mt_memcpy_list, mt_memcpy_list.length);
+        }
+    }
 
     RECORD_RESULT(integer, *result);
     return 1;

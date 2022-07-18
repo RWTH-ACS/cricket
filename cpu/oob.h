@@ -22,7 +22,8 @@
  * Uses a TCP connection to communicate auxiliary information between client
  * and host
  */
-
+#ifndef _OOB_H_
+#define _OOB_H_
 #include <stdint.h>
 #include <netdb.h>
 #include <pthread.h>
@@ -35,14 +36,17 @@ typedef struct oob {
 
 int oob_init_listener(oob_t *oob, uint16_t port);
 int oob_init_listener_socket(oob_t *oob, uint16_t port);
-int oob_init_listener_accept(oob_t *oob);
+int oob_init_listener_accept(oob_t *oob, int *socket);
 
 int oob_init_sender(oob_t *oob, const char* address, uint16_t port);
+int oob_init_sender_s(int *sock, const char* address, uint16_t port);
 
 int oob_send(oob_t *oob, const void* buffer, size_t len);
+int oob_send_s(int socket, const void* buffer, size_t len);
 int oob_receive(oob_t *oob, void *buffer, size_t len);
+int oob_receive_s(int socket, void *buffer, size_t len);
 
 int oob_synchronize(oob_t *oob);
 
 int oob_close(oob_t *oob);
-
+#endif // _OOB_H_

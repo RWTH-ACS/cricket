@@ -258,9 +258,9 @@ program RPC_CD_PROG {
         int          CUDA_MEMCPY_TO_SYMBOL_SHM(int, ptr, size_t, size_t, int)   = 446;
         int          CUDA_MEMCPY_IB(int, ptr, size_t, int)                      = 447;
         /*int        CUDA_MEMCPY_PEER(ptr, int, ptr, int, size_t)               = 448;*/
-        int_result   CUDA_MEMCPY_MT_HTOD(ptr, size_t, int)                      = 449;
-        int_result   CUDA_MEMCPY_MT_DTOH(ptr, size_t, int)                      = 450;
-        int          CUDA_MEMCPY_MT_SYNC(void)                                  = 451;
+        dint_result   CUDA_MEMCPY_MT_HTOD(ptr, size_t, int)                     = 449;
+        dint_result   CUDA_MEMCPY_MT_DTOH(ptr, size_t, int)                     = 450;
+        int          CUDA_MEMCPY_MT_SYNC(int)                                   = 451;
         int          CUDA_MEMSET(ptr, int, size_t)                              = 470;
         int          CUDA_MEMSET_2D(ptr, size_t, int, size_t, size_t)           = 471;
         /*int        CUDA_MEMSET_2D_ASYNC(ptr, size_t,

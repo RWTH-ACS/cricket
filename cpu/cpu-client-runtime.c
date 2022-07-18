@@ -1,3 +1,4 @@
+#include "mt-memcpy.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1539,7 +1540,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 //         not a cudaHostAlloc'ed memory 
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
-            int_result result;
+            dint_result result;
             oob_t oob;
             retval = cuda_memcpy_mt_htod_1((ptr)dst, count, 1, &result, clnt);
             if (retval != RPC_SUCCESS) {
@@ -1547,21 +1548,12 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 goto cleanup;
             }
             
-            if (oob_init_sender(&oob, server, result.int_result_u.data) != 0) {
-                LOGE(LOG_ERROR, "oob_init_sender failed");
+            if (mt_memcpy_client(server, result.dint_result_u.data.i1, (void*)src, count, MT_MEMCPY_HTOD, 1) != 0) {
+                LOGE(LOG_ERROR, "mt_memcpy_client failed");
                 goto cleanup;
             }
 
-            if (oob_send(&oob, src, count) != count) {
-                LOGE(LOG_ERROR, "oob_send failed");
-                goto cleanup;
-            }
-
-            if (oob_close(&oob) != 0) {
-                LOGE(LOG_ERROR, "oob_close failed");
-                goto cleanup;
-            }
-            retval = cuda_memcpy_mt_sync_1(&ret, clnt);
+            retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
             if (retval != RPC_SUCCESS) {
                 LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
                 goto cleanup;
@@ -1597,7 +1589,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         /* not a cudaHostAlloc'ed memory */
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
-            int_result result;
+            dint_result result;
             oob_t oob;
             retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, 1, &result, clnt);
             if (retval != RPC_SUCCESS) {
@@ -1605,21 +1597,12 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 goto cleanup;
             }
             
-            if (oob_init_sender(&oob, server, result.int_result_u.data) != 0) {
-                LOGE(LOG_ERROR, "oob_init_sender failed");
+            if (mt_memcpy_client(server, result.dint_result_u.data.i1, dst, count, MT_MEMCPY_DTOH, 1) != 0) {
+                LOGE(LOG_ERROR, "mt_memcpy_client failed");
                 goto cleanup;
             }
-
-            if (oob_receive(&oob, dst, count) != count) {
-                LOGE(LOG_ERROR, "oob_send failed");
-                goto cleanup;
-            }
-
-            if (oob_close(&oob) != 0) {
-                LOGE(LOG_ERROR, "oob_close failed");
-                goto cleanup;
-            }
-            retval = cuda_memcpy_mt_sync_1(&ret, clnt);
+            
+            retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
             if (retval != RPC_SUCCESS) {
                 LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
                 goto cleanup;

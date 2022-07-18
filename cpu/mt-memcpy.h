@@ -22,9 +22,10 @@ typedef struct _mt_memcpy_server_t {
     enum mt_memcpy_direction dir;
 } mt_memcpy_server_t;
 
-int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size, enum mt_memcpy_direction dir);
+int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num);
 
 int mt_memcpy_sync_server(mt_memcpy_server_t *server);
+int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num);
 
 
 #endif // _MT_MEMCPY_H_

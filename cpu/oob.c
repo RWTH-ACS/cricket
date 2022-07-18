@@ -63,14 +63,17 @@ int oob_init_listener_socket(oob_t *oob, uint16_t port)
     return 0;
 }
 
-int oob_init_listener_accept(oob_t *oob)
+int oob_init_listener_accept(oob_t *oob, int* socket)
 {
     size_t peer_addr_len = 0;
     struct sockaddr_in peer_addr = {0};
     char peer_addr_str[INET_ADDRSTRLEN];
 
     peer_addr_len = sizeof(struct sockaddr_in);
-    if ((oob->socket = accept(oob->server_socket, (struct sockaddr *)&peer_addr, (socklen_t*)&peer_addr_len)) < 0) {
+    if (socket == NULL) {
+        return 1;
+    }
+    if ((*socket = accept(oob->server_socket, (struct sockaddr *)&peer_addr, (socklen_t*)&peer_addr_len)) < 0) {
         LOGE(LOG_ERROR, "oob: accept failed.");
         return 1;
     }
@@ -88,7 +91,7 @@ int oob_init_listener(oob_t *oob, uint16_t port)
     if (oob_init_listener_socket(oob, port) != 0) {
         return 1;
     }
-    if (oob_init_listener_accept(oob) != 0) {
+    if (oob_init_listener_accept(oob, &oob->socket) != 0) {
         return 1;
     }
     return 0;
@@ -96,15 +99,21 @@ int oob_init_listener(oob_t *oob, uint16_t port)
 
 int oob_init_sender(oob_t *oob, const char* address, uint16_t port)
 {
+    if (oob == NULL) return 1;
+    memset(oob, 0, sizeof(oob_t));
+    oob->port = port;
+    return oob_init_sender_s(&oob->socket, address, port);
+}
+
+int oob_init_sender_s(int *sock, const char* address, uint16_t port)
+{
     struct sockaddr_in addr = {0};
     struct hostent *hp;
     char peer_addr_str[INET_ADDRSTRLEN];
 
-    if (oob == NULL) return 1;
-    memset(oob, 0, sizeof(oob_t));
-    oob->port = port;
+    if (sock == NULL) return 1;
 
-    if((oob->socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if((*sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("oob: creating server socket failed.\n");
         return 1;
     }
@@ -117,25 +126,29 @@ int oob_init_sender(oob_t *oob, const char* address, uint16_t port)
     }
     addr.sin_addr = *(struct in_addr*)hp->h_addr;
 
-    if (connect(oob->socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(*sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         printf("oob: connect failed\n");
         return 1;
     }
 
-    if (inet_ntop(AF_INET, (const void*)&hp->h_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
+    /*if (inet_ntop(AF_INET, (const void*)&hp->h_addr, peer_addr_str, INET_ADDRSTRLEN) == NULL) {
         printf("oob: inet_ntop failed\n");
         return 1;
-    }
+    }*/
     return 0;
 }
 
-int oob_send(oob_t *oob, const void* buffer, size_t len) 
+int oob_send(oob_t *oob, const void* buffer, size_t len) {
+    if (oob == NULL || buffer == NULL) return -1;
+    return oob_send_s(oob->socket, buffer, len);
+}
+
+int oob_send_s(int socket, const void* buffer, size_t len) 
 {
     size_t bytes_sent = 0;
-    if (oob == NULL || buffer == NULL) return 1;
-
+    if (buffer == NULL) return -1;
     while(bytes_sent < len) {
-        bytes_sent += send(oob->socket, (void*)((uint64_t)buffer+bytes_sent), len-bytes_sent, 0);
+        bytes_sent += send(socket, (void*)((uint64_t)buffer+bytes_sent), len-bytes_sent, 0);
     }
 
     return bytes_sent;
@@ -143,9 +156,16 @@ int oob_send(oob_t *oob, const void* buffer, size_t len)
 
 int oob_receive(oob_t *oob, void *buffer, size_t len)
 {
+    if (oob == NULL || buffer == NULL) return -1;
+    return oob_receive_s(oob->socket, buffer, len);
+}
+
+int oob_receive_s(int socket, void *buffer, size_t len)
+{
     size_t bytes_received = 0;
+    if (buffer == NULL) return -1;
     while(bytes_received < len) {
-        bytes_received += recv(oob->socket, (void*)((uint64_t)buffer+bytes_received), len-bytes_received, 0);
+        bytes_received += recv(socket, (void*)((uint64_t)buffer+bytes_received), len-bytes_received, 0);
     }
 
     return bytes_received;
@@ -162,9 +182,11 @@ int oob_close(oob_t *oob)
     if (oob == NULL) {
         return ret;
     }
-    if (close(oob->socket) != 0) {
-        printf("error closing socket: %s\n", strerror(errno));
-        ret = 1;
+    if (oob->socket) {
+        if (close(oob->socket) != 0) {
+            printf("error closing socket: %s\n", strerror(errno));
+            ret = 1;
+        }
     }
     if (oob->server_socket) {
         if (close(oob->server_socket) != 0) {
