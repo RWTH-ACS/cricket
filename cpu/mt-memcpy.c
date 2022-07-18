@@ -33,7 +33,7 @@ static void* mt_memcpy_copy_thread(void* targs)
     void* mem_start = args->server->mem_ptr + args->thread_id * mem_per_thread;
     size_t mem_this_thread = mem_per_thread;
     if (args->thread_id == args->server->thread_num - 1) {
-        mem_this_thread = args->server->mem_size - mem_per_thread * (args->server->thread_num - 1);
+        mem_this_thread = args->server->mem_size - args->thread_id * mem_per_thread;
     }
     if (args->server->dir == MT_MEMCPY_HTOD) {
         if ((iret = oob_receive_s(args->socket, mem_start, 
@@ -51,6 +51,16 @@ static void* mt_memcpy_copy_thread(void* targs)
             LOGE(LOG_ERROR, "oob: failed to copy memory: %s", cudaGetErrorString(res));
         }
     } else if (args->server->dir == MT_MEMCPY_DTOH) {
+        cudaError_t res = cudaMemcpy(
+            mem_start,
+            resource_mg_get(&rm_memory, args->server->dev_ptr),
+            mem_this_thread,
+            cudaMemcpyDeviceToHost);
+        if (res != cudaSuccess) {
+            LOGE(LOG_ERROR, "oob: failed to copy memory: %s", cudaGetErrorString(res));
+            return (void*)ret;
+        }
+    
         if ((iret = oob_send_s(args->socket,
                                &args->thread_id,
                                sizeof(uint32_t))) != sizeof(uint32_t)) {
@@ -78,7 +88,7 @@ static void* mt_memcpy_listener_thread(void* targs)
         return (void*)ret;
     }
     args->port = args->oob.port;
-    LOGE(LOG_DEBUG, "oob: listening on port %d.", args->port);
+    //LOGE(LOG_DBG(1), "oob: listening on port %d.", args->port);
     int iret = pthread_barrier_wait(&args->barrier);
     if (iret != 0 && iret != PTHREAD_BARRIER_SERIAL_THREAD) {
         LOGE(LOG_ERROR, "oob: failed to wait for barrier.");
@@ -100,7 +110,7 @@ static void* mt_memcpy_listener_thread(void* targs)
                                    NULL,
                                    mt_memcpy_copy_thread,
                                    &copy_args[i])) != 0) {
-            LOGE(LOG_ERROR, "mt_memcpy: failed to create copy thread: %s", strerror(iret));
+            LOGE(LOG_ERROR, "mt_memcpy: failed to create copy thread: %s", strerror(errno));
             return (void*)ret;
         }
     }
@@ -112,12 +122,14 @@ static void* mt_memcpy_listener_thread(void* targs)
             LOGE(LOG_ERROR, "mt_memcpy: failed to copy memory.");
         }
     }
-    cudaFreeHost(args->mem_ptr);
+    //cudaFreeHost(args->mem_ptr);
+    free(args->mem_ptr);
     if (oob_close(&args->oob) != 0) {
         LOGE(LOG_ERROR, "oob: failed to close connection.");
         return (void*)ret;
     }
     ret = 0;
+    free (copy_args);
     return (void*)ret;
 }
 
@@ -143,25 +155,17 @@ int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size
         goto cleanup;
     }
 
-    if ((cudaRes = cudaHostAlloc(&server->mem_ptr, server->mem_size, 0)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostAlloc failed: %d.", cudaRes);
+    if ((server->mem_ptr = malloc(server->mem_size)) == NULL) {
+        LOGE(LOG_ERROR, "oob: failed to allocate memory.");
         pthread_cancel(server->server_thread);
         goto cleanup;
     }
+    /*if ((cudaRes = cudaHostAlloc(&server->mem_ptr, server->mem_size, 0)) != cudaSuccess) {
+        LOGE(LOG_ERROR, "cudaHostAlloc failed: %d.", cudaRes);
+        pthread_cancel(server->server_thread);
+        goto cleanup;
+    }*/
 
-    if (dir == MT_MEMCPY_DTOH) {
-        cudaError_t res = cudaMemcpy(
-            server->mem_ptr,
-            resource_mg_get(&rm_memory, dev_ptr),
-            size,
-            cudaMemcpyDeviceToHost);
-        if (res != cudaSuccess) {
-            LOGE(LOG_ERROR, "oob: failed to copy memory: %s", cudaGetErrorString(res));
-            pthread_cancel(server->server_thread);
-            goto cleanup;
-        }
-    }
-    
     int bret = pthread_barrier_wait(&server->barrier);
     if (bret != 0 && bret != PTHREAD_BARRIER_SERIAL_THREAD) {
         LOGE(LOG_ERROR, "oob: failed to wait for barrier.");
@@ -184,31 +188,55 @@ int mt_memcpy_sync_server(mt_memcpy_server_t *server)
     return ret;
 }
 
-int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num)
+struct client_args {
+    const char* server;
+    uint16_t port;
+    void* host_ptr;
+    size_t size;
+    enum mt_memcpy_direction dir;
+    int thread_num;
+};
+
+struct client_thread_args {
+    struct client_args* client;
+    uint32_t thread_id;
+    pthread_t thread;
+};
+
+static void* mt_memcpy_client_thread(void* arg)
 {
-    int ret = 1;
+    size_t ret = 1;
     int sock;
-    int thread_id = 0;
-    if (oob_init_sender_s(&sock, server, port) != 0) {
+    struct client_thread_args *args = (struct client_thread_args*)arg;
+    if (oob_init_sender_s(&sock, args->client->server, args->client->port) != 0) {
         LOGE(LOG_ERROR, "oob_init_sender failed");
         goto cleanup;
     }
+    if (args->client->dir == MT_MEMCPY_DTOH) {
+        if (oob_receive_s(sock, &args->thread_id, sizeof(uint32_t)) != sizeof(uint32_t)) {
+            LOGE(LOG_ERROR, "oob_send failed");
+            goto cleanup;
+        }
+    }
 
-    if (dir == MT_MEMCPY_HTOD) {
-        if (oob_send_s(sock, &thread_id, sizeof(uint32_t)) != sizeof(uint32_t)) {
+    size_t mem_per_thread = (args->client->size / args->client->thread_num);
+    void* mem_start = args->client->host_ptr + args->thread_id * mem_per_thread;
+    size_t mem_this_thread = mem_per_thread;
+    if (args->thread_id == args->client->thread_num - 1) {
+        mem_this_thread = args->client->size - args->thread_id * mem_per_thread;
+    }
+
+    if (args->client->dir == MT_MEMCPY_HTOD) {
+        if (oob_send_s(sock, &args->thread_id, sizeof(uint32_t)) != sizeof(uint32_t)) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
-        if (oob_send_s(sock, host_ptr, size) != size) {
+        if (oob_send_s(sock, mem_start, mem_this_thread) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
-    } else if (dir == MT_MEMCPY_DTOH) {
-        if (oob_receive_s(sock, &thread_id, sizeof(uint32_t)) != sizeof(uint32_t)) {
-            LOGE(LOG_ERROR, "oob_send failed");
-            goto cleanup;
-        }
-        if (oob_receive_s(sock, host_ptr, size) != size) {
+    } else if (args->client->dir == MT_MEMCPY_DTOH) {
+        if (oob_receive_s(sock, mem_start, mem_this_thread) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
@@ -220,5 +248,45 @@ int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t s
     }
     ret = 0;
  cleanup:
+    return (void*)ret;
+}
+
+int mt_memcpy_client(const char* server, uint16_t port, void* host_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num)
+{
+    int ret = 1;
+    struct client_args client = {
+        .server = server,
+        .port = port,
+        .host_ptr = host_ptr,
+        .size = size,
+        .dir = dir,
+        .thread_num = thread_num
+    };
+    struct client_thread_args *copy_args;
+    if ((copy_args = malloc(sizeof(struct client_thread_args) * thread_num)) == NULL) {
+        return ret;
+    }
+    for (int i=0; i < thread_num; i++) {
+        copy_args[i].client = &client;
+        copy_args[i].thread_id = i;
+        if ((ret = pthread_create(&copy_args[i].thread,
+                                   NULL,
+                                   mt_memcpy_client_thread,
+                                   &copy_args[i])) != 0) {
+            LOGE(LOG_ERROR, "mt_memcpy: failed to create client thread: %s", strerror(errno));
+            goto cleanup;
+        }
+    }
+    
+    for (int i=0; i < thread_num; i++) {
+        pthread_join(copy_args[i].thread, (void**)&ret);
+        if (ret != 0) {
+            LOGE(LOG_ERROR, "mt_memcpy: failed to copy memory.");
+        }
+    }
+    ret = 0;
+ cleanup:
+    free(copy_args);
     return ret;
 }
+

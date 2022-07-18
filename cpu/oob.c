@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "oob.h"
@@ -81,7 +82,7 @@ int oob_init_listener_accept(oob_t *oob, int* socket)
         LOGE(LOG_ERROR, "oob: inet_ntop failed");
         return 1;
     }
-    LOG(LOG_DEBUG, "accepted connection from %s.", peer_addr_str);
+    //LOG(LOG_DBG(2), "accepted connection from %s.", peer_addr_str);
     return 0;
 }
 
@@ -107,26 +108,36 @@ int oob_init_sender(oob_t *oob, const char* address, uint16_t port)
 
 int oob_init_sender_s(int *sock, const char* address, uint16_t port)
 {
-    struct sockaddr_in addr = {0};
-    struct hostent *hp;
-    char peer_addr_str[INET_ADDRSTRLEN];
+    struct addrinfo hints;
+    struct addrinfo *addr;
+    char port_str[6];
 
-    if (sock == NULL) return 1;
+    if (sock == NULL || address == NULL) return 1;
 
-    if((*sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if (sprintf(port_str, "%d", port) < 0) {
+        printf("oob: sprintf failed.\n");
+        return 1;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(address, port_str, &hints, &addr) != 0) {
+        printf("error resolving hostname: %s\n", address);
+        return 1;
+    }
+
+    if (addr == NULL) {
+        printf("error resolving hostname: %s\n", address);
+        return 1;
+    }
+
+    if((*sock = socket(addr->ai_family, addr->ai_socktype, 0)) < 0) {
         printf("oob: creating server socket failed.\n");
         return 1;
     }
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    if ((hp = gethostbyname(address)) == 0) {
-        printf("error resolving hostname: %s\n", address);
-        return 1;
-    }
-    addr.sin_addr = *(struct in_addr*)hp->h_addr;
-
-    if (connect(*sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(*sock, addr->ai_addr, addr->ai_addrlen) < 0) {
         printf("oob: connect failed\n");
         return 1;
     }
