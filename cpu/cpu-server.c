@@ -131,6 +131,7 @@ void cricket_main_static(size_t prog_num, size_t vers_num)
 
 void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 {
+    int ret = 1;
     register SVCXPRT *transp;
 
     int protocol = 0;
@@ -258,28 +259,29 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     sched = &sched_none; 
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
-        exit(1);
+        goto cleanup4;
     }
 
     if (list_init(&api_records, sizeof(api_record_t)) != 0) {
         LOGE(LOG_ERROR, "initializing api recorder failed.");
-        exit(1);
+        goto cleanup4;
     }
 
     if (server_runtime_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
-        exit(1);
+        goto cleanup3;
     }
 
     if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
-        exit(1);
+        goto cleanup2;        
     }
 
 #ifdef WITH_IB
 
     if (ib_init(ib_device, client) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
+        goto cleanup1;
     }
     
 #endif // WITH_IB
@@ -287,7 +289,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-        exit(1);
+        goto cleanup1;
     }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
@@ -295,17 +297,21 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     svc_run();
 
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
+    ret = 0;
     //api_records_print();
+ cleanup1:
+    server_driver_deinit();
+ cleanup2:
+    server_runtime_deinit();
+ cleanup3:
     api_records_free_args();
     list_free(&api_records);
-
-    server_runtime_deinit();
-    server_driver_deinit();
+ cleanup4:
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
     LOG(LOG_DEBUG, "have a nice day!");
-    exit(0);
+    exit(ret);
 }
 
 int rpc_cd_prog_1_freeresult (SVCXPRT * a, xdrproc_t b , caddr_t c)

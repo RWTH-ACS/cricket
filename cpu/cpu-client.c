@@ -87,6 +87,7 @@ static void rpc_connect(void)
     } else {
         LOG(LOG_DEBUG, "the command is \"%s\"", cmd);
     }
+    free(cmd);
 
     LOGE(LOG_DEBUG, "using prog=%d, vers=%d", prog, vers);
 
@@ -197,6 +198,7 @@ void __attribute__ ((destructor)) deinit_rpc(void)
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
+        kernel_infos_free(kernel_infos.elements, kernel_infos.length);
         list_free(&kernel_infos);
 #ifdef WITH_API_CNT
         cpu_runtime_print_api_call_cnt();

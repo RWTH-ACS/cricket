@@ -1524,6 +1524,7 @@ void* ib_thread(void* arg)
 #endif //WITH_IB
 
 extern char server[256];
+#define MT_MEMCPY_MEM_PER_THREAD (16)
 #define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
@@ -1540,29 +1541,34 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 //         not a cudaHostAlloc'ed memory 
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
-            dint_result result;
-            oob_t oob;
-            retval = cuda_memcpy_mt_htod_1((ptr)dst, count, 6, &result, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
-                goto cleanup;
-            }
-            
-            if (mt_memcpy_client(server, result.dint_result_u.data.i1, (void*)src, count, MT_MEMCPY_HTOD, 6) != 0) {
-                LOGE(LOG_ERROR, "mt_memcpy_client failed");
-                goto cleanup;
-            }
+            if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {
+                const int thread_num = count/MT_MEMCPY_MEM_PER_THREAD;
+                dint_result result;
+                oob_t oob;
+                retval = cuda_memcpy_mt_htod_1((ptr)dst, count, thread_num, &result, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                    goto cleanup;
+                }
+                
+                if (mt_memcpy_client(server, result.dint_result_u.data.i1, (void*)src, count, MT_MEMCPY_HTOD, thread_num) != 0) {
+                    LOGE(LOG_ERROR, "mt_memcpy_client failed");
+                    goto cleanup;
+                }
 
-            retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
-                goto cleanup;
+                retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                    goto cleanup;
+                }
+            } else {
+#endif //WITH_MT_MEMCPY
+                mem_data src_mem;
+                src_mem.mem_data_len = count;
+                src_mem.mem_data_val = (void*)src;
+                retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
+#ifdef WITH_MT_MEMCPY
             }
-#else
-            mem_data src_mem;
-            src_mem.mem_data_len = count;
-            src_mem.mem_data_val = (void*)src;
-            retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
 #endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local == 1) { //Use local shared memory
@@ -1589,37 +1595,42 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         /* not a cudaHostAlloc'ed memory */
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
-            dint_result result;
-            oob_t oob;
-            retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, 6, &result, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
-                goto cleanup;
-            }
-            
-            if (mt_memcpy_client(server, result.dint_result_u.data.i1, dst, count, MT_MEMCPY_DTOH, 6) != 0) {
-                LOGE(LOG_ERROR, "mt_memcpy_client failed");
-                goto cleanup;
-            }
-            
-            retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
-                goto cleanup;
-            }
-#else
-            mem_result result;
-            result.mem_result_u.data.mem_data_len = count;
-            result.mem_result_u.data.mem_data_val = dst;
-            //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
-            retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
-            ret = result.err;
-            if (result.err != 0) {
-                goto cleanup;
-            }
-            if (result.mem_result_u.data.mem_data_len != count) {
-                LOGE(LOG_ERROR, "error");
-                goto cleanup;
+            if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {
+                const int thread_num = count/MT_MEMCPY_MEM_PER_THREAD;
+                dint_result result;
+                oob_t oob;
+                retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, thread_num, &result, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                    goto cleanup;
+                }
+                
+                if (mt_memcpy_client(server, result.dint_result_u.data.i1, dst, count, MT_MEMCPY_DTOH, thread_num) != 0) {
+                    LOGE(LOG_ERROR, "mt_memcpy_client failed");
+                    goto cleanup;
+                }
+                
+                retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                    goto cleanup;
+                }
+            } else {
+#endif //WITH_MT_MEMCPY
+                mem_result result;
+                result.mem_result_u.data.mem_data_len = count;
+                result.mem_result_u.data.mem_data_val = dst;
+                //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
+                retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
+                ret = result.err;
+                if (result.err != 0) {
+                    goto cleanup;
+                }
+                if (result.mem_result_u.data.mem_data_len != count) {
+                    LOGE(LOG_ERROR, "error");
+                    goto cleanup;
+                }
+#ifdef WITH_MT_MEMCPY
             }
 #endif //WITH_MT_MEMCPY
         } else {

@@ -29,22 +29,22 @@ static void* mt_memcpy_copy_thread(void* targs)
             return (void*)ret;
         }
     }
-    size_t mem_per_thread = (args->server->mem_size / args->server->thread_num);
-    void* mem_start = args->server->mem_ptr + args->thread_id * mem_per_thread;
+    size_t mem_per_thread = (args->server->mem_size / (size_t)args->server->thread_num);
+    size_t mem_offset = (size_t)args->thread_id * mem_per_thread;
     size_t mem_this_thread = mem_per_thread;
     if (args->thread_id == args->server->thread_num - 1) {
-        mem_this_thread = args->server->mem_size - args->thread_id * mem_per_thread;
+        mem_this_thread = args->server->mem_size - mem_offset;
     }
     if (args->server->dir == MT_MEMCPY_HTOD) {
-        if ((iret = oob_receive_s(args->socket, mem_start, 
+        if ((iret = oob_receive_s(args->socket, args->server->mem_ptr+mem_offset, 
                                   mem_this_thread)) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob: failed to receive memory: received %d bytes: %s", iret, strerror(errno));
             return (void*)ret;
         }
 
         cudaError_t res = cudaMemcpy(
-          resource_mg_get(&rm_memory, args->server->dev_ptr),
-          mem_start,
+          resource_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
+          args->server->mem_ptr+mem_offset,
           mem_this_thread,
           cudaMemcpyHostToDevice);
         if (res != cudaSuccess) {
@@ -52,8 +52,8 @@ static void* mt_memcpy_copy_thread(void* targs)
         }
     } else if (args->server->dir == MT_MEMCPY_DTOH) {
         cudaError_t res = cudaMemcpy(
-            mem_start,
-            resource_mg_get(&rm_memory, args->server->dev_ptr),
+            args->server->mem_ptr+mem_offset,
+            resource_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
             mem_this_thread,
             cudaMemcpyDeviceToHost);
         if (res != cudaSuccess) {
@@ -68,7 +68,7 @@ static void* mt_memcpy_copy_thread(void* targs)
             return (void*)ret;
         }
         if ((iret = oob_send_s(args->socket,
-                               mem_start,
+                               args->server->mem_ptr+mem_offset,
                                mem_this_thread)) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob: failed to send memory: sent %d bytes: %s", iret, strerror(errno));
             return (void*)ret;
@@ -219,24 +219,23 @@ static void* mt_memcpy_client_thread(void* arg)
         }
     }
 
-    size_t mem_per_thread = (args->client->size / args->client->thread_num);
-    void* mem_start = args->client->host_ptr + args->thread_id * mem_per_thread;
+    size_t mem_per_thread = (args->client->size / (size_t)args->client->thread_num);
+    size_t mem_offset = (size_t)args->thread_id * mem_per_thread;
     size_t mem_this_thread = mem_per_thread;
     if (args->thread_id == args->client->thread_num - 1) {
-        mem_this_thread = args->client->size - args->thread_id * mem_per_thread;
+        mem_this_thread = args->client->size - mem_offset;
     }
-
     if (args->client->dir == MT_MEMCPY_HTOD) {
         if (oob_send_s(sock, &args->thread_id, sizeof(uint32_t)) != sizeof(uint32_t)) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
-        if (oob_send_s(sock, mem_start, mem_this_thread) != mem_this_thread) {
+        if (oob_send_s(sock, args->client->host_ptr+mem_offset, mem_this_thread) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
     } else if (args->client->dir == MT_MEMCPY_DTOH) {
-        if (oob_receive_s(sock, mem_start, mem_this_thread) != mem_this_thread) {
+        if (oob_receive_s(sock, args->client->host_ptr+mem_offset, mem_this_thread) != mem_this_thread) {
             LOGE(LOG_ERROR, "oob_send failed");
             goto cleanup;
         }
