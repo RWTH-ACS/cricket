@@ -74,6 +74,8 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
+# TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
+CC_FLAGS += -fcommon
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
 ifdef WITH_DEBUG
