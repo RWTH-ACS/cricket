@@ -54,6 +54,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 log.c                      \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c 		\
+			 cpu-client-cublas.c 		\
 			 oob.c 					    \
 			 mt-memcpy.c
 
@@ -74,6 +75,8 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
+# TODO: remove tentative declarations from header files (e.g. cpu-common.h) to avoid this compiler flag
+CC_FLAGS += -fcommon
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
 
 ifdef WITH_DEBUG
