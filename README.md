@@ -66,6 +66,8 @@ Run the application
 REMOTE_GPU_ADDRESS=remoteSystem.my-domain.com LD_PRELOAD=/nfs_share/cricket/bin/cricket-client.so /nfs_share/cuda/samples/5_Simulations/nbody/nbody -benchmark
 ```
 
+### Loading a cubin via RPC
+When loading a cubin, cricket looks for the cubin on the path of the current working directory, not where the server binary is stored.
 
 # Contributing
 
