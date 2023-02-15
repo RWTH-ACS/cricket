@@ -5,6 +5,7 @@
 #include <signal.h> //sigaction
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dlfcn.h>
 
 #include "cpu-server.h"
 #include "cpu_rpc_prot.h"
@@ -109,15 +110,26 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
     return ret == 0;
 }
 
-/** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
- *
- */
-bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
+bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
 {
-    LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    void *dlhandle;
+
+    if (path == NULL) {
+        LOGE(LOG_ERROR, "path is NULL");
+        *result = 1;
+        return 1;
+    }
+    if ((dlhandle = dlopen(path, RTLD_LAZY)) == NULL) {
+        LOGE(LOG_ERROR, "error opening \"%s\": %s. Make sure libraries are present.", path, dlerror());
+        *result = 1;
+        return 1;
+    } else {
+        LOG(LOG_INFO, "dlopened \"%s\"", path);
+    }
     *result = 0;
     return 1;
 }
+
 
 void cricket_main_hash(char* app_command)
 {

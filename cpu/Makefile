@@ -113,19 +113,19 @@ $(SERVER_BIN) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
-	rm $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
 
 $(RPC_CLIENT) : $(RPC_DEF)
-	rm $@ && $(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
 
 $(RPC_SERVER) : $(RPC_DEF)
-	rm $@ && $(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
 
 $(RPC_SERVER_MOD) : $(RPC_SERVER)
 	./generate_dispatch.sh
 
 $(RPC_XDR) : $(RPC_DEF)
-	rm $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 

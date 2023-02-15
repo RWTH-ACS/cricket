@@ -364,6 +364,7 @@ int cpu_utils_contains_kernel(const char *path)
             // Line does not start with .nv.info. so continue searching.
             continue;
         }*/
+        line[strlen(line)-1] = '\0';
         LOGE(LOG_DEBUG, "output: \"%s\"", line);
     }
     ret = 0;

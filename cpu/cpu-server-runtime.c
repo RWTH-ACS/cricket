@@ -133,6 +133,27 @@ int server_runtime_restore(const char *path)
     return 0;
 }
 
+
+/** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
+ *
+ */
+bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    // __cudaRegisterFunction(&fatCubinHandle, hostFun, deviceFun,
+    //                         deviceName, thread_limit, &tid, &bid, &bDim, &gDim, &wSize);
+
+    // LOGE(LOG_DEBUG, "-> %p, {%d, %d, %d}, {%d, %d, %d}, {%d, %d, %d}, {%d, %d, %d}, %d)",
+    //                 fatCubinHandle, 
+    //                 tid.x, tid.y, tid.z,
+    //                 bid.x, bid.y, bid.z,
+    //                 bDim.x, bDim.y, bDim.z,
+    //                 gDim.x, gDim.y, gDim.z,
+    //                 wSize);
+    *result = 0;
+    return 1;
+}
+
 /* ############### RUNTIME API ############### */
 /* ### Device Management ### */
 bool_t cuda_choose_device_1_svc(mem_data prop, int_result *result, struct svc_req *rqstp)

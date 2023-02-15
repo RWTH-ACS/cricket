@@ -61,10 +61,10 @@ $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
 	$(HOST_CC) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
 
 $(TEST_KERNEL_LIB_O) : $(FILES)
-	$(CC) -c --compiler-options '-fPIC' -o $@ $<
+	$(CC) $(CFLAGS) -dc --compiler-options '-fPIC' -o $@ $<
 
 $(TEST_KERNEL_LIB) : $(TEST_KERNEL_LIB_O)
-	$(LD) -shared -o lib$@ $^
+	$(LD) $(LDFLAGS) -shared -o lib$@ $^
 
 $(TEST_KERNEL_LIB_CALL_O) : $(TEST_KERNEL_LIB_CALL_O:.o=.c)
 	$(HOST_CC) -c -o $@ $<

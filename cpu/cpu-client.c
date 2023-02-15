@@ -210,95 +210,6 @@ void __attribute__ ((destructor)) deinit_rpc(void)
     }
 }
 
-void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress, const char *deviceName, int ext, size_t size, int constant, int global)
-{
-}
-
-void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,
-                            const char *deviceName, int thread_limit, uint3 *tid,
-                            uint3 *bid, dim3 *bDim, dim3 *gDim, int *wSize)
-{
-    int result;
-    enum clnt_stat retval_1;
-
-    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
-
-    kernel_info_t *info = cricketd_utils_search_info(&kernel_infos, (char*)deviceName);
-    if (info == NULL) {
-        LOGE(LOG_ERROR, "request to register unknown function: \"%s\"", deviceName);
-        retval_1 = cuda_register_function_1((ptr)fatCubinHandle, (ptr)hostFun, deviceFun, (char*)deviceName, thread_limit, &result, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            LOGE(LOG_ERROR, "call failed.");
-        }
-
-        return;
-    }
-    info->host_fun = (void*)hostFun;
-
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-}
-
-struct __fatCubin {
-    uint32_t magic;
-    uint32_t seq;
-    uint64_t text;
-    uint64_t data;
-    uint64_t ptr;
-    uint64_t ptr2;
-    uint64_t zero;
-};
-
-struct rpc_fatCubin {
-    uint32_t magic;
-    uint32_t seq;
-    uint64_t text;
-    uint64_t data;
-    uint64_t ptr;
-    uint64_t ptr2;
-    uint64_t zero;
-};
-
-void** __cudaRegisterFatBinary(void *fatCubin)
-{
-    ptr_result result;
-    enum clnt_stat retval_1;
-
-    struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
-    struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
-                                   .seq   = fat->seq,
-                                   .text  = fat->text,
-                                   .data  = fat->data,
-                                   .ptr   = fat->ptr,
-                                   .ptr2  = fat->ptr2,
-                                   .zero  = fat->zero};
-    LOGE(LOG_DEBUG, "__cudaRegisterFatBinary");
-    //printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
-    //       fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
-    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-    if (result.err != 0) {
-        return NULL;
-    }
-    return (void*)result.ptr_result_u.ptr;
-}
-
-void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
-{
-    int result;
-    enum clnt_stat retval_1;
-
-    //printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", fatCubinHandle);
-
-    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_end_1((uint64_t)fatCubinHandle, &result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-}
-
 static void *(*dlopen_orig)(const char *, int) = NULL;
 static int   (*dlclose_orig)(void *) = NULL;
 static void *dl_handle = NULL;
@@ -323,6 +234,15 @@ void *dlopen(const char *filename, int flag)
         LOGE(LOG_DEBUG, "request to dlopen \"%s\"", filename);
         if (cpu_utils_contains_kernel(filename) == 0) {
             LOGE(LOG_ERROR, "file does not contain a kernel");
+        } else {
+            LOGE(LOG_DEBUG, "file contains a kernel");
+            int result;
+            enum clnt_stat retval_1;
+            retval_1 = rpc_dlopen_1((char*)filename, &result, clnt);
+            if (retval_1 != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "error calling rpc_dlopen");
+            }
+            cpu_utils_parameter_info(&kernel_infos, (char*)filename);
         }
         return dlopen_orig(filename, flag);
     }
@@ -348,5 +268,95 @@ int dlclose(void *handle)
     }
 
 }
+
+// void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress, const char *deviceName, int ext, size_t size, int constant, int global)
+// {
+// }
+
+void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *deviceFun,
+                            const char *deviceName, int thread_limit, uint3 *tid,
+                            uint3 *bid, dim3 *bDim, dim3 *gDim, int *wSize)
+{
+    int result;
+    enum clnt_stat retval_1;
+
+    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], gDim=[%p], wSize=%p)\n", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid, bid, bDim, gDim, wSize);
+
+    kernel_info_t *info = cricketd_utils_search_info(&kernel_infos, (char*)deviceName);
+    if (info == NULL) {
+        LOGE(LOG_ERROR, "request to register unknown function: \"%s\"", deviceName);
+
+
+        return;
+    } else {
+        LOGE(LOG_DEBUG, "request to register known function: \"%s\"", deviceName);
+        retval_1 = cuda_register_function_1((ptr)fatCubinHandle, (ptr)hostFun, deviceFun, (char*)deviceName, thread_limit, &result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "call failed.");
+        }
+        info->host_fun = (void*)hostFun;
+    }
+}
+
+// struct __fatCubin {
+//     uint32_t magic;
+//     uint32_t seq;
+//     uint64_t text;
+//     uint64_t data;
+//     uint64_t ptr;
+//     uint64_t ptr2;
+//     uint64_t zero;
+// };
+
+// struct rpc_fatCubin {
+//     uint32_t magic;
+//     uint32_t seq;
+//     uint64_t text;
+//     uint64_t data;
+//     uint64_t ptr;
+//     uint64_t ptr2;
+//     uint64_t zero;
+// };
+
+// void** __cudaRegisterFatBinary(void *fatCubin)
+// {
+//     ptr_result result;
+//     enum clnt_stat retval_1;
+
+//     struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
+//     struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
+//                                    .seq   = fat->seq,
+//                                    .text  = fat->text,
+//                                    .data  = fat->data,
+//                                    .ptr   = fat->ptr,
+//                                    .ptr2  = fat->ptr2,
+//                                    .zero  = fat->zero};
+//     LOGE(LOG_DEBUG, "__cudaRegisterFatBinary");
+//     //printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
+//     //       fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
+//     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
+//     if (retval_1 != RPC_SUCCESS) {
+//         clnt_perror (clnt, "call failed");
+//     }
+//     if (result.err != 0) {
+//         return NULL;
+//     }
+//     return (void*)result.ptr_result_u.ptr;
+// }
+
+// void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
+// {
+//     int result;
+//     enum clnt_stat retval_1;
+
+//     //printf("__cudaRegisterFatBinaryEnd(fatCubinHandle=%p)\n", fatCubinHandle);
+
+//     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_end_1((uint64_t)fatCubinHandle, &result, clnt);
+//     if (retval_1 != RPC_SUCCESS) {
+//         clnt_perror (clnt, "call failed");
+//     }
+// }
+
+
 
 
