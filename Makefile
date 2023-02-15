@@ -19,7 +19,7 @@ cuda-gdb:
 
 libtirpc:
 	@echo -e "\033[36m----> Building libtirpc\033[0m"
-	$(MAKE) -C submodules libtirpc
+	$(MAKE) -C submodules libtirpc/install
 
 gpu: cuda-gdb
 	@echo -e "\033[36m----> Building gpu\033[0m"

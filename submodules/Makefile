@@ -10,7 +10,7 @@ clean:
 	cd cuda-gdb && git apply -R ../cuda-gdb.patch
 	rm -rf lib
 
-libtirpc:
+libtirpc/install:
 	@echo -e "\033[36m----> autogen libtirpc\033[0m"
 	if [ ! -f "libtirpc/configure" ]; then cd libtirpc && ./bootstrap; fi
 	@echo -e "\033[36m----> Configuring libtirpc\033[0m"
