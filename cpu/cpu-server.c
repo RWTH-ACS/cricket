@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -6,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <link.h>
 
 #include "cpu-server.h"
 #include "cpu_rpc_prot.h"
@@ -110,6 +112,30 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
     return ret == 0;
 }
 
+/* Call CUDA initialization function (usually called by __libc_init_main())
+* Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
+*/
+void cricket_so_register(void* dlhandle, char *path)
+{
+    struct link_map *map;
+    dlinfo(dlhandle, RTLD_DI_LINKMAP, &map);
+
+    // add load location of library to offset in symbol table
+    void (*cudaRegisterAllv)(void) = 
+        (void(*)(void)) cricketd_utils_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
+    
+    LOG(LOG_INFO, "found CUDA initialization function at %p + %p = %p", 
+        map->l_addr, cudaRegisterAllv, map->l_addr + cudaRegisterAllv);
+
+    cudaRegisterAllv += map->l_addr;
+    
+    if (cudaRegisterAllv == NULL) {
+        LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+    } else {
+        cudaRegisterAllv();
+    }
+}
+
 bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
 {
     void *dlhandle;
@@ -125,6 +151,9 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
         return 1;
     } else {
         LOG(LOG_INFO, "dlopened \"%s\"", path);
+
+       //cricket_so_register(dlhandle, path);
+
     }
     *result = 0;
     return 1;
@@ -260,7 +289,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
     void (*cudaRegisterAllv)(void) =
-        (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
+        (void(*)(void)) cricketd_utils_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
     LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
         LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");

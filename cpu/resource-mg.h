@@ -28,6 +28,7 @@ resource_mg rm_streams;
 resource_mg rm_events;
 resource_mg rm_arrays;
 resource_mg rm_memory;
+resource_mg rm_kernels;
 
 //Driver API RMs
 resource_mg rm_modules;

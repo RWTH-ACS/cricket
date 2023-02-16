@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <driver_types.h>
+#include <link.h>
 
 //For TCP socket
 #include <sys/socket.h>
@@ -216,6 +217,8 @@ static void *dl_handle = NULL;
 
 void *dlopen(const char *filename, int flag)
 {
+    void *ret = NULL;
+    struct link_map *map;
     LOG(LOG_DEBUG, "intercepted dlopen(%s, %d)", filename, flag);
     if (dlopen_orig == NULL) {
         if ( (dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
@@ -244,7 +247,10 @@ void *dlopen(const char *filename, int flag)
             }
             cpu_utils_parameter_info(&kernel_infos, (char*)filename);
         }
-        return dlopen_orig(filename, flag);
+        ret = dlopen_orig(filename, flag);
+        dlinfo(ret, RTLD_DI_LINKMAP, &map);
+        LOGE(LOG_DEBUG, "dlopen \"%s\" to  %p", filename, map->l_addr);
+        return ret;
     }
 }
 
@@ -298,51 +304,43 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     }
 }
 
-// struct __fatCubin {
-//     uint32_t magic;
-//     uint32_t seq;
-//     uint64_t text;
-//     uint64_t data;
-//     uint64_t ptr;
-//     uint64_t ptr2;
-//     uint64_t zero;
-// };
+struct rpc_fatCubin {
+    uint32_t magic;
+    uint32_t seq;
+    uint64_t text;
+    uint64_t data;
+    uint64_t ptr;
+    uint64_t ptr2;
+    uint64_t zero;
+};
 
-// struct rpc_fatCubin {
-//     uint32_t magic;
-//     uint32_t seq;
-//     uint64_t text;
-//     uint64_t data;
-//     uint64_t ptr;
-//     uint64_t ptr2;
-//     uint64_t zero;
-// };
+void** __cudaRegisterFatBinary(void *fatCubin)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
 
-// void** __cudaRegisterFatBinary(void *fatCubin)
-// {
-//     ptr_result result;
-//     enum clnt_stat retval_1;
+    if (cpu_utils_get_fatbin_info((struct __fatCubin*)fatCubin) != 0) {
+        LOGE(LOG_ERROR, "error getting fatbin info");
+    }
 
-//     struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
-//     struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
-//                                    .seq   = fat->seq,
-//                                    .text  = fat->text,
-//                                    .data  = fat->data,
-//                                    .ptr   = fat->ptr,
-//                                    .ptr2  = fat->ptr2,
-//                                    .zero  = fat->zero};
-//     LOGE(LOG_DEBUG, "__cudaRegisterFatBinary");
-//     //printf("__cudaRegisterFatBinary(magic: %x, seq: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx\n",
-//     //       fat->magic, fat->seq, fat->text, fat->data, fat->ptr, fat->ptr2, fat->zero);
-//     retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
-//     if (retval_1 != RPC_SUCCESS) {
-//         clnt_perror (clnt, "call failed");
-//     }
-//     if (result.err != 0) {
-//         return NULL;
-//     }
-//     return (void*)result.ptr_result_u.ptr;
-// }
+    struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
+    struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
+                                   .seq   = fat->seq,
+                                   .text  = fat->text,
+                                   .data  = fat->data,
+                                   .ptr   = fat->ptr,
+                                   .ptr2  = fat->ptr2,
+                                   .zero  = fat->zero};
+
+    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err != 0) {
+        return NULL;
+    }
+    return (void*)result.ptr_result_u.ptr;
+}
 
 // void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
 // {

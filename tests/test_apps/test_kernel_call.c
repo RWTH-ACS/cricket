@@ -12,6 +12,8 @@ int main(int argc, char** argv)
 
     int (*fn)(void);
 
+    printf("kernel: %p\n", dlsym(dlhandle, "_Z6kernelPtS_S_csix"));
+
     if ((fn = dlsym(dlhandle, "main")) == NULL) {
         printf("dlsym failed\n");
         return 1;

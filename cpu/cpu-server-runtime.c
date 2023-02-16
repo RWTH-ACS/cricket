@@ -2,6 +2,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <driver_types.h>
+#include <dlfcn.h>
 
 //for strerror
 #include <string.h>
@@ -70,6 +71,9 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= resource_mg_init(&rm_memory, 1);
+         // We cannot bypass this RM, because we need translations when a kernel in
+         // a shared object is launched.
+        ret &= resource_mg_init(&rm_kernels, 0);
         ret &= cusolver_init(1, &rm_streams, &rm_memory);
         ret &= cublas_init(1, &rm_memory);
     } else {
@@ -77,6 +81,7 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
         ret &= resource_mg_init(&rm_memory, 0);
+        ret &= resource_mg_init(&rm_kernels, 0);
         ret &= cusolver_init(0, &rm_streams, &rm_memory);
         ret &= cublas_init(0, &rm_memory);
         ret &= server_runtime_restore("ckp");
@@ -90,6 +95,7 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
     resource_mg_free(&rm_memory);
+    resource_mg_free(&rm_kernels);
     cusolver_deinit();
     cublas_deinit();
     list_free(&mt_memcpy_list);
@@ -140,6 +146,21 @@ int server_runtime_restore(const char *path)
 bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    
+    void (*serverFun)(void);
+
+    if ( (serverFun = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
+        LOGE(LOG_ERROR, "failed to get dlopen %s", dlerror());
+        *result = 1;
+        return 1;
+    }
+    
+    if (resource_mg_add_sorted(&rm_kernels, (void*)hostFun, serverFun) != 0) {
+        LOGE(LOG_ERROR, "failed to add kernel to resource manager");
+        *result = 1;
+        return 1;
+    }
+    LOGE(LOG_DEBUG, "added kernel %p->%p to resource manager", hostFun, serverFun);
     // __cudaRegisterFunction(&fatCubinHandle, hostFun, deviceFun,
     //                         deviceName, thread_limit, &tid, &bid, &bDim, &gDim, &wSize);
 
@@ -791,7 +812,7 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
     *result = cudaLaunchCooperativeKernel(
-      (void*)func,
+      resource_mg_get(&rm_kernels, (void*)func),
       cuda_gridDim,
       cuda_blockDim,
       cuda_args,
@@ -830,7 +851,7 @@ bool_t cuda_launch_cooperative_kernel_multi_device_1_svc(ptr func, rpc_dim3 grid
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernelMultiDevice(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
     lp.args = cuda_args;
     lp.blockDim = cuda_blockDim;
-    lp.func = (void*)func;
+    lp.func = resource_mg_get(&rm_kernels, (void*)func);
     lp.gridDim = cuda_gridDim;
     lp.sharedMem = sharedMem;
     lp.stream = resource_mg_get(&rm_streams, (void*)stream);
@@ -869,10 +890,10 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", resource_mg_get(&rm_kernels, (void*)func), cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
     *result = cudaLaunchKernel(
-      (void*)func,
+      resource_mg_get(&rm_kernels, (void*)func),
       cuda_gridDim,
       cuda_blockDim,
       cuda_args,

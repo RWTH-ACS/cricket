@@ -66,6 +66,19 @@ void check_free_mem(int *mem, size_t len)
     cudaFree(mem);
 }
 
+int getModuleFromCubin(CUmodule **module, const char *cubin)
+{
+    if ((err = cuModuleLoad(module, "kernel.cubin")) != CUDA_SUCCESS) {
+        printCudaErrors(err);
+        return 1;
+    }
+    return 0;
+}
+
+int getModuleFromShared(CUmodule **module, const char *cubin)
+{
+
+}
 
 int main(int argc, char** argv)
 {
@@ -83,8 +96,13 @@ int main(int argc, char** argv)
     CUmodule module;
     CUfunction func;
     printf("testing cubin...\n");
-    if ((err = cuModuleLoad(&module, "kernel.cubin")) != CUDA_SUCCESS) {
-        printCudaErrors(err);
+    // if ((err = getModuleFromCubin(&module, "kernel.cubin")) != 0) {
+    //     printf("error\n");
+    //     return 1;
+    // }
+    if ((err = getModuleFromShared(&module, "kernel.so")) != 0) {
+        printf("error\n");
+        return 1;
     }
 
     if ((err = cuModuleGetFunction(&func, module, "kernel")) != CUDA_SUCCESS) {

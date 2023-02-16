@@ -23,6 +23,113 @@
 #define CRICKET_ELF_FATBIN ".nv_fatbin"
 #define CRICKET_ELF_REGFUN "_ZL24__sti____cudaRegisterAllv"
 
+#define FATBIN_STRUCT_MAGIC 0x466243b1
+#define FATBIN_TEXT_MAGIC   0xBA55ED50
+
+struct  __attribute__((__packed__)) fat_text_header
+{
+  unsigned int           magic;
+  unsigned short         version;
+  unsigned short         header_size;
+  unsigned long long int fat_size;
+};
+
+#define FATBIN_FLAG_64BIT     0x0000000000000001LL
+#define FATBIN_FLAG_DEBUG     0x0000000000000002LL
+#define FATBIN_FLAG_LINUX     0x0000000000000010LL
+#define FATBIN_FLAG_COMPRESS  0x0000000000002000LL
+
+static int cricket_fatbin_flag_to_str(char** str, uint64_t flag)
+{
+    return asprintf(str, "64Bit: %s, Debug: %s, Linux: %s, Compress %s",
+        (flag & FATBIN_FLAG_64BIT) ? "yes" : "no",
+        (flag & FATBIN_FLAG_DEBUG) ? "yes" : "no",
+        (flag & FATBIN_FLAG_LINUX) ? "yes" : "no",
+        (flag & FATBIN_FLAG_COMPRESS) ? "yes" : "no");
+}
+
+int cpu_utils_get_fatbin_info(struct __fatCubin *fatbin)
+{
+    void *fatbin_ptr = NULL, *fatbin_elfinfo = NULL;
+    struct fat_text_header* fatbin_text = NULL;
+    if (fatbin == NULL) {
+        LOGE(LOG_ERROR, "fatbin is NULL");
+        return -1;
+    }
+    if (fatbin->magic != FATBIN_STRUCT_MAGIC) {
+        LOGE(LOG_ERROR, "fatbin struct magic number is wrong. Got %llx, expected %llx.", fatbin->magic, FATBIN_STRUCT_MAGIC);
+        return -1;
+    }
+    LOG(LOG_DEBUG, "Fatbin: magic: %x, version: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx",
+           fatbin->magic, fatbin->version, fatbin->text, fatbin->data, fatbin->ptr, fatbin->ptr2, fatbin->zero);
+
+    fatbin_text = (struct fat_text_header*)fatbin->text;
+    if (fatbin_text->magic != FATBIN_TEXT_MAGIC) {
+        LOGE(LOG_ERROR, "fatbin text magic number is wrong. Got %x, expected %x.", *((uint32_t*)fatbin_text), FATBIN_TEXT_MAGIC);
+        return -1;
+    }
+    LOG(LOG_DEBUG, "Fatbin.text: magic: %x, version: %d, header_size: %p, fat_size: %p",
+        fatbin_text->magic, fatbin_text->version, fatbin_text->header_size, fatbin_text->fat_size);
+
+    if (fatbin_text->version != 1 || fatbin_text->header_size != sizeof(struct fat_text_header)) {
+        LOGE(LOG_ERROR, "fatbin text version is wrong or header size is inconsistent.\
+            This is a sanity check to avoid reading a new fatbinary format");
+        return -1;
+    }
+    fatbin_ptr = fatbin_elfinfo = (void*)fatbin_text + fatbin_text->header_size;
+
+    struct __attribute__((__packed__)) fatbin_header {
+        short kind;
+        short unknown1;
+        uint32_t header_size;
+        uint64_t fatbin_size;
+        uint64_t some_offset;
+        short minor;
+        short major;
+        uint32_t arch;
+        uint32_t obj_name_offset;
+        uint32_t obj_name_len;
+        uint64_t flags;
+        uint64_t zero;
+        uint64_t unknown2;
+    } *fatbin_header = (struct fatbin_header*)(fatbin_ptr);
+    LOGE(LOG_DEBUG, "Fatbin header: fatbin_offset: %#x, header_size %#x, fatbin_size %#x, some_offset %#x.\
+        minor %#x, major %#x, arch %d, flags %#x",
+        fatbin_header->kind,
+        fatbin_header->header_size,
+        fatbin_header->fatbin_size,
+        fatbin_header->some_offset,
+        fatbin_header->minor,
+        fatbin_header->major,
+        fatbin_header->arch,
+        fatbin_header->flags);
+    LOGE(LOG_DEBUG, "unknown fields: unknown1: %#x, unknown2: %#x, zeros: %#x",
+        fatbin_header->unknown1,
+        fatbin_header->unknown2,
+        fatbin_header->zero);
+    fatbin_ptr += sizeof(struct fatbin_header);
+
+    char *flag_str = NULL;
+    cricket_fatbin_flag_to_str(&flag_str, fatbin_header->flags);
+    LOGE(LOG_DEBUG, "Fatbin flags: %s", flag_str);
+    free(flag_str);
+
+    if(fatbin_header->obj_name_offset != 0) {
+        if (((char*)fatbin_elfinfo)[fatbin_header->obj_name_offset + fatbin_header->obj_name_len] != '\0') {
+            LOGE(LOG_DEBUG, "Fatbin object name is not null terminated");
+        } else {
+            char *obj_name = (char*)fatbin_elfinfo + fatbin_header->obj_name_offset;
+            LOGE(LOG_DEBUG, "Fatbin object name: %s (len:%#x)", obj_name, fatbin_header->obj_name_len);
+        }
+        fatbin_ptr += fatbin_header->obj_name_len+1;
+    }
+
+    for (int i=0; i<64; i++) {
+        printf("%02x ", ((uint8_t*)fatbin_ptr)[i]);
+    }
+    return 0;
+}
+
 int cpu_utils_command(char **command)
 {
     FILE* fd;
@@ -80,7 +187,7 @@ int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
     return 0;
 }
 
-void* cricketd_utils_symbol_address(char *symbol)
+void* cricketd_utils_symbol_address(const char* file, char *symbol)
 {
     bfd *hostbfd = NULL;
     asection *section;
@@ -90,15 +197,19 @@ void* cricketd_utils_symbol_address(char *symbol)
     asymbol **symtab = NULL;
     char path[256];
     size_t length;
+    const char self[] = "/proc/self/exe";
+    if (file == NULL) {
+        file = self;
+    }
 
 
     bfd_init();
 
-    length = readlink("/proc/self/exe", path, sizeof(path));
+    length = readlink(file, path, sizeof(path));
 
     /* Catch some errors: */
     if (length < 0) {
-        LOGE(LOG_WARNING, "error resolving symlink /proc/self/exe.");
+        LOGE(LOG_WARNING, "error resolving symlink %s.", file);
     } else if (length >= 256) {
         LOGE(LOG_WARNING, "path was too long and was truncated.");
     } else {
@@ -106,21 +217,21 @@ void* cricketd_utils_symbol_address(char *symbol)
         LOG(LOG_DEBUG, "opening '%s'", path);
     }
 
-    if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
+    if ((hostbfd_fd = fopen(file, "rb")) == NULL) {
         LOGE(LOG_ERROR, "fopen failed");
         return NULL;
     }
 
-    if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
+    if ((hostbfd = bfd_openstreamr(file, NULL, hostbfd_fd)) == NULL) {
         LOGE(LOG_ERROR, "bfd_openr failed on %s",
-             "/proc/self/exe");
+             file);
         fclose(hostbfd_fd);
         goto cleanup;
     }
 
     if (!bfd_check_format(hostbfd, bfd_object)) {
         LOGE(LOG_ERROR, "%s has wrong bfd format",
-             "/proc/self/exe");
+             file);
         goto cleanup;
     }
 
