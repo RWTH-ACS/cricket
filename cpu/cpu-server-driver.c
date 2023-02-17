@@ -51,11 +51,26 @@ bool_t rpc_loadelf_1_svc(mem_data elf, int *result, struct svc_req *rqstp)
 
     cudaDeviceSynchronize();
     
-    if ((res =cuModuleLoadData (&module, elf.mem_data_val)) != CUDA_SUCCESS) {
+    if ((res = cuModuleLoadData (&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOG(LOG_ERROR, "cuModuleLoadFatBinary failed: %d", res);
         *result = res;
         return 1;
-    } 
+    }
+
+    CUfunction func;
+    if ((res = cuModuleGetFunction(&func, module, "_Z15kernel_no_paramv")) != CUDA_SUCCESS) {
+        LOG(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
+        *result = res;
+        return 1;
+    }
+    int zero = 0;
+    void *params[] = {NULL, NULL, NULL, &zero, &zero, &zero, &zero, NULL};
+    if ((res = cuLaunchKernel(func, 1, 1, 1, 32, 1, 1, 0, CU_STREAM_DEFAULT, params, NULL)) != CUDA_SUCCESS) {
+        LOG(LOG_ERROR, "cuLaunchKernel failed: %d", res);
+        *result = res;
+        return 1;
+    }
+
     *result = 0;
     return 1;
 }

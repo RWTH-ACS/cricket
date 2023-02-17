@@ -327,6 +327,7 @@ void** __cudaRegisterFatBinary(void *fatCubin)
     if (result != 0) {
         return NULL;
     }
+    //TODO: return a handle that can be used to idenfity the fatbin for registerFunction
     return NULL;
 }
 
