@@ -96,14 +96,14 @@ int main(int argc, char** argv)
     CUmodule module;
     CUfunction func;
     printf("testing cubin...\n");
-    // if ((err = getModuleFromCubin(&module, "kernel.cubin")) != 0) {
-    //     printf("error\n");
-    //     return 1;
-    // }
-    if ((err = getModuleFromShared(&module, "kernel.so")) != 0) {
+    if ((err = getModuleFromCubin(&module, "kernel.cubin")) != 0) {
         printf("error\n");
         return 1;
     }
+    // if ((err = getModuleFromShared(&module, "kernel.so")) != 0) {
+    //     printf("error\n");
+    //     return 1;
+    // }
 
     if ((err = cuModuleGetFunction(&func, module, "kernel")) != CUDA_SUCCESS) {
         printCudaErrors(err);

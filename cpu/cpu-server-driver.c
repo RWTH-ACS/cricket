@@ -30,6 +30,36 @@ int server_driver_init(int restore)
     return ret;
 }
 
+#include <cuda_runtime_api.h>
+
+bool_t rpc_loadelf_1_svc(mem_data elf, int *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "rpc_loadelf(elf: %p, len: %#x)", elf.mem_data_val, elf.mem_data_len);
+    CUresult res;
+    CUmodule module;
+    cudaError_t cres;
+
+    for (int i=0; i<64; i++) {
+        printf("%02x ", ((uint8_t*)elf.mem_data_val)[i]);
+    }
+    
+    if ((cres = cudaSetDevice(0)) != cudaSuccess) {
+        LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
+        *result = cres;
+        return 1;
+    }
+
+    cudaDeviceSynchronize();
+    
+    if ((res =cuModuleLoadData (&module, elf.mem_data_val)) != CUDA_SUCCESS) {
+        LOG(LOG_ERROR, "cuModuleLoadFatBinary failed: %d", res);
+        *result = res;
+        return 1;
+    } 
+    *result = 0;
+    return 1;
+}
+
 int server_driver_deinit(void)
 {
     resource_mg_free(&rm_modules);

@@ -160,6 +160,7 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
 }
 
 
+
 void cricket_main_hash(char* app_command)
 {
     cricket_main(app_command, 0, 0);

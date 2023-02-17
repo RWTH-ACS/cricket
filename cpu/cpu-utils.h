@@ -5,18 +5,18 @@
 #include "cpu-common.h"
 #include "list.h"
 
-struct __fatCubin {
+struct fat_header {
     uint32_t magic;
     uint32_t version;
     uint64_t text;
-    uint64_t data;
-    uint64_t ptr;
-    uint64_t ptr2;
+    uint64_t data;  // points to outside of the file
+    uint64_t unknown;
+    uint64_t text2;
     uint64_t zero;
 };
 
 
-int cpu_utils_get_fatbin_info(struct __fatCubin *fatbin);
+int cpu_utils_get_fatbin_info(struct fat_header *fatbin, void** fatbin_mem, unsigned* fatbin_size);
 
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum);
 

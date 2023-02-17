@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -15,6 +16,7 @@
 #include "cpu-common.h"
 #include "log.h"
 
+#define uint16_t unsigned short
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
 #define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
 #define CRICKET_ELF_NV_TEXT_PREFIX ".nv.text."
@@ -26,12 +28,28 @@
 #define FATBIN_STRUCT_MAGIC 0x466243b1
 #define FATBIN_TEXT_MAGIC   0xBA55ED50
 
+struct  __attribute__((__packed__)) fat_elf_header
+{
+    uint32_t magic;
+    uint16_t version;
+    uint16_t header_size;
+    uint64_t fat_size;
+};
 struct  __attribute__((__packed__)) fat_text_header
 {
-  unsigned int           magic;
-  unsigned short         version;
-  unsigned short         header_size;
-  unsigned long long int fat_size;
+    uint16_t kind;
+    uint16_t unknown1;
+    uint32_t header_size;
+    uint64_t fatbin_size;
+    uint64_t some_offset; //Compression related information
+    uint16_t minor;
+    uint16_t major;
+    uint32_t arch;
+    uint32_t obj_name_offset;
+    uint32_t obj_name_len;
+    uint64_t flags;
+    uint64_t zero;
+    uint64_t unknown2;
 };
 
 #define FATBIN_FLAG_64BIT     0x0000000000000001LL
@@ -48,12 +66,85 @@ static int cricket_fatbin_flag_to_str(char** str, uint64_t flag)
         (flag & FATBIN_FLAG_COMPRESS) ? "yes" : "no");
 }
 
-int cpu_utils_get_fatbin_info(struct __fatCubin *fatbin)
+static int cpu_utils_fat_header_decode(void *fat, 
+                                       struct fat_elf_header **fat_elf_header,
+                                       struct fat_text_header **fat_text_header,
+                                       void **fat_text_body_ptr)
 {
-    void *fatbin_ptr = NULL, *fatbin_elfinfo = NULL;
-    struct fat_text_header* fatbin_text = NULL;
-    if (fatbin == NULL) {
-        LOGE(LOG_ERROR, "fatbin is NULL");
+    struct fat_elf_header* feh;
+    struct fat_text_header* fth;
+    void *fat_ptr = NULL;
+    void *fat_text_header_ptr = NULL;
+
+    if (fat == NULL || fat_elf_header == NULL || fat_text_header == NULL || fat_text_body_ptr == NULL) {
+        LOGE(LOG_ERROR, "at least one parameter is NULL");
+        return -1;
+    }
+
+    feh = (struct fat_elf_header*)fat;
+    if (feh->magic != FATBIN_TEXT_MAGIC) {
+        LOGE(LOG_ERROR, "fatbin text magic number is wrong. Got %x, expected %x.", *((uint32_t*)feh), FATBIN_TEXT_MAGIC);
+        return -1;
+    }
+    LOGE(LOG_DEBUG, "fat_elf_header: magic: %x, version: %d, header_size: %p, fat_size: %p",
+        feh->magic, feh->version, feh->header_size, feh->fat_size);
+
+    if (feh->version != 1 || feh->header_size != sizeof(struct fat_elf_header)) {
+        LOGE(LOG_ERROR, "fatbin text version is wrong or header size is inconsistent.\
+            This is a sanity check to avoid reading a new fatbinary format");
+        return -1;
+    }
+    fat_ptr = fat_text_header_ptr = (void*)feh + feh->header_size;
+
+    fth = (struct fat_text_header*)(fat_text_header_ptr);
+    LOGE(LOG_DEBUG, "fat_text_header: fatbin_kind: %#x, header_size %#x, fatbin_size %#x, some_offset %#x.\
+        minor %#x, major %#x, arch %d, flags %#x",
+        fth->kind,
+        fth->header_size,
+        fth->fatbin_size,
+        fth->some_offset,
+        fth->minor,
+        fth->major,
+        fth->arch,
+        fth->flags);
+    LOGE(LOG_DEBUG, "unknown fields: unknown1: %#x, unknown2: %#x, zeros: %#x",
+        fth->unknown1,
+        fth->unknown2,
+        fth->zero);
+    fat_ptr += sizeof(struct fat_header);
+    *fat_text_body_ptr = fat_text_header_ptr + fth->header_size;
+    if (fth->flags & FATBIN_FLAG_DEBUG) {
+        *fat_text_body_ptr += 1;
+    }
+
+    char *flag_str = NULL;
+    cricket_fatbin_flag_to_str(&flag_str, fth->flags);
+    LOGE(LOG_DEBUG, "Fatbin flags: %s", flag_str);
+    free(flag_str);
+
+    if(fth->obj_name_offset != 0) {
+        if (((char*)fat_text_header_ptr)[fth->obj_name_offset + fth->obj_name_len] != '\0') {
+            LOGE(LOG_DEBUG, "Fatbin object name is not null terminated");
+        } else {
+            char *obj_name = (char*)fat_text_header_ptr + fth->obj_name_offset;
+            LOGE(LOG_DEBUG, "Fatbin object name: %s (len:%#x)", obj_name, fth->obj_name_len);
+        }
+        fat_ptr += fth->obj_name_len+1;
+    }
+    *fat_elf_header = feh;
+    *fat_text_header = fth;
+    return 0;
+}
+
+int cpu_utils_get_fatbin_info(struct fat_header *fatbin, void** fatbin_mem, unsigned* fatbin_size)
+{
+    struct fat_elf_header* fat_elf_header;
+    struct fat_text_header* fat_text_header;
+    void *fat_ptr = NULL;
+    void *fat_text_body_ptr = NULL;
+    unsigned fatbin_total_size = 0;
+    if (fatbin == NULL || fatbin_mem == NULL || fatbin_size == NULL) {
+        LOGE(LOG_ERROR, "at least one parameter is NULL");
         return -1;
     }
     if (fatbin->magic != FATBIN_STRUCT_MAGIC) {
@@ -61,72 +152,29 @@ int cpu_utils_get_fatbin_info(struct __fatCubin *fatbin)
         return -1;
     }
     LOG(LOG_DEBUG, "Fatbin: magic: %x, version: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx",
-           fatbin->magic, fatbin->version, fatbin->text, fatbin->data, fatbin->ptr, fatbin->ptr2, fatbin->zero);
+           fatbin->magic, fatbin->version, fatbin->text, fatbin->data, fatbin->unknown, fatbin->text2, fatbin->zero);
 
-    fatbin_text = (struct fat_text_header*)fatbin->text;
-    if (fatbin_text->magic != FATBIN_TEXT_MAGIC) {
-        LOGE(LOG_ERROR, "fatbin text magic number is wrong. Got %x, expected %x.", *((uint32_t*)fatbin_text), FATBIN_TEXT_MAGIC);
+    if (cpu_utils_fat_header_decode((void*)fatbin->text, &fat_elf_header, &fat_text_header, &fat_text_body_ptr) != 0) {
+        LOGE(LOG_ERROR, "fatbin header decode failed");
         return -1;
     }
-    LOG(LOG_DEBUG, "Fatbin.text: magic: %x, version: %d, header_size: %p, fat_size: %p",
-        fatbin_text->magic, fatbin_text->version, fatbin_text->header_size, fatbin_text->fat_size);
 
-    if (fatbin_text->version != 1 || fatbin_text->header_size != sizeof(struct fat_text_header)) {
-        LOGE(LOG_ERROR, "fatbin text version is wrong or header size is inconsistent.\
-            This is a sanity check to avoid reading a new fatbinary format");
+    fatbin_total_size = fat_elf_header->header_size + fat_elf_header->fat_size;
+
+    if (cpu_utils_fat_header_decode((void*)fatbin->text2, &fat_elf_header, &fat_text_header, &fat_text_body_ptr) != 0) {
+        LOGE(LOG_ERROR, "fatbin header decode failed");
         return -1;
     }
-    fatbin_ptr = fatbin_elfinfo = (void*)fatbin_text + fatbin_text->header_size;
+    fatbin_total_size += fat_elf_header->header_size + fat_elf_header->fat_size;
 
-    struct __attribute__((__packed__)) fatbin_header {
-        short kind;
-        short unknown1;
-        uint32_t header_size;
-        uint64_t fatbin_size;
-        uint64_t some_offset;
-        short minor;
-        short major;
-        uint32_t arch;
-        uint32_t obj_name_offset;
-        uint32_t obj_name_len;
-        uint64_t flags;
-        uint64_t zero;
-        uint64_t unknown2;
-    } *fatbin_header = (struct fatbin_header*)(fatbin_ptr);
-    LOGE(LOG_DEBUG, "Fatbin header: fatbin_offset: %#x, header_size %#x, fatbin_size %#x, some_offset %#x.\
-        minor %#x, major %#x, arch %d, flags %#x",
-        fatbin_header->kind,
-        fatbin_header->header_size,
-        fatbin_header->fatbin_size,
-        fatbin_header->some_offset,
-        fatbin_header->minor,
-        fatbin_header->major,
-        fatbin_header->arch,
-        fatbin_header->flags);
-    LOGE(LOG_DEBUG, "unknown fields: unknown1: %#x, unknown2: %#x, zeros: %#x",
-        fatbin_header->unknown1,
-        fatbin_header->unknown2,
-        fatbin_header->zero);
-    fatbin_ptr += sizeof(struct fatbin_header);
-
-    char *flag_str = NULL;
-    cricket_fatbin_flag_to_str(&flag_str, fatbin_header->flags);
-    LOGE(LOG_DEBUG, "Fatbin flags: %s", flag_str);
-    free(flag_str);
-
-    if(fatbin_header->obj_name_offset != 0) {
-        if (((char*)fatbin_elfinfo)[fatbin_header->obj_name_offset + fatbin_header->obj_name_len] != '\0') {
-            LOGE(LOG_DEBUG, "Fatbin object name is not null terminated");
-        } else {
-            char *obj_name = (char*)fatbin_elfinfo + fatbin_header->obj_name_offset;
-            LOGE(LOG_DEBUG, "Fatbin object name: %s (len:%#x)", obj_name, fatbin_header->obj_name_len);
-        }
-        fatbin_ptr += fatbin_header->obj_name_len+1;
-    }
+    fat_ptr = fatbin->data;
 
     for (int i=0; i<64; i++) {
-        printf("%02x ", ((uint8_t*)fatbin_ptr)[i]);
+        printf("%02x ", ((uint8_t*)fat_ptr)[i]);
     }
+
+    *fatbin_mem = fatbin->text;
+    *fatbin_size = fatbin_total_size;
     return 0;
 }
 

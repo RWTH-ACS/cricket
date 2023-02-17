@@ -122,6 +122,7 @@ program RPC_CD_PROG {
         int          rpc_printmessage(string)                                     = 2;
         int          rpc_dlopen(string)                                           = 3;
         int          CUDA_REGISTER_FUNCTION(ptr, ptr, string, string, int)       = 50;
+        int          rpc_loadelf(mem_data)                                       = 51;
 
         /* RUNTIME API */
         /* ### Device Management ### */

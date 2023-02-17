@@ -235,18 +235,18 @@ void *dlopen(const char *filename, int flag)
         return dl_handle;
     } else {
         LOGE(LOG_DEBUG, "request to dlopen \"%s\"", filename);
-        if (cpu_utils_contains_kernel(filename) == 0) {
-            LOGE(LOG_ERROR, "file does not contain a kernel");
-        } else {
-            LOGE(LOG_DEBUG, "file contains a kernel");
-            int result;
-            enum clnt_stat retval_1;
-            retval_1 = rpc_dlopen_1((char*)filename, &result, clnt);
-            if (retval_1 != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "error calling rpc_dlopen");
-            }
-            cpu_utils_parameter_info(&kernel_infos, (char*)filename);
-        }
+        // if (cpu_utils_contains_kernel(filename) == 0) {
+        //     LOGE(LOG_ERROR, "file does not contain a kernel");
+        // } else {
+        //     LOGE(LOG_DEBUG, "file contains a kernel");
+        //     int result;
+        //     enum clnt_stat retval_1;
+        //     retval_1 = rpc_dlopen_1((char*)filename, &result, clnt);
+        //     if (retval_1 != RPC_SUCCESS) {
+        //         LOGE(LOG_ERROR, "error calling rpc_dlopen");
+        //     }
+        //     cpu_utils_parameter_info(&kernel_infos, (char*)filename);
+        // }
         ret = dlopen_orig(filename, flag);
         dlinfo(ret, RTLD_DI_LINKMAP, &map);
         LOGE(LOG_DEBUG, "dlopen \"%s\" to  %p", filename, map->l_addr);
@@ -304,42 +304,30 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun, char *de
     }
 }
 
-struct rpc_fatCubin {
-    uint32_t magic;
-    uint32_t seq;
-    uint64_t text;
-    uint64_t data;
-    uint64_t ptr;
-    uint64_t ptr2;
-    uint64_t zero;
-};
+
 
 void** __cudaRegisterFatBinary(void *fatCubin)
 {
-    ptr_result result;
+    int result;
     enum clnt_stat retval_1;
 
-    if (cpu_utils_get_fatbin_info((struct __fatCubin*)fatCubin) != 0) {
+    mem_data rpc_fat = {
+        .mem_data_len = 0,
+        .mem_data_val = NULL};
+
+    if (cpu_utils_get_fatbin_info((struct fat_header*)fatCubin, (void**)&rpc_fat.mem_data_val, &rpc_fat.mem_data_len) != 0) {
         LOGE(LOG_ERROR, "error getting fatbin info");
-    }
-
-    struct __fatCubin *fat = (struct __fatCubin*)((fatCubin));
-    struct rpc_fatCubin rpc_fat = {.magic = fat->magic,
-                                   .seq   = fat->seq,
-                                   .text  = fat->text,
-                                   .data  = fat->data,
-                                   .ptr   = fat->ptr,
-                                   .ptr2  = fat->ptr2,
-                                   .zero  = fat->zero};
-
-    retval_1 = RPC_SUCCESS;//cuda_register_fat_binary_1(rpc_fat, &result, clnt);
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-    if (result.err != 0) {
         return NULL;
     }
-    return (void*)result.ptr_result_u.ptr;
+
+    retval_1 = rpc_loadelf_1(rpc_fat, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "call failed.");
+    }
+    if (result != 0) {
+        return NULL;
+    }
+    return NULL;
 }
 
 // void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
