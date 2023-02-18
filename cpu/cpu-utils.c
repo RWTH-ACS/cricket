@@ -167,13 +167,13 @@ int cpu_utils_get_fatbin_info(struct fat_header *fatbin, void** fatbin_mem, unsi
     }
     fatbin_total_size += fat_elf_header->header_size + fat_elf_header->fat_size;
 
-    fat_ptr = fatbin->data;
+    // fat_ptr = (void*)fatbin->data;
 
-    for (int i=0; i<64; i++) {
-        printf("%02x ", ((uint8_t*)fat_ptr)[i]);
-    }
+    // for (int i=0; i<64; i++) {
+    //     printf("%02x ", ((uint8_t*)fat_ptr)[i]);
+    // }
 
-    *fatbin_mem = fatbin->text;
+    *fatbin_mem = (void*)fatbin->text;
     *fatbin_size = fatbin_total_size;
     return 0;
 }
@@ -601,13 +601,14 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
             goto cleanup2;
         }
 
-        if ((buf->name = malloc(strlen(kernelname))) == NULL) {
+        size_t buflen = strlen(kernelname);
+        if ((buf->name = malloc(buflen)) == NULL) {
             LOGE(LOG_ERROR, "malloc failed");
             goto cleanup2;
         }
         //copy string and remove trailing \n
-        strncpy(buf->name, kernelname, strlen(kernelname)-1);
-        buf->name[strlen(kernelname)-1] = '\0';
+        strncpy(buf->name, kernelname, buflen-1);
+        buf->name[buflen-1] = '\0';
 
         if (cpu_utils_read_pars(buf, fdesc) != 0) {
             LOGE(LOG_ERROR, "reading paramter infos failed.\n");

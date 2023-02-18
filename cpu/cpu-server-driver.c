@@ -21,7 +21,9 @@ int server_driver_init(int restore)
     int ret = 0;
     if (!restore) {
         ret &= resource_mg_init(&rm_modules, 1);
-        ret &= resource_mg_init(&rm_functions, 1);
+        // we cannot bypass the resource manager for functions
+        // because CUfunctions are at different locations on server and client
+        ret &= resource_mg_init(&rm_functions, 0);
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
@@ -32,47 +34,64 @@ int server_driver_init(int restore)
 
 #include <cuda_runtime_api.h>
 
-bool_t rpc_loadelf_1_svc(mem_data elf, int *result, struct svc_req *rqstp)
+// Does not support checkpoint/restart yet
+bool_t rpc_loadelf_1_svc(mem_data elf, ptr_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "rpc_loadelf(elf: %p, len: %#x)", elf.mem_data_val, elf.mem_data_len);
     CUresult res;
     CUmodule module;
-    cudaError_t cres;
-
-    for (int i=0; i<64; i++) {
-        printf("%02x ", ((uint8_t*)elf.mem_data_val)[i]);
-    }
-    
-    if ((cres = cudaSetDevice(0)) != cudaSuccess) {
-        LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
-        *result = cres;
-        return 1;
-    }
-
-    cudaDeviceSynchronize();
     
     if ((res = cuModuleLoadData (&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOG(LOG_ERROR, "cuModuleLoadFatBinary failed: %d", res);
-        *result = res;
+        result->err = res;
         return 1;
     }
 
-    CUfunction func;
-    if ((res = cuModuleGetFunction(&func, module, "_Z15kernel_no_paramv")) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
-        *result = res;
-        return 1;
-    }
-    int zero = 0;
-    void *params[] = {NULL, NULL, NULL, &zero, &zero, &zero, &zero, NULL};
-    if ((res = cuLaunchKernel(func, 1, 1, 1, 32, 1, 1, 0, CU_STREAM_DEFAULT, params, NULL)) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "cuLaunchKernel failed: %d", res);
-        *result = res;
+    if ((res = resource_mg_create(&rm_modules, (void*)module)) != CUDA_SUCCESS) {
+        LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
+        result->err = res;
         return 1;
     }
 
-    *result = 0;
+    LOG(LOG_DEBUG, "->module: %p", module);
+    result->err = 0;
+    result->ptr_result_u.ptr = (ptr)module;
     return 1;
+}
+
+// Does not support checkpoint/restart yet
+bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
+                            char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_register_function_1_argument);
+    RECORD_ARG(1, fatCubinHandle);
+    RECORD_ARG(2, hostFun);
+    RECORD_ARG(3, deviceFun);
+    RECORD_ARG(4, deviceName);
+    RECORD_ARG(5, thread_limit);
+    LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
+        fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    GSCHED_RETAIN;
+    result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
+                    resource_mg_get(&rm_streams, (void*)fatCubinHandle),
+                    deviceName);
+    GSCHED_RELEASE;
+    if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+
+    // int zero = 0;
+    // void *params[] = {NULL, NULL, NULL, &zero, &zero, &zero, &zero, NULL};
+    // if ((res = cuLaunchKernel(func, 1, 1, 1, 32, 1, 1, 0, CU_STREAM_DEFAULT, params, NULL)) != CUDA_SUCCESS) {
+    //     LOG(LOG_ERROR, "cuLaunchKernel failed: %d", res);
+    //     result->err = res;
+    //     return 1;
+    // }
+
+    // result->err = 0;
+    // return 1;
 }
 
 int server_driver_deinit(void)
@@ -321,7 +340,6 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     void **cuda_args;
     uint16_t *arg_offsets;
     size_t param_num;
-    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     if (args.mem_data_val == NULL) {
         LOGE(LOG_ERROR, "param.mem_data_val is NULL");
         *result = CUDA_ERROR_INVALID_VALUE;
@@ -348,10 +366,15 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
+    LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p->%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, resource_mg_get(&rm_functions, (void*)f), gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
 
     GSCHED_RETAIN;
-    *result = cuLaunchKernel((CUfunction)f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, sharedMemBytes, (CUstream)hStream, cuda_args, NULL);
+    *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)f),
+                              gridDimX, gridDimY, gridDimZ,
+                              blockDimX, blockDimY, blockDimZ,
+                              sharedMemBytes,
+                              (CUstream)hStream,
+                              cuda_args, NULL);
     GSCHED_RELEASE;
 
     free(cuda_args);

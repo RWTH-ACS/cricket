@@ -71,9 +71,6 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= resource_mg_init(&rm_memory, 1);
-         // We cannot bypass this RM, because we need translations when a kernel in
-         // a shared object is launched.
-        ret &= resource_mg_init(&rm_kernels, 0);
         ret &= cusolver_init(1, &rm_streams, &rm_memory);
         ret &= cublas_init(1, &rm_memory);
     } else {
@@ -86,6 +83,16 @@ int server_runtime_init(int restore)
         ret &= cublas_init(0, &rm_memory);
         ret &= server_runtime_restore("ckp");
     }
+    
+    // Make sure runtime API is initialized
+    // If we don't do this and use the driver API, it might be unintialized
+    cudaError_t cres;
+    if ((cres = cudaSetDevice(0)) != cudaSuccess) {
+        LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
+        ret = 1;
+    }
+    cudaDeviceSynchronize();
+
     return ret;
 }
 
@@ -890,15 +897,22 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", resource_mg_get(&rm_kernels, (void*)func), cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", resource_mg_get(&rm_functions, (void*)func), cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
-    *result = cudaLaunchKernel(
-      resource_mg_get(&rm_kernels, (void*)func),
-      cuda_gridDim,
-      cuda_blockDim,
-      cuda_args,
-      sharedMem,
-      resource_mg_get(&rm_streams, (void*)stream));
+    *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
+                            gridDim.x, gridDim.y, gridDim.z,
+                            blockDim.y, blockDim.y, blockDim.z,
+                            sharedMem,
+                            resource_mg_get(&rm_streams, (void*)stream),
+                            cuda_args, NULL);
+
+    // *result = cudaLaunchKernel(
+    //   resource_mg_get(&rm_functions, (void*)func),
+    //   cuda_gridDim,
+    //   cuda_blockDim,
+    //   cuda_args,
+    //   sharedMem,
+    //   resource_mg_get(&rm_streams, (void*)stream));
     free(cuda_args);
     RECORD_RESULT(integer, *result);
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
