@@ -122,7 +122,8 @@ program RPC_CD_PROG {
         int          rpc_printmessage(string)                                     = 2;
         int          rpc_dlopen(string)                                           = 3;
         ptr_result   rpc_register_function(ptr, ptr, string, string, int)        = 50;
-        ptr_result   rpc_loadelf(mem_data)                                       = 51;
+        int          rpc_elf_load(mem_data, ptr)                                 = 51;
+        int          rpc_elf_unload(ptr)                                         = 52;
 
         /* RUNTIME API */
         /* ### Device Management ### */

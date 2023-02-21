@@ -323,7 +323,8 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
 
 void **__cudaRegisterFatBinary(void *fatCubin)
 {
-    ptr_result result;
+    void **result;
+    int rpc_result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "__cudaRegisterFatBinary(fatCubin=%p)", fatCubin);
 
@@ -336,17 +337,54 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         return NULL;
     }
 
-    retval_1 = rpc_loadelf_1(rpc_fat, &result, clnt);
+    // CUDA registers atexit handler for fatbin cleanup. These access
+    // fatbin data structurees 
+    result = (void**)calloc(1, 0x58);
+
+    // void ** (*cudaRegisterFatBinaryOrig)(void *) = NULL;
+
+    // if ((cudaRegisterFatBinaryOrig = dlsym(RTLD_NEXT, "__cudaRegisterFatBinary") ) == NULL) {
+    //     LOGE(LOG_ERROR, "dlsym failed");
+    //     return NULL;
+    // }
+
+    // if ((result = cudaRegisterFatBinaryOrig(fatCubin)) == NULL) {
+    //     LOGE(LOG_ERROR, "error calling original cudaRegisterFatBinary");
+    //     return NULL;
+    // }
+
+    retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
     }
-    if (result.err != 0) {
+    if (rpc_result != 0) {
         return NULL;
     }
-    LOG(LOG_DEBUG, "fatbin loaded to %p", result.ptr_result_u.ptr);
+    LOG(LOG_DEBUG, "fatbin loaded to %p", result);
     // return a handle that can be used to idenfity the fatbin for
     // registerFunction
-    return (void **)result.ptr_result_u.ptr;
+    // TODO: We have to return a proper fatbinary handle because CUDA will segfault
+    // atexit() otherwise.
+    return result;
+}
+
+void __cudaUnregisterFatBinary(void **fatCubinHandle)
+{  
+    int result;
+    enum clnt_stat retval_1;
+
+    LOGE(LOG_DEBUG, "__cudaUnregisterFatBinary(fatCubinHandle=%p)",
+         fatCubinHandle);
+
+    if (fatCubinHandle == NULL) {
+        LOGE(LOG_ERROR, "fatCubinHandle is NULL");
+        return;
+    }
+
+    retval_1 = rpc_elf_unload_1((ptr)fatCubinHandle, &result, clnt);
+    if (retval_1 != RPC_SUCCESS || result != 0) {
+        LOGE(LOG_ERROR, "call failed.");
+    }
 }
 
 // void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)

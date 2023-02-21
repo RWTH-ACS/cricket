@@ -20,9 +20,9 @@ int server_driver_init(int restore)
    
     int ret = 0;
     if (!restore) {
-        ret &= resource_mg_init(&rm_modules, 1);
-        // we cannot bypass the resource manager for functions
-        // because CUfunctions are at different locations on server and client
+        // we cannot bypass the resource manager for functions and modules
+        // because CUfunctions and modules are at different locations on server and client
+        ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
@@ -35,29 +35,65 @@ int server_driver_init(int restore)
 #include <cuda_runtime_api.h>
 
 // Does not support checkpoint/restart yet
-bool_t rpc_loadelf_1_svc(mem_data elf, ptr_result *result, struct svc_req *rqstp)
+bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "rpc_loadelf(elf: %p, len: %#x)", elf.mem_data_val, elf.mem_data_len);
+    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x)", elf.mem_data_val, elf.mem_data_len);
     CUresult res;
     CUmodule module;
     
-    if ((res = cuModuleLoadData (&module, elf.mem_data_val)) != CUDA_SUCCESS) {
+    if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOG(LOG_ERROR, "cuModuleLoadFatBinary failed: %d", res);
-        result->err = res;
+        *result = res;
         return 1;
     }
 
-    if ((res = resource_mg_create(&rm_modules, (void*)module)) != CUDA_SUCCESS) {
+    // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
+    // to a CUmodule on the server.
+    if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
         LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
-        result->err = res;
+        *result = res;
         return 1;
     }
 
     LOG(LOG_DEBUG, "->module: %p", module);
-    result->err = 0;
-    result->ptr_result_u.ptr = (ptr)module;
+    *result = 0;
     return 1;
 }
+
+// Does not support checkpoint/restart yet
+// TODO: We should also remove associated function handles
+bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
+    CUmodule module = NULL;
+    CUresult res;
+    
+    if ((module = (CUmodule)resource_mg_get(&rm_modules, (void*)elf_handle)) == NULL) {
+        LOG(LOG_ERROR, "resource_mg_get failed");
+        *result = -1;
+        return 1;
+    }
+
+    // if ((res = resource_mg_remove(&rm_modules, (void*)elf_handle)) != CUDA_SUCCESS) {
+    //     LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
+    //     result->err = res;
+    //     return 1;
+    // }
+
+    if ((res = cuModuleUnload(module)) != CUDA_SUCCESS) {
+        LOG(LOG_ERROR, "cuModuleUnload failed: %d", res);
+        *result = res;
+        return 1;
+    }
+
+    //TODO: Free memory of module
+
+    *result = 0;
+    return 1;
+}
+
+
+
 
 // Does not support checkpoint/restart yet
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
@@ -73,7 +109,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
     GSCHED_RETAIN;
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
-                    resource_mg_get(&rm_streams, (void*)fatCubinHandle),
+                    resource_mg_get(&rm_modules, (void*)fatCubinHandle),
                     deviceName);
     GSCHED_RELEASE;
     if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {
