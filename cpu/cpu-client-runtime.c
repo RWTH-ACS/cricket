@@ -269,12 +269,12 @@ cudaError_t cudaDeviceSynchronize(void)
 #endif //WITH_API_CNT
     int result = -1;
     enum clnt_stat retval_1;
-    for (int i=0; result != 0 && i < 10; ++i) {
-        retval_1 = cuda_device_synchronize_1(&result, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-    }
+
+    struct timeval timeout = {.tv_sec = -1, .tv_usec = 0};
+
+    return (clnt_call (clnt, CUDA_DEVICE_SYNCHRONIZE, (xdrproc_t) xdr_void, (caddr_t) NULL,
+		    (xdrproc_t) xdr_int, (caddr_t) &result,
+		    timeout));
     return result;
 }
 
@@ -969,20 +969,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
                args[j],
                size);
     }
-    cuda_launch_kernel_1_argument arg = {
-        .arg1 = (ptr)func,
-        .arg2 = rpc_gridDim,
-        .arg3 = rpc_blockDim,
-        .arg4 = rpc_args,
-        .arg5 = sharedMem,
-        .arg6 = (ptr)stream
-    };
-    struct timeval timeout = {.tv_sec = -1, .tv_usec = 0};
-    // We call the RPC explictly, so we can set the timeout to infinite
-	retval_1 = clnt_call(clnt, CUDA_LAUNCH_KERNEL, (xdrproc_t)xdr_cuda_launch_kernel_1_argument, (caddr_t)&arg,
-		                 (xdrproc_t)xdr_int, (caddr_t)&result,
-		                 timeout);
-    //retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }

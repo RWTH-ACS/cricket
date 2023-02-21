@@ -92,9 +92,6 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-
-
-
 // Does not support checkpoint/restart yet
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
                             char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)

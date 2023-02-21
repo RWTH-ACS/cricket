@@ -246,12 +246,6 @@ void *dlopen(const char *filename, int flag)
             LOGE(LOG_ERROR, "file does not contain a kernel");
         } else {
             LOGE(LOG_DEBUG, "file contains a kernel");
-            int result;
-            enum clnt_stat retval_1;
-            retval_1 = rpc_dlopen_1((char *)filename, &result, clnt);
-            if (retval_1 != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "error calling rpc_dlopen");
-            }
             cpu_utils_parameter_info(&kernel_infos, (char *)filename);
         }
         ret = dlopen_orig(filename, flag);
