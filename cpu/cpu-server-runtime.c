@@ -901,7 +901,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
 
     *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
                             gridDim.x, gridDim.y, gridDim.z,
-                            blockDim.y, blockDim.y, blockDim.z,
+                            blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
                             resource_mg_get(&rm_streams, (void*)stream),
                             cuda_args, NULL);

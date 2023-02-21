@@ -337,21 +337,9 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         return NULL;
     }
 
-    // CUDA registers atexit handler for fatbin cleanup. These access
-    // fatbin data structurees 
+    // CUDA registers an atexit handler for fatbin cleanup that accesses
+    // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.
     result = (void**)calloc(1, 0x58);
-
-    // void ** (*cudaRegisterFatBinaryOrig)(void *) = NULL;
-
-    // if ((cudaRegisterFatBinaryOrig = dlsym(RTLD_NEXT, "__cudaRegisterFatBinary") ) == NULL) {
-    //     LOGE(LOG_ERROR, "dlsym failed");
-    //     return NULL;
-    // }
-
-    // if ((result = cudaRegisterFatBinaryOrig(fatCubin)) == NULL) {
-    //     LOGE(LOG_ERROR, "error calling original cudaRegisterFatBinary");
-    //     return NULL;
-    // }
 
     retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
     if (retval_1 != RPC_SUCCESS) {
@@ -361,10 +349,8 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         return NULL;
     }
     LOG(LOG_DEBUG, "fatbin loaded to %p", result);
-    // return a handle that can be used to idenfity the fatbin for
-    // registerFunction
-    // TODO: We have to return a proper fatbinary handle because CUDA will segfault
-    // atexit() otherwise.
+    // we return a bunch of zeroes to avoid segfaults. The memory is
+    // mapped by the modules resource 
     return result;
 }
 
