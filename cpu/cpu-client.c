@@ -278,11 +278,14 @@ int dlclose(void *handle)
     }
 }
 
-// void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char
-// *deviceAddress, const char *deviceName, int ext, size_t size, int constant,
-// int global)
-// {
-// }
+void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char
+                       *deviceAddress, const char *deviceName, int ext, size_t size, int constant,
+                       int global)
+{
+    LOGE(LOG_DEBUG, "__cudaRegisterVar(fatCubinHandle=%p, hostVar=%p, deviceAddress=%p, "
+           "deviceName=%s, ext=%d, size=%zu, constant=%d, global=%d)\n",
+           fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+}
 
 void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
                             char *deviceFun, const char *deviceName,
@@ -292,14 +295,13 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
     ptr_result result;
     enum clnt_stat retval_1;
 
-    printf("__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, "
+    LOGE(LOG_DEBUG, "__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, "
            "deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], "
            "gDim=[%p], wSize=%p)\n",
            fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid,
            bid, bDim, gDim, wSize);
 
-    kernel_info_t *info =
-        cricketd_utils_search_info(&kernel_infos, (char *)deviceName);
+    kernel_info_t *info = cricketd_utils_search_info(&kernel_infos, (char *)deviceName);
     if (info == NULL) {
         LOGE(LOG_ERROR, "request to register unknown function: \"%s\"",
              deviceName);
