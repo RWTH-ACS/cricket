@@ -248,9 +248,12 @@ void *dlopen(const char *filename, int flag)
             LOGE(LOG_DEBUG, "file contains a kernel");
             cpu_utils_parameter_info(&kernel_infos, (char *)filename);
         }
-        ret = dlopen_orig(filename, flag);
-        dlinfo(ret, RTLD_DI_LINKMAP, &map);
-        LOGE(LOG_DEBUG, "dlopen \"%s\" to  %p", filename, map->l_addr);
+        if ((ret = dlopen_orig(filename, flag)) == NULL) {
+            LOGE(LOG_ERROR, "dlopen failed");
+        } else {
+            dlinfo(ret, RTLD_DI_LINKMAP, &map);
+            LOGE(LOG_DEBUG, "dlopen \"%s\" to  %p", filename, map->l_addr);
+        }
         return ret;
     }
 }

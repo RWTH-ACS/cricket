@@ -534,7 +534,7 @@ int cpu_utils_contains_kernel(const char *path)
     LOG(LOG_DEBUG, "child exit code: %d", child_exit);
  out:
     free(line);
-    return (ret != 0 ? ret : child_exit);
+    return (ret != 0 ? 0 : child_exit);
 }
 
 int cpu_utils_parameter_info(list *kernel_infos, char *path)
