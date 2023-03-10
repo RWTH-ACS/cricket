@@ -225,7 +225,7 @@ void *dlopen(const char *filename, int flag)
 {
     void *ret = NULL;
     struct link_map *map;
-    LOG(LOG_DEBUG, "intercepted dlopen(%s, %d)", filename, flag);
+    LOG(LOG_DBG(1), "intercepted dlopen(%s, %d)", filename, flag);
     if (dlopen_orig == NULL) {
         if ((dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
             LOGE(LOG_ERROR, "[dlopen] dlsym failed");
@@ -241,11 +241,10 @@ void *dlopen(const char *filename, int flag)
         }
         return dl_handle;
     } else {
-        LOGE(LOG_DEBUG, "request to dlopen \"%s\"", filename);
         if (cpu_utils_parameter_info(&kernel_infos, (char *)filename) == 0) {
-            LOGE(LOG_ERROR, "file does not contain a kernel");
+            LOGE(LOG_DEBUG, "dlopen file \"%s\", but does not contain a kernel", filename);
         } else {
-            LOGE(LOG_DEBUG, "file contains a kernel");
+            LOGE(LOG_DEBUG, "dlopen file \"%s\", contains a kernel", filename);
         }
         if ((ret = dlopen_orig(filename, flag)) == NULL) {
             LOGE(LOG_ERROR, "dlopen failed");

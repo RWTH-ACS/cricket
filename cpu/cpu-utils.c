@@ -332,6 +332,7 @@ int cpu_utils_launch_child(const char *file, char **args)
         return -1;
     } else if (pid == 0) {
         while ((dup2(filedes[1], STDOUT_FILENO) == -1) && (errno == EINTR)) {}
+        while ((dup2(filedes[1], STDERR_FILENO) == -1) && (errno == EINTR)) {}
         close(filedes[1]);
         close(filedes[0]);
         char *env[] = {NULL};
@@ -631,7 +632,7 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
  cleanup1:
     close(output);
     wait(&child_exit);
-    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
+    LOG(LOG_DBG(1), "child exit code: %d", child_exit);
  out:
     free(line);
     return ret == 0 && child_exit == 0;
