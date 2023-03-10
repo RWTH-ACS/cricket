@@ -553,6 +553,11 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
     char *kernelname;
     struct stat filestat = {0};
 
+    if (path == NULL) {
+        LOGE(LOG_ERROR, "path is NULL.");
+        goto out;
+    }
+
     if (kernel_infos == NULL) {
         LOGE(LOG_ERROR, "list is NULL.");
         goto out;

@@ -225,7 +225,14 @@ void *dlopen(const char *filename, int flag)
 {
     void *ret = NULL;
     struct link_map *map;
+    int has_kernel = 0;
     LOG(LOG_DBG(1), "intercepted dlopen(%s, %d)", filename, flag);
+
+    if (filename == NULL) {
+        LOG(LOG_WARNING, "dlopen called with NULL filename");
+        return ret;
+    }
+
     if (dlopen_orig == NULL) {
         if ((dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
             LOGE(LOG_ERROR, "[dlopen] dlsym failed");
@@ -241,16 +248,16 @@ void *dlopen(const char *filename, int flag)
         }
         return dl_handle;
     } else {
-        if (cpu_utils_parameter_info(&kernel_infos, (char *)filename) == 0) {
-            LOGE(LOG_DEBUG, "dlopen file \"%s\", but does not contain a kernel", filename);
+        if ((has_kernel = cpu_utils_parameter_info(&kernel_infos, (char *)filename)) == 0) {
+            LOGE(LOG_DBG(1), "dlopen file \"%s\", but does not contain a kernel", filename);
         } else {
             LOGE(LOG_DEBUG, "dlopen file \"%s\", contains a kernel", filename);
         }
         if ((ret = dlopen_orig(filename, flag)) == NULL) {
             LOGE(LOG_ERROR, "dlopen failed");
-        } else {
+        } else if (has_kernel) {
             dlinfo(ret, RTLD_DI_LINKMAP, &map);
-            LOGE(LOG_DEBUG, "dlopen \"%s\" to  %p", filename, map->l_addr);
+            LOGE(LOG_DEBUG, "dlopen to  %p", map->l_addr);
         }
         return ret;
     }
