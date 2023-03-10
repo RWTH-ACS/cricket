@@ -229,8 +229,7 @@ void *dlopen(const char *filename, int flag)
     LOG(LOG_DBG(1), "intercepted dlopen(%s, %d)", filename, flag);
 
     if (filename == NULL) {
-        LOG(LOG_WARNING, "dlopen called with NULL filename");
-        return ret;
+        return dlopen_orig(filename, flag);
     }
 
     if (dlopen_orig == NULL) {
