@@ -123,7 +123,7 @@ void cricket_so_register(void* dlhandle, char *path)
 
     // add load location of library to offset in symbol table
     void (*cudaRegisterAllv)(void) = 
-        (void(*)(void)) cricketd_utils_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
+        (void(*)(void)) elf_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
     
     LOG(LOG_INFO, "found CUDA initialization function at %p + %p = %p", 
         map->l_addr, cudaRegisterAllv, map->l_addr + cudaRegisterAllv);
@@ -291,7 +291,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
     void (*cudaRegisterAllv)(void) =
-        (void(*)(void)) cricketd_utils_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
+        (void(*)(void)) elf_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
     LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
     if (cudaRegisterAllv == NULL) {
         LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
