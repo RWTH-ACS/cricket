@@ -405,6 +405,8 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
     return ret;
 }
 
+#define ELF_DUMP_TO_FILE 1
+
 int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
 {
     struct __attribute__((__packed__)) nv_info_entry{
@@ -416,7 +418,7 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
     };
 
     bfd *bfd = NULL;
-    FILE *fd, *fd2 = NULL;
+    FILE *fd = NULL;
     asection *section = NULL;
     int ret = -1;
     struct symtab symtab = {0};
@@ -430,6 +432,12 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         LOGE(LOG_ERROR, "memory was NULL or memsize was 0");
         return -1;
     }
+
+#ifdef ELF_DUMP_TO_FILE
+    FILE* fd2 = fopen("/tmp/cricket-elf-dump", "wb");
+    fwrite(memory, memsize, 1, fd2);
+    fclose(fd2);
+#endif
 
     if ((fd = fmemopen(memory, memsize, "rb")) == NULL) {
         LOGE(LOG_ERROR, "fmemopen failed");
