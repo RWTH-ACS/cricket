@@ -16,6 +16,7 @@
 #include "cpu-utils.h"
 #include "cpu_rpc_prot.h"
 #include "list.h"
+#include "cpu-elf.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -247,11 +248,11 @@ void *dlopen(const char *filename, int flag)
         }
         return dl_handle;
     } else {
-        if ((has_kernel = cpu_utils_parameter_info(&kernel_infos, (char *)filename)) == 0) {
-            LOGE(LOG_DBG(1), "dlopen file \"%s\", but does not contain a kernel", filename);
-        } else {
-            LOGE(LOG_DEBUG, "dlopen file \"%s\", contains a kernel", filename);
-        }
+        // if ((has_kernel = cpu_utils_parameter_info(&kernel_infos, (char *)filename)) == 0) {
+        //     LOGE(LOG_DBG(1), "dlopen file \"%s\", but does not contain a kernel", filename);
+        // } else {
+        //     LOGE(LOG_DEBUG, "dlopen file \"%s\", contains a kernel", filename);
+        // }
         if ((ret = dlopen_orig(filename, flag)) == NULL) {
             LOGE(LOG_ERROR, "dlopen failed");
         } else if (has_kernel) {
@@ -305,7 +306,7 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
            fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid,
            bid, bDim, gDim, wSize);
 
-    kernel_info_t *info = cricketd_utils_search_info(&kernel_infos, (char *)deviceName);
+    kernel_info_t *info = utils_search_info(&kernel_infos, (char *)deviceName);
     if (info == NULL) {
         LOGE(LOG_ERROR, "request to register unknown function: \"%s\"",
              deviceName);
@@ -333,9 +334,10 @@ void **__cudaRegisterFatBinary(void *fatCubin)
 
     mem_data rpc_fat = { .mem_data_len = 0, .mem_data_val = NULL };
 
-    if (cpu_utils_get_fatbin_info((struct fat_header *)fatCubin,
-                                  (void **)&rpc_fat.mem_data_val,
-                                  &rpc_fat.mem_data_len) != 0) {
+    if (elf_get_fatbin_info((struct fat_header *)fatCubin,
+                                &kernel_infos,
+                                (void **)&rpc_fat.mem_data_val,
+                                &rpc_fat.mem_data_len) != 0) {
         LOGE(LOG_ERROR, "error getting fatbin info");
         return NULL;
     }

@@ -373,7 +373,7 @@ CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
         return CUDA_ERROR_UNKNOWN;
 	}
     *hfun = (CUfunction)result.ptr_result_u.ptr;
-    if ((info = cricketd_utils_search_info(&kernel_infos, (char*)name)) == NULL) {
+    if ((info = utils_search_info(&kernel_infos, (char*)name)) == NULL) {
         LOGE(LOG_ERROR, "cannot find kernel %s kernel_info_t");
         return CUDA_ERROR_UNKNOWN;
     }

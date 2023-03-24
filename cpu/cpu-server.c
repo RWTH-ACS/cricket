@@ -18,6 +18,7 @@
 #include "cpu-server-driver.h"
 #include "rpc/xdr.h"
 #include "cr.h"
+#include "cpu-elf.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB

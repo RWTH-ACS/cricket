@@ -10,6 +10,7 @@ CFLAGS = -arch=$(ARCH) -cudart shared
 #CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
 LDFLAGS = -arch=$(ARCH) -cudart shared
+DEBUG_FLAGS = #-g -G
 #LDFLAGS = -lcuda -arch=$(ARCH)
 TEST_CPU_BIN = cpu.testapp
 TEST_CPU_O = test_cpu.o
@@ -61,10 +62,10 @@ $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
 	$(HOST_CC) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
 
 $(TEST_KERNEL_LIB_O) : $(FILES)
-	$(CC) $(CFLAGS) -g -G -dc --compiler-options '-fPIC' -o $@ $<
+	$(CC) $(CFLAGS) $(DEBUG_FLAGS) -dc --compiler-options '-fPIC' -o $@ $<
 
 $(TEST_KERNEL_LIB) : $(TEST_KERNEL_LIB_O)
-	$(LD) $(LDFLAGS) -g -G -shared -o lib$@ $^
+	$(LD) $(LDFLAGS) $(DEBUG_FLAGS) -shared -o lib$@ $^
 
 $(TEST_KERNEL_LIB_CALL_O) : $(TEST_KERNEL_LIB_CALL_O:.o=.c)
 	$(HOST_CC) -c -o $@ $<

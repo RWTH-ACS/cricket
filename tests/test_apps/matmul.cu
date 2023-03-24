@@ -8,7 +8,7 @@
 #include "cricket-cuda.h"
 
 #define N 32
-#define ITERATIONS 1024*128*8*16
+#define ITERATIONS 1024*128*4
 const int blocksize = 32;
 
 #ifndef RANDOM_INIT
@@ -265,7 +265,7 @@ int main()
     dim3 dimBlock( blocksize, 1 );
     dim3 dimGrid( 1, 1);
     kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
-    //kernel_no_param<<<dimGrid, dimBlock>>>();
+    kernel_no_param<<<dimGrid, dimBlock>>>();
     //void *args = NULL;
     //int result = cudaLaunchKernel((void*)kernel_no_param, dimGrid, dimBlock, &args, 0LL, NULL);
 
