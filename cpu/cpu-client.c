@@ -168,6 +168,7 @@ void __attribute__((constructor)) init_rpc(void)
     int_result result_2;
     char *printmessage_1_arg1 = "hello";
 
+    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     init_log(LOG_LEVEL, __FILE__);
     rpc_connect();
 

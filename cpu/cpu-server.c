@@ -183,7 +183,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     char *command = NULL;
     act.sa_handler = int_handler;
     sigaction(SIGINT, &act, NULL);
-
+    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     init_log(LOG_LEVEL, __FILE__);
 
     #ifdef WITH_IB

@@ -96,6 +96,11 @@ endif
 ifdef LOG
 CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
 endif
+
+ifdef LOGN
+CC_FLAGS += -DLOG_LEVEL=$(LOGN)
+endif
+
 ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
