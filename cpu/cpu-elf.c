@@ -45,8 +45,8 @@ struct  __attribute__((__packed__)) fat_text_header
     uint32_t obj_name_offset;
     uint32_t obj_name_len;
     uint64_t flags;
-    uint64_t zero;
-    uint64_t unknown2;
+    uint64_t zero;      //Alignment for compression?
+    uint64_t unknown2;  //Compression related information (deflated size?)
 };
 
 #define FATBIN_FLAG_64BIT     0x0000000000000001LL
@@ -64,9 +64,9 @@ static int flag_to_str(char** str, uint64_t flag)
 }
 
 static int fat_header_decode(void *fat, 
-                                       struct fat_elf_header **fat_elf_header,
-                                       struct fat_text_header **fat_text_header,
-                                       void **fat_text_body_ptr)
+                            struct fat_elf_header **fat_elf_header,
+                            struct fat_text_header **fat_text_header,
+                            void **fat_text_body_ptr)
 {
     struct fat_elf_header* feh;
     struct fat_text_header* fth;
@@ -110,7 +110,8 @@ static int fat_header_decode(void *fat,
         fth->zero);
     fat_ptr += sizeof(struct fat_header);
     *fat_text_body_ptr = fat_text_header_ptr + fth->header_size;
-    if (fth->flags & FATBIN_FLAG_DEBUG) {
+    if (fth->flags & FATBIN_FLAG_DEBUG || fth->flags & FATBIN_FLAG_COMPRESS) {
+       LOGE(LOG_DBG(1), "skipping extra byte \"%#02x\"", *((uint8_t*)*fat_text_body_ptr));
         *fat_text_body_ptr += 1;
     }
 
@@ -163,6 +164,15 @@ int elf_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fa
     //     printf("%02x ", ((uint8_t*)fat_text_body_ptr)[i]);
     // }
     // printf("\n");
+
+    if (fat_text_header->flags & FATBIN_FLAG_COMPRESS) {
+        LOGE(LOG_WARNING, "fatbin contains compressed device code. This is not supported yet.");
+        return -1;
+    }
+    if (fat_text_header->flags & FATBIN_FLAG_DEBUG) {
+        LOGE(LOG_WARNING, "fatbin contains debug information. This is not supported yet.");
+        return -1;
+    }
 
     if (elf_parameter_info(kernel_infos, fat_text_body_ptr, fat_elf_header->fat_size) != 0) {
         LOGE(LOG_ERROR, "error getting symbol table");
@@ -405,7 +415,7 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
     return ret;
 }
 
-#define ELF_DUMP_TO_FILE 1
+//#define ELF_DUMP_TO_FILE 1
 
 int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
 {

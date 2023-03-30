@@ -291,7 +291,7 @@ int cpu_utils_contains_kernel(const char *path)
  cleanup:
     close(output);
     wait(&child_exit);
-    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
+    LOG(LOG_DBG(1), "child exit code: %d", child_exit);
  out:
     free(line);
     return ret == 0 && child_exit == 0;
