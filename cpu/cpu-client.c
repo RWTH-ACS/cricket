@@ -187,6 +187,8 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "list init failed.");
     }
 
+    elf_init();
+
     if (cpu_utils_parameter_info(&kernel_infos, "/proc/self/exe") != 0) {
         LOG(LOG_ERROR, "error while getting parameter size. Check whether "
                        "cuobjdump binary is in PATH! Trying anyway (will only "

@@ -54,6 +54,11 @@ struct  __attribute__((__packed__)) fat_text_header
 #define FATBIN_FLAG_LINUX     0x0000000000000010LL
 #define FATBIN_FLAG_COMPRESS  0x0000000000002000LL
 
+void elf_init(void)
+{
+    bfd_init();
+}
+
 static int flag_to_str(char** str, uint64_t flag)
 {
     return asprintf(str, "64Bit: %s, Debug: %s, Linux: %s, Compress %s",
@@ -454,7 +459,6 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         goto cleanup;
     }
 
-    bfd_init();
 
     if ((bfd = bfd_openstreamr("", "elf64-little", fd)) == NULL) {
         LOGE(LOG_ERROR, "bfd_openr failed");

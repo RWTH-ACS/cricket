@@ -15,7 +15,7 @@ struct fat_header {
     uint64_t zero;
 };
 
-
+void elf_init(void);
 int elf_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fatbin_mem, unsigned* fatbin_size);
 
 int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize);
