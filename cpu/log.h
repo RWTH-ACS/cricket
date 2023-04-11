@@ -38,6 +38,8 @@ else loggfe(level, __LINE__, __FILE__, __VA_ARGS__)
 #define LOG_DEBUG 3
 #define LOG_DBG(i) LOG_DEBUG + i
 
+#define DELTA_TIME 1
+
 typedef char log_level;
 
 struct log_data{
