@@ -16,7 +16,7 @@
 #include "cpu-utils.h"
 #include "cpu_rpc_prot.h"
 #include "list.h"
-#include "cpu-elf.h"
+#include "cpu-elf2.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -187,7 +187,9 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "list init failed.");
     }
 
-    elf_init();
+    if (elf2_init() != 0) {
+        LOGE(LOG_ERROR, "libelf init failed");
+    }
 
     if (cpu_utils_parameter_info(&kernel_infos, "/proc/self/exe") != 0) {
         LOG(LOG_ERROR, "error while getting parameter size. Check whether "
@@ -337,7 +339,7 @@ void **__cudaRegisterFatBinary(void *fatCubin)
 
     mem_data rpc_fat = { .mem_data_len = 0, .mem_data_val = NULL };
 
-    if (elf_get_fatbin_info((struct fat_header *)fatCubin,
+    if (elf2_get_fatbin_info((struct fat_header *)fatCubin,
                                 &kernel_infos,
                                 (void **)&rpc_fat.mem_data_val,
                                 &rpc_fat.mem_data_len) != 0) {

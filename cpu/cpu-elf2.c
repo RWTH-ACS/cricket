@@ -5,13 +5,13 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <libelf.h>
+#include <gelf.h>
 
 #include "cpu-common.h"
 #include "log.h"
-#include "cpu-elf.h"
+#include "cpu-elf2.h"
 #include "cpu-utils.h"
-
-#include "bfd_extracts.h"
 
 #define uint16_t unsigned short
 #define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
@@ -38,15 +38,16 @@ struct  __attribute__((__packed__)) fat_text_header
     uint16_t unknown1;
     uint32_t header_size;
     uint64_t fatbin_size;
-    uint64_t compressed_size; //Compression related information
+    uint64_t compressed_size; // Compression related information
     uint16_t minor;
     uint16_t major;
     uint32_t arch;
     uint32_t obj_name_offset;
     uint32_t obj_name_len;
     uint64_t flags;
-    uint64_t zero;      //Alignment for compression?
-    uint64_t unknown2;  //Compression related information (deflated size?)
+    uint64_t zero;      // Alignment for compression?
+    uint64_t decompressed_len;  // Length of compressed data. There is an uncompressed footer
+                              // so this is generally smaller than fatbin_size
 };
 
 #define FATBIN_FLAG_64BIT     0x0000000000000001LL
@@ -54,9 +55,12 @@ struct  __attribute__((__packed__)) fat_text_header
 #define FATBIN_FLAG_LINUX     0x0000000000000010LL
 #define FATBIN_FLAG_COMPRESS  0x0000000000002000LL
 
-void elf_init(void)
+int elf2_init(void)
 {
-    bfd_init();
+    if (elf_version(EV_CURRENT) == EV_NONE) {
+        LOGE(LOG_ERROR, "ELF library initialization failed: %s", elf_errmsg(-1));
+        return -1;
+    }
 }
 
 static int flag_to_str(char** str, uint64_t flag)
@@ -99,8 +103,8 @@ static int fat_header_decode(void *fat,
     fat_ptr = fat_text_header_ptr = (void*)feh + feh->header_size;
 
     fth = (struct fat_text_header*)(fat_text_header_ptr);
-    LOGE(LOG_DBG(1), "fat_text_header: fatbin_kind: %#x, header_size %#x, fatbin_size %#x, some_offset %#x.\
-        minor %#x, major %#x, arch %d, flags %#x",
+    LOGE(LOG_DBG(1), "fat_text_header: fatbin_kind: %#x, header_size %#x, fatbin_size %#x, compressed_size %#x,\
+        minor %#x, major %#x, arch %d, flags %#x, compressed_len %#x",
         fth->kind,
         fth->header_size,
         fth->fatbin_size,
@@ -108,10 +112,10 @@ static int fat_header_decode(void *fat,
         fth->minor,
         fth->major,
         fth->arch,
-        fth->flags);
-    LOGE(LOG_DBG(1), "unknown fields: unknown1: %#x, unknown2: %#x, zeros: %#x",
+        fth->flags,
+        fth->decompressed_len);
+    LOGE(LOG_DBG(1), "unknown fields: unknown1: %#x, zeros: %#x",
         fth->unknown1,
-        fth->unknown2,
         fth->zero);
     fat_ptr += sizeof(struct fat_header);
     *fat_text_body_ptr = fat_text_header_ptr + fth->header_size;
@@ -139,7 +143,7 @@ static int fat_header_decode(void *fat,
     return 0;
 }
 
-int elf_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fatbin_mem, unsigned* fatbin_size)
+int elf2_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fatbin_mem, unsigned* fatbin_size)
 {
     struct fat_elf_header* fat_elf_header;
     struct fat_text_header* fat_text_header;
@@ -172,15 +176,15 @@ int elf_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fa
 
     if (fat_text_header->flags & FATBIN_FLAG_COMPRESS) {
         LOGE(LOG_WARNING, "fatbin contains compressed device code. This is not supported yet.");
-        return -1;
+        //return -1;
     }
     if (fat_text_header->flags & FATBIN_FLAG_DEBUG) {
         LOGE(LOG_WARNING, "fatbin contains debug information. This is not supported yet.");
         return -1;
     }
 
-    if (elf_parameter_info(kernel_infos, fat_text_body_ptr, fat_elf_header->fat_size) != 0) {
-        LOGE(LOG_ERROR, "error getting symbol table");
+    if (elf2_parameter_info(kernel_infos, fat_text_body_ptr, fat_elf_header->fat_size) != 0) {
+        LOGE(LOG_ERROR, "error getting parameter info");
         return -1;
     }
 
@@ -206,100 +210,12 @@ int elf_get_fatbin_info(struct fat_header *fatbin, list *kernel_infos, void** fa
     return 0;
 }
 
-size_t cudabfd_size = 0;
-int (*orig_cudabfd_stat)(struct bfd *abfd, struct stat* sb);
-int cudabfd_stat(struct bfd *bfd, struct stat *sb)
-{
-    //int ret = orig_cudabfd_stat(bfd, sb);
-    sb->st_size = cudabfd_size;
-    return 0;
-}
-
-static void print_sections(asection *sections)
-{
-    for (asection *section = sections; section != NULL; section = section->next) {
-        printf("section: %s (len: %#x)\n", section->name, section->size);
-    }
-}
-
 static void print_hexmem(void *mem, size_t len)
 {
     for (int i=0; i<len; i++) {
         printf("%02x ", ((uint8_t*)mem)[i]);
     }
     printf("\n");
-}
-
-struct symtab {
-    asymbol **symtab;
-    size_t symtab_size;
-    size_t symtab_length;
-};
-
-static int symtab_init(bfd *bfd, struct symtab *st)
-{
-    if (st == NULL || bfd == NULL) {
-        LOGE(LOG_ERROR, "at least one parameter is NULL");
-        return -1;
-    }
-
-    if (memset(st, 0, sizeof(struct symtab)) == NULL) {
-        LOGE(LOG_ERROR, "memset failed");
-        return -1;
-    }
-
-    if ((st->symtab_size = bfd_get_symtab_upper_bound(bfd)) == -1) {
-        LOGE(LOG_ERROR, "bfd_get_symtab_upper_bound failed");
-        return -1;
-    }
-
-    if ((st->symtab = (asymbol **)malloc(st->symtab_size)) == NULL) {
-        LOGE(LOG_ERROR, "malloc symtab failed");
-        return -1;
-    }
-
-    if ((st->symtab_length = bfd_canonicalize_symtab(bfd, st->symtab)) == 0) {
-        LOG(LOG_WARNING, "symtab is empty...");
-    } else {
-        LOGE(LOG_DBG(1), "%lu symtab entries", st->symtab_length);
-    }
-    return 0;
-}
-
-static void symtab_free(struct symtab* st)
-{
-    if (st == NULL) {
-        return;
-    }
-    free(st->symtab);
-    memset(st, 0, sizeof(struct symtab));
-}
-
-static int symtab_symbol_at(struct symtab* st, size_t index, const char** sym)
-{
-    if (st == NULL || sym == NULL) {
-        LOGE(LOG_ERROR, "at least one parameter is NULL");
-        return -1;
-    }
-
-    if (index >= st->symtab_length+1 || index == 0) {
-        LOGE(LOG_ERROR, "index out of bounds");
-        return -1;
-    }
-    // The first entry of any symbol table is for undefined symbols and is always zero.
-    // Libbfd ignores this entry, but readelf does not so there is a difference of one
-    // between libbfd indices and those referenced by the .nv.info sections.
-    *sym = bfd_asymbol_name(st->symtab[index-1]);
-    return 0;
-}
-
-static void symtab_print(struct symtab* st)
-{
-    const char* sym;
-    for (int i = 1; i < st->symtab_length+1; ++i) {
-        symtab_symbol_at(st, i, &sym);
-        printf("%#x: name: %s\n", i, sym);
-    }
 }
 
 #define EIATTR_PARAM_CBANK              0xa
@@ -322,7 +238,43 @@ static void symtab_print(struct symtab* st)
 #define EIFMT_HVAL                      0x3
 #define EIFMT_SVAL                      0x4
 
-static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, size_t memsize)
+
+static int get_section_by_name(Elf *elf, const char *name, Elf_Scn **section)
+{
+    Elf_Scn *scn = NULL;
+    GElf_Shdr shdr;
+    char *section_name = NULL;
+    size_t str_section_index;
+
+    if (elf == NULL || name == NULL || section == NULL) {
+        LOGE(LOG_ERROR, "invalid argument");
+        return -1;
+    }
+
+    if (elf_getshdrstrndx(elf, &str_section_index) != 0) {
+        LOGE(LOG_ERROR, "elf_getshstrndx Wfailed");
+        return -1;
+    }
+
+    while ((scn = elf_nextscn(elf, scn)) != NULL) {
+        if (gelf_getshdr(scn, &shdr) != &shdr) {
+            LOGE(LOG_ERROR, "gelf_getshdr failed");
+            return -1;
+        }
+        if ((section_name = elf_strptr(elf, str_section_index, shdr.sh_name)) == NULL) {
+            LOGE(LOG_ERROR, "elf_strptr failed");
+            return -1;
+        }
+        //printf("%s, %#0x %#0x\n", section_name, shdr.sh_flags, shdr.sh_type);
+        if (strcmp(section_name, name) == 0) {
+            *section = scn;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static int get_parm_for_kernel(Elf *elf, kernel_info_t *kernel, void* memory, size_t memsize)
 {
     struct __attribute__((__packed__)) nv_info_kernel_entry {
         uint8_t format;
@@ -340,13 +292,14 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
         // missing are "space" (possible padding info?), and "Pointee's logAlignment"
         // these were always 0 in the kernels I tested
     };
-    asection *section = NULL;
     int ret = -1;
     char *section_name = NULL;
+    Elf_Scn *section = NULL;
+    Elf_Data *data = NULL;
 
-    if (bfd == NULL || kernel == NULL || kernel->name == NULL || memory == NULL) {
+    if (kernel == NULL || kernel->name == NULL || memory == NULL) {
         LOGE(LOG_ERROR, "at least one parameter is NULL");
-        return ret;
+        goto cleanup;
     }
     kernel->param_num = 0;
     kernel->param_offsets = NULL;
@@ -354,23 +307,25 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
 
     if (asprintf(&section_name, ".nv.info.%s", kernel->name) == -1) {
         LOGE(LOG_ERROR, "asprintf failed");
-        return ret;
-    }
-
-    if ((section = bfd_get_section_by_name(bfd, section_name))== NULL) {
-        LOGE(LOG_ERROR, "%s section not found", section_name);
         goto cleanup;
     }
 
-    LOGE(LOG_DBG(1), "name: %s, index: %d, size 0x%lx, pos:%p", section->name,
-        section->index, section->size, (void *)section->filepos);
+    if (get_section_by_name(elf, section_name, &section) != 0) {
+        LOGE(LOG_ERROR, "section %s not found", section_name);
+        goto cleanup;
+    }
 
-    //print_hexmem(memory+section->filepos, section->size);
+    if ((data = elf_getdata(section, NULL)) == NULL) {
+        LOGE(LOG_ERROR, "error getting section data");
+        goto cleanup;
+    }
+
+    //print_hexmem(data->d_buf, data->d_size);
 
     size_t secpos=0;
     int i=0;
-    while (secpos < section->size) {
-        struct nv_info_kernel_entry *entry = (struct nv_info_kernel_entry*)(memory+section->filepos+secpos);
+    while (secpos < data->d_size) {
+        struct nv_info_kernel_entry *entry = (struct nv_info_kernel_entry*)(data->d_buf+secpos);
         // printf("entry %d: format: %#x, attr: %#x, ", i++, entry->format, entry->attribute);
         if (entry->format == EIFMT_SVAL && entry->attribute == EIATTR_KPARAM_INFO) {
             if (entry->values_size != 0xc) {
@@ -380,7 +335,7 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
             struct nv_info_kparam_info *kparam = (struct nv_info_kparam_info*)&entry->values;
             // printf("kparam: index: %#x, ordinal: %#x, offset: %#x, unknown: %#0x, cbank: %#0x, size: %#0x\n",
             //     kparam->index, kparam->ordinal, kparam->offset, kparam->unknown, kparam->cbank, kparam->size);
-            LOGE(LOG_DEBUG, "param %d: offset: %#x, size: %#x", kparam->ordinal, kparam->offset, kparam->size);
+            LOGE(LOG_DBG(1), "param %d: offset: %#x, size: %#x", kparam->ordinal, kparam->offset, kparam->size);
             if (kparam->ordinal >= kernel->param_num) {
                 kernel->param_offsets = realloc(kernel->param_offsets,
                                               (kparam->ordinal+1)*sizeof(uint16_t));
@@ -413,16 +368,136 @@ static int get_parm_for_kernel(bfd *bfd,  kernel_info_t *kernel, void* memory, s
             secpos += sizeof(struct nv_info_kernel_entry)-4;
         }
     }
-    // printf("remaining: %d\n", section->size % sizeof(struct nv_info_kernel_entry));
+    // printf("remaining: %d\n", data->d_size % sizeof(struct nv_info_kernel_entry));
     ret = 0;
  cleanup:
     free(section_name);
     return ret;
 }
 
-//#define ELF_DUMP_TO_FILE 1
 
-int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
+static int get_symtab(Elf *elf, Elf_Data **symbol_table_data, size_t *symbol_table_size, GElf_Shdr *symbol_table_shdr)
+{
+    GElf_Shdr shdr;
+    Elf_Scn *section = NULL;
+
+    if (elf == NULL || symbol_table_data == NULL || symbol_table_size == NULL) {
+        LOGE(LOG_ERROR, "invalid argument");
+        return -1;
+    }
+
+    if (get_section_by_name(elf, ".symtab", &section) != 0) {
+        LOGE(LOG_ERROR, "could not find .nv.info section");
+        return -1;
+    }
+
+    if (gelf_getshdr(section, &shdr) == NULL) {
+        LOGE(LOG_ERROR, "gelf_getshdr failed");
+        return -1;
+    }
+
+    if (symbol_table_shdr != NULL) {
+        *symbol_table_shdr = shdr;
+    }
+
+    if(shdr.sh_type != SHT_SYMTAB) {
+        LOGE(LOG_ERROR, "not a symbol table: %d", shdr.sh_type);
+        return -1;
+    }
+
+    if ((*symbol_table_data = elf_getdata(section, NULL)) == NULL) {
+        LOGE(LOG_ERROR, "elf_getdata failed");
+        return -1;
+    }
+
+    *symbol_table_size = shdr.sh_size / shdr.sh_entsize;
+
+    return 0;
+}
+
+static void print_symtab(Elf *elf)
+{
+    GElf_Sym sym;
+    Elf_Data *symbol_table_data = NULL;
+    GElf_Shdr shdr;
+    size_t symnum;
+    int i = 0;
+
+    if (get_symtab(elf, &symbol_table_data, &symnum, &shdr) != 0) {
+        LOGE(LOG_ERROR, "could not get symbol table");
+        return;
+    }
+
+    LOGE(LOG_DEBUG, "found %d symbols", symnum);
+
+    while (gelf_getsym(symbol_table_data, i, &sym) != NULL) {
+        printf("sym %d: name: %s, value: %#x, size: %#x, info: %#x, other: %#x, shndx: %#x\n", i,
+               elf_strptr(elf, shdr.sh_link, sym.st_name),
+               sym.st_value, sym.st_size, sym.st_info, sym.st_other, sym.st_shndx);
+        i++;
+    }
+}
+
+static int check_elf(Elf *elf)
+{
+    Elf_Kind ek;
+    GElf_Ehdr ehdr;
+
+    int elfclass;
+    char *id;
+    size_t program_header_num;
+    size_t sections_num;
+    size_t section_str_num;
+    int ret = -1;
+
+    if ((ek = elf_kind(elf)) != ELF_K_ELF) {
+        LOGE(LOG_ERROR, "elf_kind is not ELF_K_ELF, but %d", ek);
+        goto cleanup;
+    }
+
+    if (gelf_getehdr(elf, &ehdr) == NULL) {
+        LOGE(LOG_ERROR, "gelf_getehdr failed");
+        goto cleanup;
+    }
+
+    if ((elfclass = gelf_getclass(elf)) == ELFCLASSNONE) {
+        LOGE(LOG_ERROR, "gelf_getclass failed");
+        goto cleanup;
+    }
+
+    if ((id = elf_getident(elf, NULL)) == NULL) {
+        LOGE(LOG_ERROR, "elf_getident failed");
+        goto cleanup;
+    }
+
+    LOGE(LOG_DBG(1), "elfclass: %d-bit; elf ident[0..%d]: %7s",
+        (elfclass == ELFCLASS32) ? 32 : 64,
+        EI_ABIVERSION, id);
+
+    if (elf_getshdrnum(elf, &sections_num) != 0) {
+        LOGE(LOG_ERROR, "elf_getphdrnum failed");
+        goto cleanup;
+    }
+
+    if (elf_getphdrnum(elf, &program_header_num) != 0) {
+        LOGE(LOG_ERROR, "elf_getshdrnum failed");
+        goto cleanup;
+    }
+
+    if (elf_getshdrstrndx(elf, &section_str_num) != 0) {
+        LOGE(LOG_ERROR, "elf_getshstrndx Wfailed");
+        goto cleanup;
+    }
+
+    LOGE(LOG_DBG(1), "elf contains %d sections, %d program_headers, string table section: %d",
+        sections_num, program_header_num, section_str_num);
+
+    ret = 0;
+cleanup:
+    return ret;
+}
+
+int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
 {
     struct __attribute__((__packed__)) nv_info_entry{
         uint8_t format;
@@ -432,89 +507,88 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         uint32_t value;
     };
 
-    bfd *bfd = NULL;
-    FILE *fd = NULL;
-    asection *section = NULL;
-    int ret = -1;
-    struct symtab symtab = {0};
-    char path[256];
-    struct bfd_iovec *iovec = NULL;
-    const struct bfd_iovec *orig_iovec = NULL;
+    Elf *elf = NULL;
+    Elf_Scn *section = NULL;
+    Elf_Data *data = NULL, *symbol_table_data = NULL;
+    GElf_Shdr symtab_shdr;
+    size_t symnum;
+    int i = 0;
+    GElf_Sym sym;
 
+    int ret = -1;
     kernel_info_t *ki = NULL;
+    const char *kernel_str;
 
     if (memory == NULL || memsize == 0) {
         LOGE(LOG_ERROR, "memory was NULL or memsize was 0");
         return -1;
     }
 
+//#define ELF_DUMP_TO_FILE 1
+
 #ifdef ELF_DUMP_TO_FILE
     FILE* fd2 = fopen("/tmp/cricket-elf-dump", "wb");
-    fwrite(memory, memsize, 1, fd2);
+    fwrite(memory-1, memsize, 1, fd2);
     fclose(fd2);
 #endif
 
-    if ((fd = fmemopen(memory, memsize, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "fmemopen failed");
+
+    if ((elf = elf_memory(memory, memsize)) == NULL) {
+        LOGE(LOG_ERROR, "elf_memory failed");
         goto cleanup;
     }
 
-
-    if ((bfd = bfd_openstreamr("", "elf64-little", fd)) == NULL) {
-        LOGE(LOG_ERROR, "bfd_openr failed");
+    if (check_elf(elf) != 0) {
+        LOGE(LOG_ERROR, "check_elf failed");
         goto cleanup;
     }
 
-    //We change the iovec of cudabfd so we can report the correct filesize
-    //because in-memory files always report a file size of 0, which creates 
-    //problems elsewhere
-    cudabfd_size = memsize;
-    orig_cudabfd_stat = bfd->iovec->bstat;
-    orig_iovec = bfd->iovec;
-    iovec = (struct bfd_iovec*)malloc(sizeof(struct bfd_iovec));
-    memcpy(iovec, bfd->iovec, sizeof(struct bfd_iovec));
-    iovec->bstat = cudabfd_stat;
-    bfd->iovec = iovec;
+    //print_symtab(elf);
 
-    if (!bfd_check_format(bfd, bfd_object)) {
-        LOGE(LOG_ERROR, "bfd has wrong format");
-        goto cleanup;
-    }
-    // print_sections(bfd->sections);
-
-    if  (symtab_init(bfd, &symtab) != 0) {
-        LOGE(LOG_ERROR, "symtab_init failed");
-        goto cleanup;
-    }
-    // symtab_print(&symtab);
-
-    section = bfd_get_section_by_name(bfd, ".nv.info");
-    if (section == NULL) {
-        LOGE(LOG_ERROR, ".nv.info section not found");
+    if (get_symtab(elf, &symbol_table_data, &symnum, &symtab_shdr) != 0) {
+        LOGE(LOG_ERROR, "could not get symbol table");
         goto cleanup;
     }
 
-    LOGE(LOG_DBG(1), "name: %s, index: %d, size 0x%lx, pos:%p", section->name,
-        section->index, section->size, (void *)section->filepos);
-    //print_hexmem(memory+section->filepos, section->size); 
-    int i = 0;
-    const char *kernel_str;
-    for (size_t secpos=0; secpos < section->size; secpos += sizeof(struct nv_info_entry)) {
-        struct nv_info_entry *entry = (struct nv_info_entry*)(memory+section->filepos+secpos);
+    if (get_section_by_name(elf, ".nv.info", &section) != 0) {
+        LOGE(LOG_ERROR, "could not find .nv.info section");
+        goto cleanup;
+    }
+
+    if ((data = elf_getdata(section, NULL)) == NULL) {
+        LOGE(LOG_ERROR, "elf_getdata failed");
+        goto cleanup;
+    }
+
+    for (size_t secpos=0; secpos < data->d_size; secpos += sizeof(struct nv_info_entry)) {
+        struct nv_info_entry *entry = (struct nv_info_entry *)(data->d_buf+secpos);
+        LOGE(LOG_DBG(1), "%d: format: %#x, attr: %#x, values_size: %#x kernel: %#x, sval: %#x(%d)", 
+        i++, entry->format, entry->attribute, entry->values_size, entry->kernel_id, 
+        entry->value, entry->value);
+
         if (entry->values_size != 8) {
             LOGE(LOG_ERROR, "unexpected values_size: %#x", entry->values_size);
             continue;
         }
-        // printf("%d: format: %#x, attr: %#x, values_size: %#x kernel: %#x, sval: %#x(%d)\n", 
-        //         i++, entry->format, entry->attribute, entry->values_size, entry->kernel_id, 
-        //         entry->value, entry->value);
+
         if (entry->attribute != EIATTR_FRAME_SIZE) {
             continue;
         }
-        if (symtab_symbol_at(&symtab, entry->kernel_id, &kernel_str) != 0) {
-            LOGE(LOG_ERROR, "symtab_symbol_at failed for entry %d", i);
+
+        if (entry->kernel_id >= symnum) {
+            LOGE(LOG_ERROR, "kernel_id out of bounds: %#x", entry->kernel_id);
             continue;
         }
+
+        if (gelf_getsym(symbol_table_data, entry->kernel_id, &sym) == NULL) {
+            LOGE(LOG_ERROR, "gelf_getsym failed for entry %d", entry->kernel_id);
+            continue;
+        }
+        if ((kernel_str = elf_strptr(elf, symtab_shdr.sh_link, sym.st_name) ) == NULL) {
+            LOGE(LOG_ERROR, "strptr failed for entry %d", entry->kernel_id);
+            continue;
+        }
+
         if (utils_search_info(kernel_infos, kernel_str) != NULL) {
             continue;
         }
@@ -536,7 +610,7 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
             goto cleanup;
         }
 
-        if (get_parm_for_kernel(bfd, ki, memory, memsize) != 0) {
+        if (get_parm_for_kernel(elf, ki, memory, memsize) != 0) {
             LOGE(LOG_ERROR, "get_parm_for_kernel failed for kernel %s", kernel_str);
             goto cleanup;
         }
@@ -544,95 +618,8 @@ int elf_parameter_info(list *kernel_infos, void* memory, size_t memsize)
 
     ret = 0;
  cleanup:
-    free(iovec);
-    if (fd != NULL)
-        fclose(fd);
-    symtab_free(&symtab);
-    if (bfd != NULL) {
-        // Also closes fd
-        bfd_close(bfd);
+    if (elf != NULL) {
+        elf_end(elf);
     }
-    return ret;
-}
-
-
-void* elf_symbol_address(const char* file, char *symbol)
-{
-    bfd *hostbfd = NULL;
-    asection *section;
-    FILE *hostbfd_fd = NULL;
-    void *ret = NULL;
-    size_t symtab_size, symtab_length;
-    asymbol **symtab = NULL;
-    char path[256];
-    size_t length;
-    const char self[] = "/proc/self/exe";
-    if (file == NULL) {
-        file = self;
-    }
-
-
-    bfd_init();
-
-    length = readlink(file, path, sizeof(path));
-
-    /* Catch some errors: */
-    if (length < 0) {
-        LOGE(LOG_WARNING, "error resolving symlink %s.", file);
-    } else if (length >= 256) {
-        LOGE(LOG_WARNING, "path was too long and was truncated.");
-    } else {
-        path[length] = '\0';
-        LOG(LOG_DEBUG, "opening '%s'", path);
-    }
-
-    if ((hostbfd_fd = fopen(file, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "fopen failed");
-        return NULL;
-    }
-
-    if ((hostbfd = bfd_openstreamr(file, NULL, hostbfd_fd)) == NULL) {
-        LOGE(LOG_ERROR, "bfd_openr failed on %s",
-             file);
-        fclose(hostbfd_fd);
-        goto cleanup;
-    }
-
-    if (!bfd_check_format(hostbfd, bfd_object)) {
-        LOGE(LOG_ERROR, "%s has wrong bfd format",
-             file);
-        goto cleanup;
-    }
-
-    if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) == -1) {
-        LOGE(LOG_ERROR, "bfd_get_symtab_upper_bound failed");
-        return NULL;
-    }
-
-    if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
-        LOGE(LOG_ERROR, "malloc symtab failed");
-        return NULL;
-    }
-
-    if ((symtab_length = bfd_canonicalize_symtab(hostbfd, symtab)) == 0) {
-        LOG(LOG_WARNING, "symtab is empty...");
-    } else {
-        //printf("%lu symtab entries\n", symtab_length);
-    }
-
-    for (int i = 0; i < symtab_length; ++i) {
-        if (strcmp(bfd_asymbol_name(symtab[i]), CRICKET_ELF_REGFUN) == 0) {
-            ret = (void*)bfd_asymbol_value(symtab[i]);
-            break;
-        }
-        //printf("%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
-        //       bfd_asymbol_value(symtab[i]));
-    }
-
-
- cleanup:
-    free(symtab);
-    if (hostbfd != NULL)
-        bfd_close(hostbfd);
     return ret;
 }

@@ -8,7 +8,6 @@ CLIENT = cricket-client.so
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
 SUBMODULE_LIBS = ../submodules/lib
-BFD_INC_PREFIX = ../submodules/cuda-gdb/bfd
 
 CC = gcc
 LD = gcc
@@ -42,7 +41,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 gsched_none.c 			    \
 			 oob.c 					    \
 			 mt-memcpy.c				\
-			 cpu-elf.c
+			 cpu-elf2.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -59,7 +58,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
 			 mt-memcpy.c				\
-			 cpu-elf.c
+			 cpu-elf2.c
 
 # 			 cpu-client-driver-hidden.c \
 
@@ -75,14 +74,13 @@ OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
-INC_FLAGS += -I$(BFD_INC_PREFIX)
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lbfd
+LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running

@@ -290,14 +290,14 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
-    void (*cudaRegisterAllv)(void) =
-        (void(*)(void)) elf_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
-    LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
-    if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
-    } else {
-        cudaRegisterAllv();
-    }
+    // void (*cudaRegisterAllv)(void) =
+    //     (void(*)(void)) elf_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
+    // LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
+    // if (cudaRegisterAllv == NULL) {
+    //     LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+    // } else {
+    //     cudaRegisterAllv();
+    // }
 
     sched = &sched_none; 
     if (sched->init() != 0) {

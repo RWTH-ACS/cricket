@@ -9,7 +9,7 @@
 #include <openssl/md5.h>
 #include <linux/limits.h>
 #include "rpc/types.h"
-#include <bfd.h>
+#include <sys/stat.h>
 
 #include "cpu-utils.h"
 #include "cpu-common.h"
