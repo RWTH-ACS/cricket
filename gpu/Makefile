@@ -20,7 +20,7 @@ INC_DIRS := -I$(CUDA_GDB_PATH)/bfd \
 LIB_DIR := ../submodules/lib
 BUILD_DIR := build
 
-DLIBS = -lncurses -lpthread -lm -lz -ldl -lexpat -llzma -Wl,--dynamic-list=utils/proc-service.list
+DLIBS = -lncurses -lpthread -lm -lz -ldl -lexpat -llzma -lmpfr -Wl,--dynamic-list=utils/proc-service.list
 # Order of .a files is important!
 SLIBS = libgdb.a libbfd.a libiberty.a libreadline.a libdecnumber.a libcudacore.a libopcodes.a libgnu.a
 SLIBS:= $(addprefix $(LIB_DIR)/, $(SLIBS))
