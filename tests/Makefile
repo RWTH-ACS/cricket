@@ -28,8 +28,15 @@ bin: cpu test_apps
 	mkdir -p bin
 	cp cpu/unit/*.test bin
 	cp test_apps/*.testapp bin
+<<<<<<< HEAD
 ifndef NOSAMPLES
 	cp samples/samples-bin/*.sample bin
+=======
+	cp samples/matrixMul/matrixMul bin
+	cp samples/bandwidthTest/bandwidthTest bin
+ifneq (,$(test -f "samples/nbody/nbody"))
+	cp samples/nbody/nbody bin
+>>>>>>> 20e4cae (Only copy nbody if it was compiled.)
 endif
 
 clean:
