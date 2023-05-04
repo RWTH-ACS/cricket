@@ -77,11 +77,10 @@ static void rpc_connect(void)
 
 #endif // WITH_IB
 
-    LOGE(LOG_INFO, "test\n");
-    if (getenv("CRICKET_NOHASH")) {
-        prog = 99;
-        vers = 1;
-    } else if (cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
+    //TODO: This is not necessary anymore. We should fix a static prog/vers
+    prog = 99;
+    vers = 1;
+    if (getenv("CRICKET_HASH") && cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
         LOGE(LOG_ERROR, "error while creating binary checksum");
         exit(0);
     }
@@ -191,11 +190,11 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "libelf init failed");
     }
 
-    if (cpu_utils_parameter_info(&kernel_infos, "/proc/self/exe") != 0) {
-        LOG(LOG_ERROR, "error while getting parameter size. Check whether "
-                       "cuobjdump binary is in PATH! Trying anyway (will only "
-                       "work if there is no kernel in this binary)");
-    }
+    // if (cpu_utils_parameter_info(&kernel_infos, "/proc/self/exe") != 0) {
+    //     LOG(LOG_ERROR, "error while getting parameter size. Check whether "
+    //                    "cuobjdump binary is in PATH! Trying anyway (will only "
+    //                    "work if there is no kernel in this binary)");
+    // }
 #ifdef WITH_IB
     if (ib_init(ib_device, server) != 0) {
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
@@ -335,17 +334,19 @@ void **__cudaRegisterFatBinary(void *fatCubin)
     void **result;
     int rpc_result;
     enum clnt_stat retval_1;
+    size_t fatbin_size;
     LOGE(LOG_DEBUG, "__cudaRegisterFatBinary(fatCubin=%p)", fatCubin);
 
     mem_data rpc_fat = { .mem_data_len = 0, .mem_data_val = NULL };
 
     if (elf2_get_fatbin_info((struct fat_header *)fatCubin,
                                 &kernel_infos,
-                                (void **)&rpc_fat.mem_data_val,
-                                &rpc_fat.mem_data_len) != 0) {
+                                (uint8_t **)&rpc_fat.mem_data_val,
+                                &fatbin_size) != 0) {
         LOGE(LOG_ERROR, "error getting fatbin info");
         return NULL;
     }
+    rpc_fat.mem_data_len = fatbin_size;
 
     // CUDA registers an atexit handler for fatbin cleanup that accesses
     // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.

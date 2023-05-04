@@ -897,7 +897,13 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", resource_mg_get(&rm_functions, (void*)func), cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
+                    resource_mg_get(&rm_functions, (void*)func),
+                    cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z,
+                    cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z,
+                    cuda_args,
+                    sharedMem,
+                    (void*)stream);
 
     *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
                             gridDim.x, gridDim.y, gridDim.z,

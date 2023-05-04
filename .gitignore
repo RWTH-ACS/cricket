@@ -4,6 +4,7 @@ build/
 .clangd
 .project
 .cproject
+*.code-workspace
 .settings/
 .vscode/
 .directory
