@@ -31,7 +31,7 @@
 #include "gdb.h"
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL LOG_INFO
+#define LOG_LEVEL LOG_DEBUG
 #endif
 
 #define CRICKET_PROFILE 1
@@ -1092,6 +1092,8 @@ detach:
 
 int cricket_start(int argc, char *argv[])
 {
+    char* cricket_path;
+    char cmd_str[1024];
     struct cmd_list_element *alias = NULL;
     struct cmd_list_element *prefix_cmd = NULL;
     struct cmd_list_element *cmd = NULL;
@@ -1101,12 +1103,19 @@ int cricket_start(int argc, char *argv[])
         return -1;
     }
 
+    cricket_path = getenv("CRICKET_PATH");
+    if (cricket_path == NULL) {
+	    LOG(LOG_DEBUG, "no cricket path specified. assuming /usr/local/cricket\n");
+	    cricket_path = "/usr/local/cricket";
+    }
+
     gdb_init(argc, argv, argv[2], NULL);
 
     /* load files */
     //exec_file_attach(argv[2], !batch_flag);
     //
-    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
+    snprintf(cmd_str, 1024, "set exec-wrapper env 'LD_PRELOAD=%s/bin/libtirpc.so.3:%s/cpu/cricket-server.so'", cricket_path, cricket_path);
+    execute_command(cmd_str, !batch_flag);
     //execute_command("break main", !batch_flag);
     execute_command("starti", !batch_flag);
     //execute_command("unset exec-wrapper", !batch_flag);
