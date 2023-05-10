@@ -18,7 +18,7 @@
 #include "cpu-server-driver.h"
 #include "rpc/xdr.h"
 #include "cr.h"
-#include "cpu-elf.h"
+#include "cpu-elf2.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -118,23 +118,23 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
 */
 void cricket_so_register(void* dlhandle, char *path)
 {
-    struct link_map *map;
-    dlinfo(dlhandle, RTLD_DI_LINKMAP, &map);
+    // struct link_map *map;
+    // dlinfo(dlhandle, RTLD_DI_LINKMAP, &map);
 
-    // add load location of library to offset in symbol table
-    void (*cudaRegisterAllv)(void) = 
-        (void(*)(void)) elf_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
+    // // add load location of library to offset in symbol table
+    // void (*cudaRegisterAllv)(void) = 
+    //     (void(*)(void)) elf_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
     
-    LOG(LOG_INFO, "found CUDA initialization function at %p + %p = %p", 
-        map->l_addr, cudaRegisterAllv, map->l_addr + cudaRegisterAllv);
+    // LOG(LOG_INFO, "found CUDA initialization function at %p + %p = %p", 
+    //     map->l_addr, cudaRegisterAllv, map->l_addr + cudaRegisterAllv);
 
-    cudaRegisterAllv += map->l_addr;
+    // cudaRegisterAllv += map->l_addr;
     
-    if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
-    } else {
-        cudaRegisterAllv();
-    }
+    // if (cudaRegisterAllv == NULL) {
+    //     LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+    // } else {
+    //     cudaRegisterAllv();
+    // }
 }
 
 bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)

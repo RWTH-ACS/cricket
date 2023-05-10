@@ -204,8 +204,6 @@ program RPC_CD_PROG {
         int          CUDA_FUNC_SET_SHARED_MEM_CONFIG(ptr, int)                  = 313;
         int          CUDA_LAUNCH_COOPERATIVE_KERNEL(ptr, rpc_dim3, 
                           rpc_dim3, mem_data, size_t, ptr)                      = 314;
-        int          CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE(ptr,
-                          rpc_dim3, rpc_dim3, mem_data, size_t, ptr, int, int)  = 315;
         /*int        CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)                  = 316;*/
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
                           mem_data, size_t, ptr)                                = 317;
@@ -301,6 +299,8 @@ program RPC_CD_PROG {
         /* NOT IMPLEMENTED */
 
         /* ### Profiler Control ### */
+        int          CUDA_PROFILER_START(void)                                  = 701;
+        int          CUDA_PROFILER_STOP(void)                                   = 702;
         /* NOT IMPLEMENTED */
 
         /* DRIVER API */

@@ -37,7 +37,7 @@ int server_driver_init(int restore)
 // Does not support checkpoint/restart yet
 bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x)", elf.mem_data_val, elf.mem_data_len);
+    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, key: %#x)", elf.mem_data_val, elf.mem_data_len);
     CUresult res;
     CUmodule module;
     

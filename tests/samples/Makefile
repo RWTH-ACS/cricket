@@ -1,55 +1,82 @@
 CC = gcc
 LD = gcc
-CFLAGS = -Wall -std=gnu99
-ARCH = sm_61
-CUDA_DIR = /usr/local/cuda
+CFLAGS = -Wall -std=gnu99 -g -ggdb
+SAMPLES = samples-bin/matrixMul.compressed.sample \
+		  samples-bin/matrixMul.uncompressed.sample \
+		  samples-bin/nbody.uncompressed.sample \
+		  samples-bin/nbody.compressed.sample \
+		  samples-bin/bandwidthTest.sample
+
+CUDA_PATH = /usr/local/cuda
+SMS = 75 60
+CUDA_SAMPLES_RELEASE = 12.1
+CUDA_SAMPLES_URL = https://github.com/NVIDIA/cuda-samples/archive/refs/tags/v${CUDA_SAMPLES_RELEASE}.tar.gz
 
 PWD = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 .PHONY: all clean distclean
 
-all : matrixMul/matrixMul bandwidthTest/bandwidthTest nbody/nbody
+all : $(SAMPLES)
 
-matrixMul :
-	mkdir -p $(PWD)/matrixMul
-	cp -r $(CUDA_DIR)/samples/0_Simple/matrixMul $(PWD)
-	make -C matrixMul clean
+samples:
+	mkdir -p $@
+	wget ${CUDA_SAMPLES_URL} -O - | tar -xz --strip-components=1 -C $@
 
-matrixMul/matrixMul : matrixMul
-	make -C matrixMul \
-		NVCCFLAGS="-m64 -cudart shared" \
-		GENCODE_FLAGS="-arch=$(ARCH)" \
-		CPATH="$(CUDA_DIR)/samples/common/inc"
+samples-bin:
+	mkdir -p $@
 
-bandwidthTest :
-	mkdir -p $(PWD)/bandwidthTest
-	cp -r $(CUDA_DIR)/samples/1_Utilities/bandwidthTest $(PWD)
-	make -C bandwidthTest clean
+samples-bin/nbody.uncompressed.sample : samples samples-bin
+	make -C samples/Samples/5_Domain_Specific/nbody \
+		clean
+	make -C samples/Samples/5_Domain_Specific/nbody \
+		NVCCFLAGS="-cudart shared --no-compress -g -G" \
+		SMS="${SMS}" \
+		CPATH="samples/Common" \
+		CUDA_PATH=${CUDA_PATH}
+	cp samples/Samples/5_Domain_Specific/nbody/nbody $@
 
-bandwidthTest/bandwidthTest : bandwidthTest
-	make -C bandwidthTest \
-		NVCCFLAGS="-m64 -cudart shared" \
-		GENCODE_FLAGS="-arch=$(ARCH)" \
-		CPATH="$(CUDA_DIR)/samples/common/inc"
+samples-bin/nbody.compressed.sample : samples samples-bin
+	make -C samples/Samples/5_Domain_Specific/nbody \
+		clean
+	make -C samples/Samples/5_Domain_Specific/nbody \
+		NVCCFLAGS="-cudart shared -Xfatbin --compress-all -g -G" \
+		SMS="${SMS}" \
+		CPATH="samples/Common" \
+		CUDA_PATH=${CUDA_PATH}
+	cp samples/Samples/5_Domain_Specific/nbody/nbody $@
 
-nbody :
-	mkdir -p $(PWD)/nbody
-	cp -r $(CUDA_DIR)/samples/5_Simulations/nbody $(PWD)
-	make -C nbody clean
+samples-bin/matrixMul.compressed.sample : samples samples-bin
+	make -C samples/Samples/0_Introduction/matrixMul \
+		clean
+	make -C samples/Samples/0_Introduction/matrixMul \
+		NVCCFLAGS="-cudart shared -Xfatbin --compress-all" \
+		SMS="${SMS}" \
+		CPATH="samples/Common" \
+		CUDA_PATH=${CUDA_PATH}
+	cp samples/Samples/0_Introduction/matrixMul/matrixMul $@
 
-nbody/nbody : nbody
-	make -C nbody \
-		NVCCFLAGS="-m64 -cudart shared" \
-		GENCODE_FLAGS="-arch=$(ARCH)" \
-		CPATH="$(CUDA_DIR)/samples/common/inc"
+samples-bin/matrixMul.uncompressed.sample : samples samples-bin
+	make -C samples/Samples/0_Introduction/matrixMul \
+		clean
+	make -C samples/Samples/0_Introduction/matrixMul \
+		NVCCFLAGS="-cudart shared --no-compress" \
+		SMS="${SMS}" \
+		CPATH="samples/Common" \
+		CUDA_PATH=${CUDA_PATH}
+	cp samples/Samples/0_Introduction/matrixMul/matrixMul $@
+
+samples-bin/bandwidthTest.sample : samples samples-bin
+	make -C samples/Samples/1_Utilities/bandwidthTest \
+		clean
+	make -C samples/Samples/1_Utilities/bandwidthTest \
+		NVCCFLAGS="-cudart shared --no-compress" \
+		SMS="${SMS}" \
+		CPATH="samples/Common" \
+		CUDA_PATH=${CUDA_PATH}
+	cp samples/Samples/1_Utilities/bandwidthTest/bandwidthTest $@
 
 clean :
-	rm -f *.elf *.hex *.o *.d .depend *~
-	make -C matrixMul clean
-	make -C bandwidthTest clean
-	make -C nbody clean
+	rm -rf samples-bin
 
 distclean : clean
-	rm -r matrixMul
-	rm -r bandwidthTest
-	rm -r nbody
+	rm -rf samples
