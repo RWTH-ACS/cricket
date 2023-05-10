@@ -464,8 +464,16 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
         }
         //print_header(th);
         input_pos += th->header_size;
+        if (th->kind != 2) { // section does not cotain device code (but e.g. PTX)
+            if (th->flags & FATBIN_FLAG_COMPRESS) {
+                input_pos += th->decompressed_size;
+            } else {
+                input_pos += th->size;
+            }
+            continue;
+        }
         if (th->flags & FATBIN_FLAG_DEBUG) {
-            LOGE(LOG_DEBUG, "fatbin contains debug information. This is not supported, yet.");
+            LOGE(LOG_DEBUG, "fatbin contains debug information.");
             goto error;
         }
 
@@ -478,11 +486,13 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
                 goto error;
             }
             input_pos += input_read;
+            hexdump(text_data, text_data_size);
         } else {
             text_data = (uint8_t*)input_pos;
             text_data_size = th->size;
             input_pos += th->size;
         }
+        print_header(th);
         if (elf2_parameter_info(kernel_infos, text_data , text_data_size) != 0) {
             LOGE(LOG_ERROR, "error getting parameter info");
             goto error;
@@ -492,11 +502,11 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
         }
     } while (input_pos < (uint8_t*)eh + eh->header_size + eh->size);
 
-    if (get_elf_header((uint8_t*)fatbin->text2, sizeof(struct fat_elf_header), &eh) != 0) {
-        LOGE(LOG_ERROR, "Something went wrong while checking the header.");
-        goto error;
-    }
-    fatbin_total_size += eh->header_size + eh->size;
+    // if (get_elf_header((uint8_t*)fatbin->text2, sizeof(struct fat_elf_header), &eh) != 0) {
+    //     LOGE(LOG_ERROR, "Something went wrong while checking the header.");
+    //     goto error;
+    // }
+    // fatbin_total_size += eh->header_size + eh->size;
 
     *fatbin_mem = (void*)fatbin->text;
     *fatbin_size = fatbin_total_size;
@@ -662,8 +672,6 @@ static int get_parm_for_kernel(Elf *elf, kernel_info_t *kernel, void* memory, si
         LOGE(LOG_ERROR, "get_kernel_section_from_kernel_name failed");
         goto cleanup;
     }
-
-    print_sections(elf);
 
     if (get_section_by_name(elf, section_name, &section) != 0) {
         LOGE(LOG_ERROR, "section %s not found", section_name);
@@ -916,9 +924,9 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
 
     for (size_t secpos=0; secpos < data->d_size; secpos += sizeof(struct nv_info_entry)) {
         struct nv_info_entry *entry = (struct nv_info_entry *)(data->d_buf+secpos);
-        LOGE(LOG_DBG(1), "%d: format: %#x, attr: %#x, values_size: %#x kernel: %#x, sval: %#x(%d)", 
-        i++, entry->format, entry->attribute, entry->values_size, entry->kernel_id, 
-        entry->value, entry->value);
+        // LOGE(LOG_DBG(1), "%d: format: %#x, attr: %#x, values_size: %#x kernel: %#x, sval: %#x(%d)", 
+        // i++, entry->format, entry->attribute, entry->values_size, entry->kernel_id, 
+        // entry->value, entry->value);
 
         if (entry->values_size != 8) {
             LOGE(LOG_ERROR, "unexpected values_size: %#x", entry->values_size);

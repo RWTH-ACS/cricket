@@ -19,7 +19,7 @@ int elf2_init(void);
 int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, uint8_t** fatbin_mem, size_t* fatbin_size);
 
 int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize);
-//void* elf2_symbol_address(const char* file, char *symbol);
+void* elf2_symbol_address(const char* file, char *symbol);
 //int elf2_contains_kernel(void* memory, size_t memsize);
 
 #endif //_ELF_H_
