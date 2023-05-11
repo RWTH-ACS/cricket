@@ -43,8 +43,9 @@ bin:
 	mkdir bin
 
 bin/tests: bin tests
+ifneq (, $(test -f "bin/tests"))
 	ln -s ../tests/bin bin/tests
-
+endif
 bin/cricket-client.so: bin
 	$(MAKE) -C cpu cricket-client.so
 	cp cpu/cricket-client.so bin
