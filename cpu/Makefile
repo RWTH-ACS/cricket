@@ -84,7 +84,7 @@ LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
-CC_FLAGS += -g -ggdb #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+CC_FLAGS += -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 endif
 
 ifdef WITH_IB

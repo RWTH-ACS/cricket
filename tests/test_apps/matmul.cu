@@ -173,7 +173,6 @@ int main()
 #endif //RANDOM_INIT
     uint16_t *res;
     uint16_t *dev_A, *dev_x, *dev_res;
-    uint16_t *dev_ptr;
     struct timeval begin, end;
     struct timeval messb, messa;
     const int A_size = N*N*sizeof(uint16_t);
@@ -253,11 +252,9 @@ int main()
    */
     cudaMalloc( (void**)&dev_x, x_size );
     cudaMalloc( (void**)&dev_res, x_size );
-    cudaMalloc( (void**)&dev_ptr, A_size );
 
     printf("Mallocs done\n");
 
-    cudaMemcpy( dev_ptr, A, A_size, cudaMemcpyHostToDevice );
     cudaMemcpy( dev_A, A, A_size, cudaMemcpyHostToDevice );
     cudaMemcpy( dev_x, x, x_size, cudaMemcpyHostToDevice );
 
@@ -305,7 +302,7 @@ int main()
     gettimeofday(&end, NULL);
 
     printf("elapsed time: %0u.%06u\n", (end.tv_sec - begin.tv_sec), (end.tv_usec - begin.tv_usec));
-
+    free(res);
 
     return (success ? 0 : 1);
 }

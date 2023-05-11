@@ -95,6 +95,8 @@ static void print_header(struct fat_text_header *th)
         th->unknown1,
         th->unknown2,
         th->zero);
+
+    free(flagstr);
 }
 
 /** Check the header of a fatbin

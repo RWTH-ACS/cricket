@@ -37,12 +37,12 @@ int server_driver_init(int restore)
 // Does not support checkpoint/restart yet
 bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, key: %#x)", elf.mem_data_val, elf.mem_data_len);
+    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module;
     
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "cuModuleLoadFatBinary failed: %d", res);
+        LOG(LOG_ERROR, "cuModuleLoadData failed: %d", res);
         *result = res;
         return 1;
     }
@@ -96,6 +96,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
                             char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
 {
+    void *module = NULL;
     RECORD_API(rpc_register_function_1_argument);
     RECORD_ARG(1, fatCubinHandle);
     RECORD_ARG(2, hostFun);
@@ -105,8 +106,13 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
     GSCHED_RETAIN;
+    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == fatCubinHandle) {
+        LOG(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+        result->err = -1;
+        return 1;
+    }
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
-                    resource_mg_get(&rm_modules, (void*)fatCubinHandle),
+                    module,
                     deviceName);
     GSCHED_RELEASE;
     if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {

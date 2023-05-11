@@ -65,7 +65,7 @@ typedef struct api_record {
 extern list api_records;
 
 
-void api_records_free_args(void);
+void api_records_free(void);
 void api_records_print(void);
 void api_records_print_records(api_record_t *record);
 

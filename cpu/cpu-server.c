@@ -347,8 +347,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
  cleanup2:
     server_runtime_deinit();
  cleanup3:
-    api_records_free_args();
-    list_free(&api_records);
+    api_records_free();
  cleanup4:
     pmap_unset(prog, vers);
     svc_destroy(transp);
