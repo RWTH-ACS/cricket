@@ -827,7 +827,7 @@ int cricket_checkpoint(int argc, char *argv[])
 #endif
 
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <pid>\n", argv[0]);
+        printf("wrong number of arguments, use: %s checkpoint <pid>\n", argv[0]);
         return -1;
     }
 
