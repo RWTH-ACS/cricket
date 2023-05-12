@@ -80,6 +80,13 @@ default:
     void;
 };
 
+union sz_result switch (int err) {
+case 0:
+    size_t data;
+default:
+    void;
+};
+
 union ptr_result switch (int err) {
 case 0:
     ptr ptr;
@@ -226,7 +233,8 @@ program RPC_CD_PROG {
         /*ptr_result CUDA_GET_MIPMAPPED_ARRAY_LEVEL(ptr, int)                   = 406;*/
         ptr_result   CUDA_GET_SYMBOL_ADDRESS(ptr)                               = 407;
         u64_result   CUDA_GET_SYMBOL_SIZE(ptr)                                  = 408;
-        int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)            = 409;
+        sz_result    CUDA_HOST_ALLOC(size_t, unsigned int)                 = 409;
+        int          CUDA_HOST_ALLOC_REGSHM(size_t, ptr)                        = 477;
         ptr_result   CUDA_HOST_GET_DEVICE_POINTER(ptr, int)                     = 410;
         int_result   CUDA_HOST_GET_FLAGS(ptr)                                   = 411;
         /*int        CUDA_HOST_REGISTER(ptr, size_t, int)                       = 412;*/

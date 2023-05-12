@@ -58,6 +58,7 @@ typedef struct api_record {
         void* ptr;
         int integer;
         ptr_result ptr_result_u;
+        sz_result sz_result_u;
     } result;
     void *data;
     size_t data_size;

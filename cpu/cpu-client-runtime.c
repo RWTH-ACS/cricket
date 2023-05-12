@@ -1,4 +1,3 @@
-#include "mt-memcpy.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +23,7 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "oob.h"
+#include "mt-memcpy.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -1088,12 +1088,12 @@ cudaError_t cudaFreeArray(cudaArray_t array)
 }
 
 typedef struct host_alloc_info {
-    int cnt;
+    int idx;
     size_t size;
     void *client_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64] = {0};
-static size_t hainfo_cnt = 1;
+static size_t hainfo_cnt = 0;
 static int hainfo_getindex(void *client_ptr)
 {
     int i;
@@ -1195,44 +1195,49 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int ret = cudaErrorMemoryAllocation;
+    sz_result ret = {.err = cudaErrorMemoryAllocation};
+    int reg_ret;
     int fd_shm;
-    char shm_name[128];
+    char *shm_name = NULL;
     enum clnt_stat retval_1;
     
     if (shm_enabled && connection_is_local == 1) { //Use local shared memory
+        retval_1 = cuda_host_alloc_1(size, flags, &ret, clnt);
+        if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
+            goto out;
+        }
 
-        snprintf(shm_name, 128, "/crickethostalloc-%zu", hainfo_cnt);
-        if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%zu", ret.sz_result_u.data) == -1) {
+            LOGE(LOG_ERROR, "ERROR: asprintf failed: %s", strerror(errno));
+            ret.err = cudaErrorMemoryAllocation;
+            goto out;
+        }
+        
+        if ((fd_shm = shm_open(shm_name, O_RDWR, S_IREAD | S_IWRITE)) == -1) {
             LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
+            ret.err = cudaErrorMemoryAllocation;
             goto out;
         }
-        if (ftruncate(fd_shm, size) == -1) {
-            LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
-            shm_unlink(shm_name);
-            goto out;
-        }
-        LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
+
         if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
             LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
             shm_unlink(shm_name);
+            ret.err = cudaErrorMemoryAllocation;
             goto out;
         }
 
-        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].idx = ret.sz_result_u.data;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
+        hainfo_cnt++;
+        
+        retval_1 = cuda_host_alloc_regshm_1(ret.sz_result_u.data, (ptr)*pHost, &reg_ret, clnt);
+        if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
+            goto out;
+        }
 
-        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-        if (ret == cudaSuccess) {
-            hainfo_cnt++;
-        } else {
-            munmap(*pHost, size);
-            *pHost = NULL;
-        }
         shm_unlink(shm_name);
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
@@ -1240,7 +1245,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
-        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].idx = hainfo_cnt;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
 
@@ -1255,7 +1260,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         if (*pHost == NULL) {
             goto out;
         } else {
-            ret = cudaSuccess;
+            ret.err = cudaSuccess;
             goto out;
         }
 #endif //WITH_IB
@@ -1264,7 +1269,8 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         goto out;
     }
 out:
-    return ret;
+    free(shm_name);
+    return ret.err;
 }
 
 cudaError_t cudaHostGetDevicePointer(void** pDevice, void* pHost, unsigned int flags)

@@ -35,13 +35,13 @@
 #include "mt-memcpy.h"
 
 typedef struct host_alloc_info {
-    int cnt;
+    size_t idx;
     size_t size;
     void *client_ptr;
     void *server_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64];
-static size_t hainfo_cnt = 1;
+static size_t hainfo_cnt = 0;
 list mt_memcpy_list = {0};
 
 static int hainfo_getserverindex(void *server_ptr)
@@ -1052,8 +1052,8 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
         *result = cudaSuccess;
         return 1;
     }
-    if (hainfo[index].cnt != 0 &&
-        hainfo[index].cnt == index) {
+    if (hainfo[index].idx != 0 &&
+        hainfo[index].idx == index) {
 
         *result = cudaHostUnregister(hainfo[index].server_ptr);
         munmap(hainfo[index].server_ptr, hainfo[index].size);
@@ -1088,31 +1088,39 @@ bool_t cuda_get_symbol_size_1_svc(ptr symbol, u64_result *result, struct svc_req
     return 1;
 }
 
-bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsigned int flags, int *result, struct svc_req *rqstp)
+bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result, struct svc_req *rqstp)
 {
     //TODO: Make checkpointable. Implement reattaching of shm segment.
     int fd_shm;
-    char shm_name[128];
+    char *shm_name = NULL;
     void *shm_addr;
     unsigned int register_flags = 0;
-    *result = cudaErrorMemoryAllocation;
     RECORD_API(cuda_host_alloc_1_argument);
-    RECORD_ARG(1, client_cnt);
-    RECORD_ARG(2, size);
-    RECORD_ARG(3, client_ptr);
-    RECORD_ARG(4, flags);
+    RECORD_ARG(1, size);
+    RECORD_ARG(2, flags);
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
+    result->err = cudaErrorMemoryAllocation;
 
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
-        snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
-        if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_cnt) == -1) {
+            LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
+            goto out;
+        }
+        if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU)) == -1) {
             LOGE(LOG_ERROR, "could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
             goto out;
         }
+        if (ftruncate(fd_shm, size) == -1) {
+            LOGE(LOG_ERROR, "cannot resize shared memory");
+            shm_unlink(shm_name);
+            goto out;
+        }
+        result->sz_result_u.data = hainfo_cnt;
+        LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
         if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
             LOGE(LOG_ERROR, "mmap returned unexpected pointer: %p", shm_addr);
-            goto cleanup;
+            goto out;
         }
 
         if (flags & cudaHostAllocPortable) {
@@ -1125,23 +1133,23 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
             register_flags |= cudaHostRegisterMapped;
         }
 
-        if ((*result = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
+        if ((result->err = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
             LOGE(LOG_ERROR, "cudaHostRegister failed.");
             munmap(shm_addr, size);
-            goto cleanup;
+            goto out;
         }
-
-        hainfo[hainfo_cnt].cnt = client_cnt;
+        hainfo[hainfo_cnt].idx = hainfo_cnt;
         hainfo[hainfo_cnt].size = size;
-        hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
+        hainfo[hainfo_cnt].client_ptr = NULL;
         hainfo[hainfo_cnt].server_ptr = shm_addr;
         hainfo_cnt++;
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-   
+        LOGE(LOG_ERROR, "infiniband does not yet support cudaHostAlloc.");
+        goto cleanup;
 #else
-                LOGE(LOG_ERROR, "infiniband is disabled.");
-                goto cleanup;
+        LOGE(LOG_ERROR, "infiniband is disabled.");
+        goto out;
 #endif //WITH_IB
 
     } else {
@@ -1149,13 +1157,39 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
         goto out;
     }
 
-    *result = cudaSuccess;
-cleanup:
-    shm_unlink(shm_name);
+    result->err = cudaSuccess;
 out:
+    RECORD_RESULT(sz_result_u, *result);
+    return 1;
+}
+
+bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *result, struct svc_req *rqstp)
+{
+    char *shm_name = NULL;
+    RECORD_API(cuda_host_alloc_regshm_1_argument);
+    RECORD_ARG(1, hainfo_idx);
+    RECORD_ARG(2, client_ptr);
+
+    LOGE(LOG_DEBUG, "cudaHostAllocRegShm");
+    *result = cudaErrorMemoryAllocation;
+
+    if (socktype != UNIX && !(shm_enabled && cpu_utils_is_local_connection(rqstp))) {
+        LOGE(LOG_ERROR, "cudaHostAllocRegShm is only supported for local connections.");
+        goto out;
+    }
+    if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_idx) == -1) {
+        LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
+        goto out;
+    }
+    hainfo[hainfo_idx].client_ptr = (void*)client_ptr;
+    *result = cudaSuccess;
+out:
+    shm_unlink(shm_name);
+    free(shm_name);
     RECORD_RESULT(integer, *result);
     return 1;
 }
+
 
 bool_t cuda_host_get_device_pointer_1_svc(ptr pHost, int flags, ptr_result *result, struct svc_req *rqstp)
 {
@@ -1189,7 +1223,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 #ifdef WITH_IB
         result->err = ib_allocate_memreg((void**)&result->ptr_result_u.ptr, argp, hainfo_cnt, true);
             if (result->err == 0) {
-                hainfo[hainfo_cnt].cnt = hainfo_cnt;
+                hainfo[hainfo_cnt].idx = hainfo_cnt;
                 hainfo[hainfo_cnt].size = argp;
                 hainfo[hainfo_cnt].server_ptr = (void*)result->ptr_result_u.ptr;
 
@@ -1500,8 +1534,8 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     LOGE(LOG_DEBUG, "cudaMemcpyIB");
     *result = cudaErrorInitializationError;
     //anstatt array list (list.c)
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
+    if (hainfo[index].idx == 0 ||
+        hainfo[index].idx != index) {
 
         LOGE(LOG_ERROR, "inconsistent state");
         goto out;
@@ -1553,12 +1587,12 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     RECORD_ARG(2, device_ptr);
     RECORD_ARG(3, size);
     RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyShm");
+    LOGE(LOG_DEBUG, "cudaMemcpyShm(index: %d, device_ptr: %p, size: %d, kind: %d)", index, device_ptr, size, kind);
     *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
+    if (index >= hainfo_cnt ||
+        hainfo[index].idx != index) {
 
-        LOGE(LOG_ERROR, "inconsistent state");
+        LOGE(LOG_ERROR, "inconsistent state: index: %d, hainfo[index].idx: %d", index, hainfo[index].idx);
         goto out;
     }
     if (hainfo[index].size < size) {
@@ -1672,8 +1706,8 @@ bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, s
     RECORD_ARG(5, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
     *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
+    if (hainfo[index].idx == 0 ||
+        hainfo[index].idx != index) {
 
         LOGE(LOG_ERROR, "inconsistent state");
         goto out;

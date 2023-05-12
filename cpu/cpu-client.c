@@ -77,12 +77,14 @@ static void rpc_connect(void)
 
 #endif // WITH_IB
 
-    //TODO: This is not necessary anymore. We should fix a static prog/vers
     prog = 99;
     vers = 1;
-    if (getenv("CRICKET_HASH") && cpu_utils_md5hash("/proc/self/exe", &prog, &vers) != 0) {
-        LOGE(LOG_ERROR, "error while creating binary checksum");
-        exit(0);
+    const char *env_vers = getenv("CRICKET_RPCID");
+    if (env_vers != NULL) {
+        if (sscanf(env_vers, "%lu", &vers) != 1) {
+            LOGE(LOG_ERROR, "error parsing CRICKET_RPCID");
+            exit(1);
+        }
     }
 
     char *cmd = NULL;

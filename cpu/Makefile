@@ -1,7 +1,5 @@
-#RPC server library
-SERVER = cricket-server.so
 #Standalone RPC Server
-SERVER_BIN = cricket-rpc-server
+SERVER = cricket-rpc-server
 #RPC client library
 CLIENT = cricket-client.so
 
@@ -84,7 +82,7 @@ LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
-CC_FLAGS += -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+CC_FLAGS += -g -ggdb #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 endif
 
 ifdef WITH_IB
@@ -110,15 +108,12 @@ CLIENT_LD_FLAGS = $(LD_FLAGS)
 # Targets
 .PHONY: all clean
 
-all : $(SERVER) $(SERVER_BIN) $(CLIENT)
+all : $(SERVER) $(CLIENT)
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
-$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_LIB:%.c=%.o)
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_LD_FLAGS)
-
-$(SERVER_BIN) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
+$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
@@ -140,7 +135,8 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_BIN) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o)
+
 
 
 

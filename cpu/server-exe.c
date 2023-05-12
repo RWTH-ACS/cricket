@@ -3,17 +3,22 @@
 #include "log.h"
 
 #include <stdlib.h>
+#include <stdint.h>
 
 int main(int argc, char** argv)
 {
-
-    //TODO: Check if command path exists
     if (argc == 1) {
-        cricket_main_static(RPC_CD_PROG, RPC_CD_VERS);
+        cricket_main(RPC_CD_PROG, RPC_CD_VERS);
     } else if (argc == 2) {
-        cricket_main_hash(argv[1]);
+        uint64_t vers;
+        if (sscanf(argv[1], "%lu", &vers) != 1) {
+            LOGE(LOG_ERROR, "version string could not be converted to number");
+            LOGE(LOG_INFO, "usage: %s [unique rpc version]", argv[0]);
+            return 1;
+        }
+        cricket_main(RPC_CD_PROG, vers);
     } else {
-        LOGE(LOG_ERROR, "usage: %s [command]", argv[0]);
+        LOGE(LOG_INFO, "usage: %s", argv[0]);
     }
     return 0;
 }

@@ -160,19 +160,7 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-
-
-void cricket_main_hash(char* app_command)
-{
-    cricket_main(app_command, 0, 0);
-}
-
-void cricket_main_static(size_t prog_num, size_t vers_num)
-{
-    cricket_main("", prog_num, vers_num);
-}
-
-void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
+void cricket_main(size_t prog_num, size_t vers_num)
 {
     int ret = 1;
     register SVCXPRT *transp;
@@ -217,36 +205,16 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
             restore = 1;
     }
 
-    if (cpu_utils_command(&command) != 0) {
-        LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
-    } else {
-        LOG(LOG_DEBUG, "the command is '%s'", command);
-        //This is a workaround to make LD_PRELOAD work under GDB supervision
-        const char *cmp = "cudbgprocess";
-        if (strncmp(command, cmp, strlen(cmp)) == 0) {
-            LOG(LOG_DEBUG, "skipping RPC server");
-            return;
-        }
-    }
-
     if (restore == 1) {
         if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
             LOGE(LOG_ERROR, "error while restoring rpc id");
         }
     } else {
-        if (prog_num == 0) {
-            if (cpu_utils_md5hash(app_command, &prog, &vers) != 0) {
-                LOGE(LOG_ERROR, "error while creating binary checksum");
-                exit(0);
-            }
-        }
-        else {
-            prog = prog_num;
-            vers = vers_num;
-        }
+        prog = prog_num;
+        vers = vers_num;
     }
 
-    LOGE(LOG_DEBUG, "using prog=%d, vers=%d, derived from \"%s\"", prog, vers, app_command);
+    LOGE(LOG_DEBUG, "using prog=%d, vers=%d", prog, vers);
 
 
     switch (socktype) {
@@ -299,7 +267,7 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     //     cudaRegisterAllv();
     // }
 
-    sched = &sched_none; 
+    sched = &sched_none;
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;

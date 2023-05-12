@@ -106,7 +106,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
     GSCHED_RETAIN;
-    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == fatCubinHandle) {
+    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
         LOG(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         result->err = -1;
         return 1;

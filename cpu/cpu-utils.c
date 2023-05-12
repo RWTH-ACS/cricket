@@ -123,10 +123,6 @@ kernel_info_t* utils_search_info(list *kernel_infos, const char *kernelname)
 
 int cpu_utils_is_local_connection(struct svc_req *rqstp)
 {
-    LOGE(LOG_DEBUG, "%p", rqstp);
-    LOGE(LOG_DEBUG, "%p", rqstp->rq_xprt);
-    LOGE(LOG_DEBUG, "%p", rqstp->rq_xprt->xp_fd);
-
     struct sockaddr_in remote_addr = {0};
     struct sockaddr_in local_addr = {0};
     struct hostent *hp;
