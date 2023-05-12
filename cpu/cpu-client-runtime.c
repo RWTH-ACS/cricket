@@ -1578,7 +1578,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local == 1) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)dst, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
@@ -1641,7 +1641,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)src, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 pthread_t thread = {0};
