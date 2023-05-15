@@ -1534,7 +1534,6 @@ extern char server[256];
 #define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
-    
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1542,9 +1541,9 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     int ret = 1;
     enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {
-//get index of mem reg (src: cpu reg memregion)
+        // get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);
-//         not a cudaHostAlloc'ed memory 
+        // not a cudaHostAlloc'ed memory 
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
             if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {

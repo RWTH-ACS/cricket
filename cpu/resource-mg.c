@@ -75,6 +75,28 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
     LOGE(LOG_DEBUG, "no find: %p", client_address);
     return client_address;
 }
+
+void resource_mg_print(resource_mg *mg)
+{
+    size_t i;
+    resource_mg_map_elem *elem;
+    if (mg == NULL) {
+        LOGE(LOG_ERROR, "resource manager mg is NULL");
+        return;
+    }
+    LOG(LOG_DEBUG, "new_res:");
+    for (i = 0; i < mg->new_res.length; i++) {
+        LOG(LOG_DEBUG, "%p", *(void**)list_get(&mg->new_res, i));
+    }
+    if (mg->bypass == 0) {
+        LOG(LOG_DEBUG, "map_res:");
+        for (i = 0; i < mg->map_res.length; i++) {
+            elem = list_get(&mg->map_res, i);
+            LOG(LOG_DEBUG, "%p -> %p", elem->client_address, elem->cuda_address);
+        }
+    }
+}
+
 inline void* resource_mg_get(resource_mg *mg, void* client_address)
 {
     if (mg->bypass) {
@@ -85,6 +107,7 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
     return 0;
 }
 
+#include <stdio.h>
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
 {
     ssize_t start = 0;
@@ -124,10 +147,11 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
             return 0;
         }
     }
-    if (end < 0) {
+    if (end < 0LL) {
         end = 0;
     }
-    if (mid_elem->client_address < client_address) {
+    resource_mg_map_elem *end_elem = list_get(&mg->map_res, end);
+    if (end_elem->client_address < client_address) {
         end++;
     }
     return list_insert(&mg->map_res, end, &new_elem);

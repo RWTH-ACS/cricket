@@ -55,4 +55,6 @@ int resource_mg_create(resource_mg *mg, void* cuda_address);
 
 void* resource_mg_get(resource_mg *mg, void* client_address);
 
+void resource_mg_print(resource_mg *mg);
+
 #endif //_RESOURCE_MG_H_
