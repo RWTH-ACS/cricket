@@ -36,12 +36,17 @@ else
 endif
 
 cuda-gdb/build:
+ifeq (,$(wildcard ./cuda-gdb/build))
 	@echo -e "\033[36m----> Configuring cuda-gdb\033[0m"
+	@echo -e "\033[36m----> extracting cuda-gdb\033[0m"
 	mkdir -p cuda-gdb/build && cd cuda-gdb/build && \
 		../configure --disable-werror --program-prefix=cuda- --enable-cuda --with-python=no --enable-targets="x86_64-apple-darwin,x86_64-unknown-linux-gnu,arm-elf-linux-gnu,m68k-unknown-linux-gnu" CFLAGS='-I/usr/local/cuda/include -fPIC' LDFLAGS='-lpthread'
 	@echo -e "\033[36m----> Building cuda-gdb\033[0m"
 	CPATH=/usr/local/cuda/include $(MAKE) -C cuda-gdb/build
 	CPATH=/usr/local/cuda/include $(MAKE) -C cuda-gdb/build/gdb libgdb.a
+else
+	@echo -e "\033[36m----> cuda-gdb/build directory present. Skipping building of cuda-gdb\033[0m"
+endif
 
 lib:
 	mkdir -p lib

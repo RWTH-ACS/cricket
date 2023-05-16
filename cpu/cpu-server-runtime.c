@@ -3,6 +3,7 @@
 #include <cuda.h>
 #include <driver_types.h>
 #include <dlfcn.h>
+#include <cuda_profiler_api.h>
 
 //for strerror
 #include <string.h>
@@ -1146,7 +1147,7 @@ bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result,
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
         LOGE(LOG_ERROR, "infiniband does not yet support cudaHostAlloc.");
-        goto cleanup;
+        goto out;
 #else
         LOGE(LOG_ERROR, "infiniband is disabled.");
         goto out;
@@ -1884,7 +1885,6 @@ bool_t cuda_register_fat_binary_end_1_svc(ptr cubinHandle, int *result, struct s
     *result = 0;
     return 1;
 }*/
-#include <cuda_profiler_api.h>
 
 bool_t cuda_profiler_start_1_svc(int *result, struct svc_req *rqstp)
 {

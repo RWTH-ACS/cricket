@@ -9,7 +9,7 @@ SAMPLES = samples-bin/matrixMul.compressed.sample \
 
 CUDA_PATH = /usr/local/cuda
 SMS = 75 60
-CUDA_SAMPLES_RELEASE = 12.1
+CUDA_SAMPLES_RELEASE ?= 12.1
 CUDA_SAMPLES_URL = https://github.com/NVIDIA/cuda-samples/archive/refs/tags/v${CUDA_SAMPLES_RELEASE}.tar.gz
 
 PWD = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))

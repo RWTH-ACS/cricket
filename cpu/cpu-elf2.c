@@ -457,8 +457,8 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
         LOGE(LOG_ERROR, "Something went wrong while checking the header.");
         goto error;
     }
-    LOGE(LOG_DBG(1), "elf header: magic: %#x, version: %#x, header_size: %#x, size: %#zx",
-           eh->magic, eh->version, eh->header_size, eh->size); 
+    // LOGE(LOG_DBG(1), "elf header: magic: %#x, version: %#x, header_size: %#x, size: %#zx",
+    //        eh->magic, eh->version, eh->header_size, eh->size); 
 
     input_pos += eh->header_size;
     fatbin_total_size = eh->header_size + eh->size;
@@ -467,7 +467,7 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
             fprintf(stderr, "Something went wrong while checking the header.\n");
             goto error;
         }
-        print_header(th);
+        //print_header(th);
         input_pos += th->header_size;
         if (th->kind != 2) { // section does not cotain device code (but e.g. PTX)
             input_pos += th->size;

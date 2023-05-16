@@ -1,5 +1,6 @@
 #Standalone RPC Server
 SERVER = cricket-rpc-server
+SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
 
@@ -113,6 +114,9 @@ all : $(SERVER) $(CLIENT)
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
+$(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_BIN_LD_FLAGS)
+
 $(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
@@ -135,7 +139,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o)
 
 
 

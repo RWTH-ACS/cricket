@@ -697,7 +697,11 @@ DEF_FN(CUresult, cuGraphNodeGetDependencies, CUgraphNode, hNode, CUgraphNode*, d
 DEF_FN(CUresult, cuGraphNodeGetDependentNodes, CUgraphNode, hNode, CUgraphNode*, dependentNodes, size_t*, numDependentNodes)
 DEF_FN(CUresult, cuGraphAddDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
 DEF_FN(CUresult, cuGraphRemoveDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
+#if CUDA_VERSION >= 12000
 DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, unsigned long long, flags)
+#else
+DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, CUgraphNode*, phErrorNode, char*, logBuffer, size_t, bufferSize)
+#endif
 DEF_FN(CUresult, cuGraphLaunch, CUgraphExec, hGraphExec, CUstream, hStream)
 DEF_FN(CUresult, cuGraphLaunch_ptsz, CUgraphExec, hGraphExec, CUstream, hStream)
 DEF_FN(CUresult, cuGraphExecDestroy, CUgraphExec, hGraphExec)

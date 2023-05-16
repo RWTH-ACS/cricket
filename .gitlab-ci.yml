@@ -21,13 +21,23 @@ stages:
 ##############################################################################
 
 # Build docker image
-prepare:centos8:docker-dev:
+prepare:rocky9:docker-dev:
   stage: prepare
   script:
     - docker build
         --file ${DOCKER_FILE}
         --tag ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
         --tag ${DOCKER_IMAGE_DEV}:latest .
+  tags:
+    - docker
+
+prepare:centos8:cuda11:
+  stage: prepare
+  script:
+    - docker build
+        --file utils/Dockerfile.cuda11
+        --tag ${DOCKER_IMAGE_DEV}_cuda11:${DOCKER_TAG}
+        --tag ${DOCKER_IMAGE_DEV}_cuda11:latest .
   tags:
     - docker
 
@@ -57,7 +67,7 @@ prepare:centos8:cuda10:
 
 build:
   stage: build
-  needs: ["prepare:centos8:docker-dev"]
+  needs: ["prepare:rocky9:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -82,7 +92,7 @@ build:
 
 build:ib:
   stage: build
-  needs: ["prepare:centos8:docker-dev"]
+  needs: ["prepare:rocky9:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -108,13 +118,39 @@ build:ib:
   tags:
     - docker
 
+build:cuda11:
+  stage: build
+  needs: ["prepare:centos8:cuda11"]
+  script:
+   - make -j 32 libtirpc
+   - make -j 32 cuda-gdb
+   - make -j 1 LOG=INFO NOSAMPLES=yes
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - bin
+      - tests/bin
+  image: ${DOCKER_IMAGE_DEV}_cuda11:${DOCKER_TAG}
+  cache:
+    paths:
+      - gpu/build
+      - cpu/*.o
+      - tests/cpu/*.o
+      - tests/test_apps/*.o
+      - submodules/libtirpc
+      - submodules/cuda-gdb
+      - submodules/cuda-gdb-src.rpm
+    key: build_cuda11
+  tags:
+    - docker
+
 build:cuda10:
   stage: build
   needs: ["prepare:centos8:cuda10"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
-   - make -j 1 LOG=INFO
+   - make -j 1 LOG=INFO NOSAMPLES=yes
   artifacts:
     expire_in: 1 week
     paths:
@@ -136,7 +172,7 @@ build:cuda10:
 
 build:debug:
   stage: build
-  needs: ["prepare:centos8:docker-dev"]
+  needs: ["prepare:rocky9:docker-dev"]
   script:
    - make -j 32 libtirpc
    - make -j 32 cuda-gdb
@@ -179,7 +215,7 @@ build:debug:
       echo $KNOWN_HOSTS > ~/.ssh/known_hosts && chmod 600 ~/.ssh/id_rsa
     - ssh $GPU_TARGET mkdir -p $RDIR
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
-    - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3:$RDIR/cricket-server.so $RDIR/$TEST_BINARY" &
+    - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3 $RDIR/cricket-rpc-server" &
     - sleep 2
     - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY $PARAMETER
   after_script:
@@ -221,16 +257,16 @@ test:test_kernel:
 test:samples:matrixMul:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/matrixMul'
+      TEST_BINARY: 'tests/matrixMul.compressed.sample'
 
 test:samples:bandwidthTest:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/bandwidthTest'
+      TEST_BINARY: 'tests/bandwidthTest.sample'
 
 test:samples:nbody:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/nbody'
+      TEST_BINARY: 'tests/nbody.uncompressed.sample'
       PARAMETER: '-benchmark'
 
