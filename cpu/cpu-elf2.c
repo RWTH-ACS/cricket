@@ -450,13 +450,16 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
         LOGE(LOG_ERROR, "fatbin struct magic number is wrong. Got %llx, expected %llx.", fatbin->magic, FATBIN_STRUCT_MAGIC);
         goto error;
     }
-    LOG(LOG_DBG(1), "Fatbin: magic: %x, version: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx",
+    LOGE(LOG_DBG(1), "Fatbin: magic: %x, version: %x, text: %lx, data: %lx, ptr: %lx, ptr2: %lx, zero: %lx",
            fatbin->magic, fatbin->version, fatbin->text, fatbin->data, fatbin->unknown, fatbin->text2, fatbin->zero);
 
     if (get_elf_header((uint8_t*)fatbin->text, sizeof(struct fat_elf_header), &eh) != 0) {
         LOGE(LOG_ERROR, "Something went wrong while checking the header.");
         goto error;
     }
+    LOGE(LOG_DBG(1), "elf header: magic: %#x, version: %#x, header_size: %#x, size: %#zx",
+           eh->magic, eh->version, eh->header_size, eh->size); 
+
     input_pos += eh->header_size;
     fatbin_total_size = eh->header_size + eh->size;
     do {
@@ -464,14 +467,10 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
             fprintf(stderr, "Something went wrong while checking the header.\n");
             goto error;
         }
-        //print_header(th);
+        print_header(th);
         input_pos += th->header_size;
         if (th->kind != 2) { // section does not cotain device code (but e.g. PTX)
-            if (th->flags & FATBIN_FLAG_COMPRESS) {
-                input_pos += th->decompressed_size;
-            } else {
-                input_pos += th->size;
-            }
+            input_pos += th->size;
             continue;
         }
         if (th->flags & FATBIN_FLAG_DEBUG) {
@@ -513,7 +512,7 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
     *fatbin_mem = (void*)fatbin->text;
     *fatbin_size = fatbin_total_size;
     ret = 0;
- error:    
+ error:
     return ret;
 }
 

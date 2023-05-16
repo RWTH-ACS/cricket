@@ -5,7 +5,7 @@
 #include "cpu-common.h"
 #include "list.h"
 
-struct fat_header {
+struct __attribute__((__packed__)) fat_header {
     uint32_t magic;
     uint32_t version;
     uint64_t text;      // points to first text section
