@@ -475,7 +475,6 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
         }
         if (th->flags & FATBIN_FLAG_DEBUG) {
             LOGE(LOG_DEBUG, "fatbin contains debug information.");
-            goto error;
         }
 
         if (th->flags & FATBIN_FLAG_COMPRESS) {
