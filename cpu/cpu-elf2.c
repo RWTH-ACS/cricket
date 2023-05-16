@@ -914,7 +914,8 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
     }
 
     if (get_section_by_name(elf, ".nv.info", &section) != 0) {
-        LOGE(LOG_ERROR, "could not find .nv.info section");
+        LOGE(LOG_WARNING, "could not find .nv.info section. This means this binary does not contain any kernels.");
+        ret = 0;    // This is not an error.
         goto cleanup;
     }
 

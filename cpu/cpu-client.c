@@ -376,7 +376,7 @@ void __cudaUnregisterFatBinary(void **fatCubinHandle)
          fatCubinHandle);
 
     if (fatCubinHandle == NULL) {
-        LOGE(LOG_ERROR, "fatCubinHandle is NULL");
+        LOGE(LOG_WARNING, "fatCubinHandle is NULL - so we have nothing to unload. (This is okay if this binary does not contain a kernel.)");
         return;
     }
 
