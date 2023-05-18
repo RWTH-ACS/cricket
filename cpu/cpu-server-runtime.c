@@ -1380,7 +1380,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     RECORD_ARG(2, mem);
     RECORD_ARG(3, size);
 
-    LOGE(LOG_DEBUG, "cudaMemcpyHtoD");
+    LOGE(LOG_DEBUG, "cudaMemcpyHtoD(%p, %p, %zu)", (void*)ptr, mem.mem_data_val, size);
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch");
         *result = cudaErrorUnknown;
@@ -1669,63 +1669,27 @@ out:
 /* cudaMemcpyPeer ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count ) not implemented yet. see cudaMemcpyDtoD */
 /* cudaMemcpyPeerAsync ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count, cudaStream_t stream = 0 ) */
 
-bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_to_symbol_1_svc(uint64_t symbolptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_to_symbol_1_argument);
-    RECORD_ARG(1, ptr);
-    RECORD_ARG(2, mem);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol");
-    if (size != mem.mem_data_len) {
-        LOGE(LOG_ERROR, "data size mismatch");
-        *result = cudaErrorUnknown;
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol(%p, %p, %zu, %zu)", symbolptr, mem.mem_data_val, size, offset);
+    void *symbol_addr = resource_mg_get(&rm_globals, (void*)symbolptr);
+    if (symbol_addr == NULL) {
+        LOGE(LOG_ERROR, "cudaMemcpyToSymbol: symbol not found");
+        *result = cudaErrorInvalidSymbol;
         return 1;
     }
-#ifdef WITH_MEMCPY_REGISTER
-    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
-        return 1;
-    }
-#endif
-    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(mem.mem_data_val);
-#endif
-    RECORD_RESULT(integer, *result);
-    return 1;
+    return cuda_memcpy_htod_1_svc((ptr)(symbol_addr+offset), mem, size, result, rqstp);
 }
 
 bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-    RECORD_ARG(5, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].idx == 0 ||
-        hainfo[index].idx != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
+    void *symbol_addr = resource_mg_get(&rm_globals, (void*)device_ptr);
+    if (symbol_addr == NULL) {
+        LOGE(LOG_ERROR, "cudaMemcpyToSymbol: symbol not found");
+        *result = cudaErrorInvalidSymbol;
+        return 1;
     }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
-    } else {
-        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
+    return cuda_memcpy_shm_1_svc(index, (ptr)(symbol_addr+offset), size, kind, result, rqstp);
 }
 
 /* cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */

@@ -33,6 +33,7 @@ resource_mg rm_kernels;
 //Driver API RMs
 resource_mg rm_modules;
 resource_mg rm_functions;
+resource_mg rm_globals;
 
 //Other RMs
 resource_mg rm_cusolver;

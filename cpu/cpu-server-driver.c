@@ -24,9 +24,11 @@ int server_driver_init(int restore)
         // because CUfunctions and modules are at different locations on server and client
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
+        ret &= resource_mg_init(&rm_globals, 0);
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
+        ret &= resource_mg_init(&rm_globals, 0);
         //ret &= server_driver_restore("ckp");
     }
     return ret;
@@ -115,23 +117,56 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
                     module,
                     deviceName);
-    GSCHED_RELEASE;
     if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
+    GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
+}
 
-    // int zero = 0;
-    // void *params[] = {NULL, NULL, NULL, &zero, &zero, &zero, &zero, NULL};
-    // if ((res = cuLaunchKernel(func, 1, 1, 1, 32, 1, 1, 0, CU_STREAM_DEFAULT, params, NULL)) != CUDA_SUCCESS) {
-    //     LOG(LOG_ERROR, "cuLaunchKernel failed: %d", res);
-    //     result->err = res;
-    //     return 1;
-    // }
-
-    // result->err = 0;
-    // return 1;
+// Does not support checkpoint/restart yet
+bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress, char *deviceName, int ext, size_t size,
+                        int constant, int global, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_register_var_1_argument);
+    RECORD_ARG(1, fatCubinHandle);
+    RECORD_ARG(2, hostVar);
+    RECORD_ARG(3, deviceAddress);
+    RECORD_ARG(4, deviceName);
+    RECORD_ARG(5, ext);
+    RECORD_ARG(6, size);
+    RECORD_ARG(7, constant);
+    RECORD_ARG(8, global);
+    
+    LOG(LOG_DEBUG, "rpc_register_var(fatCubinHandle: %p, hostVar: %p, deviceAddress: %p, deviceName: %s, "
+                   "ext: %d, size: %d, constant: %d, global: %d)",
+                   fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+    
+    CUdeviceptr dptr = 0;
+    size_t d_size = 0;
+    CUresult res;
+    void *module = NULL;
+    GSCHED_RETAIN;
+    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+        LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+        *result = -1;
+        return 1;
+    }
+    if ((res = cuModuleGetGlobal(&dptr, &d_size, module, deviceName)) != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuModuleGetGlobal failed: %d", res);
+        *result = 1;
+        return 1;
+    }
+    if (resource_mg_add_sorted(&rm_globals, (void*)hostVar, (void*)dptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+        *result = 1;
+    } else {
+        *result = 0;
+    }
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
 }
 
 int server_driver_deinit(void)
