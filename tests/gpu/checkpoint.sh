@@ -18,7 +18,7 @@ echo "using $CUDA_APP"
 CUDA_APP_NAME="$(basename -- $CUDA_APP)"
 CRICKET_CLIENT=${CRICKET_PATH}/cpu/cricket-client.so
 CRICKET_SERVER=${CRICKET_PATH}/cpu/cricket-server.so
-CRIU=/home/eiling/tmp/criu/criu/criu
+CRIU=${HOME}/tmp/criu/criu/criu
 
 export REMOTE_GPU_ADDRESS=localhost
 export CUDA_VISIBLE_DEVICES=0
