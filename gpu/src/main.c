@@ -836,10 +836,11 @@ int cricket_checkpoint(int argc, char *argv[])
         return -1;
     }
 
+    printf("Initializing GDB!\n\n");
     gdb_init(argc, argv, NULL, argv[2]);
 
     /* attach to process (both CPU and GPU) */
-   // printf("attaching...\n");
+    printf("attaching...\n");
    // attach_command(argv[2], !batch_flag);
 
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
@@ -854,6 +855,9 @@ int cricket_checkpoint(int argc, char *argv[])
 #ifdef CRICKET_PROFILE
     gettimeofday(&b, NULL);
 #endif
+    
+    printf("attached!\n\n");
+    printf("trying to get CUDA debugger API\n");
 
     /* get CUDA debugger API */
     res = cudbgGetAPI(CUDBG_API_VERSION_MAJOR, CUDBG_API_VERSION_MINOR,
@@ -863,7 +867,7 @@ int cricket_checkpoint(int argc, char *argv[])
         goto cuda_error;
     }
     printf("got API\n");
-
+    printf("enumerating devices...\n");
 
     if (!cricket_device_get_num(cudbgAPI, &numDev)) {
         printf("error getting device num\n");
@@ -1046,6 +1050,9 @@ int cricket_checkpoint(int argc, char *argv[])
     //cricket_focus_kernel(!batch_flag);
 
 
+    /// TODO: Logic Error: first_warp might always be invalid! In line 889 first_warp is looped over
+    /// the number of available warps. As far as I can tell it is never reset afterwards. 
+    /// That would explain why this line throws an invalid warp exception. Needs discussion.
     if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
