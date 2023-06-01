@@ -327,6 +327,7 @@ static ssize_t decompress_single_section(const uint8_t *input, uint8_t **output,
     size_t padding;
     size_t input_read = 0;
     size_t output_written = 0;
+    size_t decompress_ret = 0;
     const uint8_t zeroes[6] = {0};
 
     if (input == NULL || output == NULL || eh == NULL || th == NULL) {
@@ -340,10 +341,12 @@ static ssize_t decompress_single_section(const uint8_t *input, uint8_t **output,
                 th->decompressed_size, strerror(errno));
         goto error;
     }
+    print_header(th);
 
-    if (decompress(input, th->compressed_size, *output, th->decompressed_size) != th->decompressed_size) {
-        LOGE(LOG_ERROR, "Decompression failed");
-        goto error;
+    if ((decompress_ret = decompress(input, th->compressed_size, *output, th->decompressed_size)) != th->decompressed_size) {
+        LOGE(LOG_ERROR, "Decompression failed: decompressed size is %#zx, but header says %#zx", 
+                decompress_ret, th->decompressed_size);
+        //goto error;
     }
     input_read += th->compressed_size;
     output_written += th->decompressed_size;
@@ -464,7 +467,7 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
     fatbin_total_size = eh->header_size + eh->size;
     do {
         if (get_text_header(input_pos, *fatbin_size - (input_pos - fatbin_data) - eh->header_size, &th) != 0) {
-            fprintf(stderr, "Something went wrong while checking the header.\n");
+            LOGE(LOG_ERROR, "Something went wrong while checking the header.");
             goto error;
         }
         //print_header(th);
@@ -482,17 +485,17 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
 
             LOGE(LOG_DEBUG, "fatbin contains compressed device code. Decompressing...");
             if ((input_read = decompress_single_section(input_pos, &text_data, &text_data_size, eh, th)) < 0) {
-                fprintf(stderr, "Something went wrong while decompressing text section.\n");
+                LOGE(LOG_ERROR, "Something went wrong while decompressing text section.");
                 goto error;
             }
             input_pos += input_read;
-            hexdump(text_data, text_data_size);
+            //hexdump(text_data, text_data_size);
         } else {
             text_data = (uint8_t*)input_pos;
             text_data_size = th->size;
             input_pos += th->size;
         }
-        print_header(th);
+        // print_header(th);
         if (elf2_parameter_info(kernel_infos, text_data , text_data_size) != 0) {
             LOGE(LOG_ERROR, "error getting parameter info");
             goto error;
@@ -556,7 +559,7 @@ static int get_section_by_name(Elf *elf, const char *name, Elf_Scn **section)
     }
 
     if (elf_getshdrstrndx(elf, &str_section_index) != 0) {
-        LOGE(LOG_ERROR, "elf_getshstrndx Wfailed");
+        LOGE(LOG_ERROR, "elf_getshstrndx failed");
         return -1;
     }
 
@@ -569,7 +572,6 @@ static int get_section_by_name(Elf *elf, const char *name, Elf_Scn **section)
             LOGE(LOG_ERROR, "elf_strptr failed");
             return -1;
         }
-        //printf("%s, %#0x %#0x\n", section_name, shdr.sh_flags, shdr.sh_type);
         if (strcmp(section_name, name) == 0) {
             *section = scn;
             return 0;
@@ -604,7 +606,6 @@ static int print_sections(Elf *elf)
             LOGE(LOG_ERROR, "elf_strptr failed");
             return -1;
         }
-        printf("%s, %#0lx %#0x\n", section_name, shdr.sh_flags, shdr.sh_type);
     }
     return -1;
 }
@@ -749,7 +750,7 @@ static int get_symtab(Elf *elf, Elf_Data **symbol_table_data, size_t *symbol_tab
     }
 
     if (get_section_by_name(elf, ".symtab", &section) != 0) {
-        LOGE(LOG_ERROR, "could not find .nv.info section");
+        LOGE(LOG_ERROR, "could not find .symtab section");
         return -1;
     }
 
@@ -886,14 +887,15 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         return -1;
     }
 
-//#define ELF_DUMP_TO_FILE 1
+    hexdump(memory, 0x10);
+
+#define ELF_DUMP_TO_FILE 1
 
 #ifdef ELF_DUMP_TO_FILE
     FILE* fd2 = fopen("/tmp/cricket-elf-dump", "wb");
-    fwrite(memory-1, memsize, 1, fd2);
+    fwrite(memory, memsize, 1, fd2);
     fclose(fd2);
 #endif
-
 
     if ((elf = elf_memory(memory, memsize)) == NULL) {
         LOGE(LOG_ERROR, "elf_memory failed");
@@ -904,8 +906,6 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         LOGE(LOG_ERROR, "check_elf failed");
         goto cleanup;
     }
-
-    //print_symtab(elf);
 
     if (get_symtab(elf, &symbol_table_data, &symnum, &symtab_shdr) != 0) {
         LOGE(LOG_ERROR, "could not get symbol table");

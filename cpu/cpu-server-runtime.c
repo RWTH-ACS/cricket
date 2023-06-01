@@ -592,8 +592,14 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
     return 1;
 }
 
-/* Capture API does not make sense without graph API */
-//        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                      = 264;*/
+bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamIsCapturing");
+    result->err = cudaStreamIsCapturing(
+      resource_mg_get(&rm_streams, (void*)stream),
+      (enum cudaStreamCaptureStatus*)&result->int_result_u.data);
+    return 1;
+}
 
 bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
 {

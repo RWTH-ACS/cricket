@@ -39,12 +39,12 @@ int server_driver_init(int restore)
 // Does not support checkpoint/restart yet
 bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
+    LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module;
     
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "cuModuleLoadData failed: %d", res);
+        LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
         *result = res;
         return 1;
     }
@@ -52,12 +52,12 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
     if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
+        LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
         *result = res;
         return 1;
     }
 
-    LOG(LOG_DEBUG, "->module: %p", module);
+    LOGE(LOG_DEBUG, "->module: %p", module);
     *result = 0;
     return 1;
 }
@@ -338,6 +338,45 @@ bool_t rpc_cugeterrorstring_1_svc(int err, str_result *result,
         LOGE(LOG_ERROR, "error copying string");
     }
 
+    return 1;
+}
+
+bool_t rpc_cudeviceprimaryctxgetstate_1_svc(int dev, dint_result *result,
+                                      struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s(%d)", __FUNCTION__, dev);
+    GSCHED_RETAIN;
+    result->err = cuDevicePrimaryCtxGetState(dev, &(result->dint_result_u.data.i1),
+                                            &(result->dint_result_u.data.i2));
+    LOGE(LOG_DEBUG, "state: %d, flags: %d", result->dint_result_u.data.i1,
+                                           result->dint_result_u.data.i2);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudevicegetproperties_1_svc(int dev, mem_result *result,
+                                       struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s(%d)", __FUNCTION__, dev);
+    GSCHED_RETAIN;
+    if ((result->mem_result_u.data.mem_data_val = malloc(sizeof(CUdevprop))) == NULL) {
+        result->err = CUDA_ERROR_OUT_OF_MEMORY;
+    }
+    result->mem_result_u.data.mem_data_len = sizeof(CUdevprop);
+    result->err = cuDeviceGetProperties((CUdevprop*)result->mem_result_u.data.mem_data_val, dev);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudevicecomputecapability_1_svc(int dev, dint_result *result,
+                                           struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s(%d)", __FUNCTION__, dev);
+    GSCHED_RETAIN;
+    result->err = cuDeviceComputeCapability(&(result->dint_result_u.data.i1),
+                                            &(result->dint_result_u.data.i2),
+                                            dev);
+    GSCHED_RELEASE;
     return 1;
 }
 

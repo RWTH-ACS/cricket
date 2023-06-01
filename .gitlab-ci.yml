@@ -215,9 +215,9 @@ build:debug:
       echo $KNOWN_HOSTS > ~/.ssh/known_hosts && chmod 600 ~/.ssh/id_rsa
     - ssh $GPU_TARGET mkdir -p $RDIR
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
-    - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3 $RDIR/cricket-rpc-server" &
+    - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3 $RDIR/cricket-rpc-server 255" &
     - sleep 2
-    - REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY $PARAMETER
+    - CRICKET_RPCID=255 REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY $PARAMETER
   after_script:
     - ssh $GPU_TARGET rm -rf $RDIR
     - ssh $GPU_TARGET pkill -fe -2 $RDIR/test_kernel

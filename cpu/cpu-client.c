@@ -245,7 +245,9 @@ void *dlopen(const char *filename, int flag)
         }
     }
 
-    if (filename != NULL && strcmp(filename, "libcuda.so.1") == 0) {
+    if (filename != NULL && 
+        (strcmp(filename, "libcuda.so.1") == 0 ||
+        strcmp(filename, "libcuda.so") == 0)) {
         LOG(LOG_DEBUG, "replacing dlopen call to cuda driver library with "
                        "cricket-client.so");
         dl_handle = dlopen_orig("cricket-client.so", flag);
@@ -336,6 +338,11 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
                                            &result, clnt);
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
+            exit(1);
+        }
+        if (result.err != 0) {
+            LOGE(LOG_ERROR, "error registering function: %d", result.err);
+            exit(1);
         }
         info->host_fun = (void *)hostFun;
     }
@@ -370,6 +377,7 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         LOGE(LOG_ERROR, "call failed.");
     }
     if (rpc_result != 0) {
+        LOGE(LOG_ERROR, "error registering fatbin: %d", rpc_result);
         return NULL;
     }
     LOG(LOG_DEBUG, "fatbin loaded to %p", result);

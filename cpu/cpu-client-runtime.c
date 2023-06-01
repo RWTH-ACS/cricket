@@ -329,15 +329,18 @@ cudaError_t cudaGetDeviceFlags(unsigned int* flags)
     return result.err;
 }
 
+#undef cudaGetDeviceProperties
 cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
     mem_result result;
-    result.mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
-    result.mem_result_u.data.mem_data_val = (char*)prop;
     enum clnt_stat retval;
+    if (prop == NULL) {
+        LOGE(LOG_ERROR, "error: prop == NULL\n");
+        return cudaErrorInvalidValue;
+    }
     retval = cuda_get_device_properties_1(device, &result, clnt);
     if (retval != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -346,7 +349,11 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
         return result.err;
     }
     if (result.mem_result_u.data.mem_data_len != sizeof(struct cudaDeviceProp)) {
-        LOGE(LOG_ERROR, "error: expected size != retrieved size\n");
+        LOGE(LOG_ERROR, "error: expected size != retrieved size");
+        return result.err;
+    }
+    if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+        LOGE(LOG_ERROR, "error: memcpy failed");
         return result.err;
     }
     return result.err;
@@ -572,7 +579,25 @@ cudaError_t cudaStreamGetPriority(cudaStream_t hStream, int* priority)
     return result.err;
 }
 
-DEF_FN(cudaError_t, cudaStreamIsCapturing, cudaStream_t, stream, enum cudaStreamCaptureStatus*, pCaptureStatus)
+cudaError_t cudaStreamIsCapturing(cudaStream_t stream, enum cudaStreamCaptureStatus* pCaptureStatus)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    if (pCaptureStatus == NULL) {
+        return cudaErrorInvalidValue;
+    }
+    retval_1 = cuda_stream_is_capturing_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pCaptureStatus = (enum cudaStreamCaptureStatus)result.int_result_u.data;
+    }
+    return result.err;
+}
 
 cudaError_t cudaStreamQuery(cudaStream_t stream)
 {
@@ -752,7 +777,9 @@ DEF_FN(cudaError_t, cudaExternalMemoryGetMappedBuffer, void**, devPtr, cudaExter
 DEF_FN(cudaError_t, cudaExternalMemoryGetMappedMipmappedArray, cudaMipmappedArray_t*, mipmap, cudaExternalMemory_t, extMem, const struct cudaExternalMemoryMipmappedArrayDesc*, mipmapDesc)
 DEF_FN(cudaError_t, cudaImportExternalMemory, cudaExternalMemory_t*, extMem_out, const struct cudaExternalMemoryHandleDesc*, memHandleDesc)
 DEF_FN(cudaError_t, cudaImportExternalSemaphore, cudaExternalSemaphore_t*, extSem_out, const struct cudaExternalSemaphoreHandleDesc*, semHandleDesc)
+#undef cudaSignalExternalSemaphoresAsync
 DEF_FN(cudaError_t, cudaSignalExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreSignalParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
+#undef cudaWaitExternalSemaphoresAsync
 DEF_FN(cudaError_t, cudaWaitExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreWaitParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
 
 cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* func)

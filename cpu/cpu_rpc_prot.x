@@ -185,7 +185,7 @@ program RPC_CD_PROG {
         /* ?         CUDA_STREAM_GET_CAPTURE_INFO(ptr)                          = 261;*/
         int_result   CUDA_STREAM_GET_FLAGS(ptr)                                 = 262;
         int_result   CUDA_STREAM_GET_PRIORITY(ptr)                              = 263;
-        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                              = 264;*/
+        int_result   CUDA_STREAM_IS_CAPTURING(ptr)                              = 264;
         int          CUDA_STREAM_QUERY(ptr)                                     = 265;
         /*int        CUDA_STREAM_SET_ATTRIBUTE(ptr, int, ?)                     = 266;*/
         int          CUDA_STREAM_SYNCHRONIZE(ptr)                               = 267;
@@ -335,6 +335,9 @@ program RPC_CD_PROG {
         ptr_result   rpc_cuModuleLoad(string<>)                                = 1019;
         str_result   rpc_cuGetErrorString(int)                                 = 1020;
         int          rpc_cuModuleUnload(ptr)                                   = 1021;
+        dint_result  rpc_cuDevicePrimaryCtxGetState(int)                       = 1022;
+        mem_result   rpc_cuDeviceGetProperties(int)                            = 1023;
+        dint_result  rpc_cuDeviceComputeCapability(int)                        = 1024;
 
         /* HIDDEN DRIVER API */
 /*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;

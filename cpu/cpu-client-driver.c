@@ -21,11 +21,12 @@
 //DEF_FN(CUresult, cuProfilerStart)
 //DEF_FN(CUresult, cuProfilerStop)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
+#undef cuVDPAUCtxCreate
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 DEF_FN(CUresult, cuGraphicsVDPAURegisterVideoSurface, CUgraphicsResource*, pCudaResource, VdpVideoSurface, vdpSurface, unsigned int, flags)
 DEF_FN(CUresult, cuGraphicsVDPAURegisterOutputSurface, CUgraphicsResource*, pCudaResource, VdpOutputSurface, vdpSurface, unsigned int, flags)
 
-//DEF_FN(CUresult, cuDeviceTotalMem, size_t*, bytes, CUdevice, dev)
+#undef cuDeviceTotalMem
 CUresult cuDeviceTotalMem(size_t* bytes, CUdevice dev)
 {
 	enum clnt_stat retval;
@@ -41,7 +42,7 @@ CUresult cuDeviceTotalMem(size_t* bytes, CUdevice dev)
     return result.err;
 }
 
-//DEF_FN(CUresult, cuCtxCreate, CUcontext*, pctx, unsigned int, flags, CUdevice, dev)
+#undef cuCtxCreate
 CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
 {
     DEF_FN_PTR(CUresult, CUcontext*, unsigned int, CUdevice);
@@ -51,10 +52,12 @@ CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
     return ret;
 }
 DEF_FN(CUresult, cuCtxSynchronize)
+#undef cuModuleGetGlobal
 DEF_FN(CUresult, cuModuleGetGlobal, CUdeviceptr*, dptr, size_t*, bytes, CUmodule, hmod, const char*, name)
+#undef cuMemGetInfo
 DEF_FN(CUresult, cuMemGetInfo, size_t*, free, size_t*, total)
 
-//DEF_FN(CUresult, cuMemAlloc, CUdeviceptr*, dptr, size_t, bytesize)
+#undef cuMemAlloc
 CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
 {
 	enum clnt_stat retval;
@@ -71,30 +74,40 @@ CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
     return result.err;
 }
 
+#undef cuMemAllocPitch
 DEF_FN(CUresult, cuMemAllocPitch, CUdeviceptr*, dptr, size_t*, pPitch, size_t, WidthInBytes, size_t, Height, unsigned int, ElementSizeBytes)
+#undef cuMemFree
 DEF_FN(CUresult, cuMemFree, CUdeviceptr, dptr)
+#undef cuMemGetAddressRange
 DEF_FN(CUresult, cuMemGetAddressRange, CUdeviceptr*, pbase, size_t*, psize, CUdeviceptr, dptr)
+#undef cuMemHostGetDevicePointer
 DEF_FN(CUresult, cuMemHostGetDevicePointer, CUdeviceptr*, pdptr, void*, p, unsigned int, Flags)
+#undef cuMemHostRegister
 DEF_FN(CUresult, cuMemHostRegister, void*, p, size_t, bytesize, unsigned int, Flags)
+#undef cuMemsetD8
 DEF_FN(CUresult, cuMemsetD8, CUdeviceptr, dstDevice, unsigned char, uc, size_t, N);
 DEF_FN(CUresult, cuMemsetD8_v2_ptds, CUdeviceptr, dstDevice, unsigned char, uc, size_t, N);
+#undef cuMemsetD2D8
 DEF_FN(CUresult, cuMemsetD2D8, CUdeviceptr, dstDevice, size_t, dstPitch, unsigned char, uc, size_t, Width, size_t, Height)
 DEF_FN(CUresult, cuMemsetD2D8_v2_ptds, CUdeviceptr, dstDevice, size_t, dstPitch, unsigned char, uc, size_t, Width, size_t, Height)
+#undef cuEventDestroy
 DEF_FN(CUresult, cuEventDestroy, CUevent, hEvent)
+#undef cuStreamDestroy
 DEF_FN(CUresult, cuStreamDestroy, CUstream, hStream)
+#undef cuGLCtxCreate
 DEF_FN(CUresult, cuGLCtxCreate, CUcontext*, pCtx, unsigned int, Flags, CUdevice, device)
+#undef cuArrayCreate
 DEF_FN(CUresult, cuArrayCreate, CUarray*, pHandle, const CUDA_ARRAY_DESCRIPTOR*, pAllocateArray)
+#undef cuArrayGetDescriptor
 DEF_FN(CUresult, cuArrayGetDescriptor, CUDA_ARRAY_DESCRIPTOR*, pArrayDescriptor, CUarray, hArray)
+#undef cuArray3DCreate
 DEF_FN(CUresult, cuArray3DCreate, CUarray*, pHandle, const CUDA_ARRAY3D_DESCRIPTOR*, pAllocateArray)
+#undef cuArray3DGetDescriptor
 DEF_FN(CUresult, cuArray3DGetDescriptor, CUDA_ARRAY3D_DESCRIPTOR*, pArrayDescriptor, CUarray, hArray)
+#undef cuTexRefSetAddress2D
 DEF_FN(CUresult, cuTexRefSetAddress2D, CUtexref, hTexRef, const CUDA_ARRAY_DESCRIPTOR*, desc, CUdeviceptr, dptr, size_t, Pitch)
+#undef cuTexRefSetAddress
 DEF_FN(CUresult, cuTexRefSetAddress, size_t*, ByteOffset, CUtexref, hTexRef, CUdeviceptr, dptr, size_t, bytes)
-
-
-
-
-
-
 DEF_FN(CUresult, cuGLInit)
 #undef cuGLGetDevices
 #undef cuGLMapBufferObject_v2
@@ -227,7 +240,53 @@ CUresult cuDeviceGetAttribute(int* pi, CUdevice_attribute attrib, CUdevice dev)
     *pi = result.int_result_u.data;
     return result.err;
 }
-DEF_FN(CUresult, cuDeviceGetProperties, CUdevprop*, prop, CUdevice, dev)
+
+CUresult cuDeviceGetProperties(CUdevprop* prop, CUdevice dev)
+{
+	enum clnt_stat retval;
+    mem_result result;
+    if (prop == NULL) {
+        LOGE(LOG_ERROR, "%s: prop is NULL", __FUNCTION__);
+        return CUDA_ERROR_INVALID_VALUE;
+    }
+    retval = rpc_cudevicegetproperties_1(dev, &result, clnt);
+    LOGE(LOG_DEBUG, "%s = %d, result len: %d", __FUNCTION__, result.err,
+                                        result.mem_result_u.data.mem_data_len);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    if (result.mem_result_u.data.mem_data_len != sizeof(CUdevprop)) {
+        LOGE(LOG_ERROR, "%s: size mismatch", __FUNCTION__);
+        return CUDA_ERROR_INVALID_VALUE;
+    }
+    if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(CUdevprop)) == NULL) {
+        LOGE(LOG_ERROR, "%s: memcpy failed", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    return result.err;
+}
+CUresult cuDeviceComputeCapability(int* major, int* minor, CUdevice dev)
+{
+    enum clnt_stat retval;
+    dint_result result;
+    if (major == NULL || minor == NULL) {
+        LOGE(LOG_ERROR, "%s: major or minor is NULL", __FUNCTION__);
+        return CUDA_ERROR_INVALID_VALUE;
+    }
+    retval = rpc_cudevicecomputecapability_1(dev, &result, clnt);
+    LOGE(LOG_DEBUG, "%s = %d, result %d, %d", __FUNCTION__, result.err,
+                                        result.dint_result_u.data.i1,
+                                        result.dint_result_u.data.i2);
+    if (retval != RPC_SUCCESS) {
+        fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    *major = result.dint_result_u.data.i1;
+    *minor = result.dint_result_u.data.i2;
+    return result.err;
+} 
+
 DEF_FN(CUresult, cuDeviceGetByPCIBusId, CUdevice*, dev, const char*, pciBusId)
 DEF_FN(CUresult, cuDeviceGetP2PAttribute, int*, value, CUdevice_P2PAttribute, attrib, CUdevice, srcDevice, CUdevice, dstDevice)
 //DEF_FN(CUresult, cuDriverGetVersion, int*, driverVersion)
@@ -261,9 +320,31 @@ CUresult cuDevicePrimaryCtxRetain(CUcontext *pctx, CUdevice dev)
     *pctx = (CUcontext)result.ptr_result_u.ptr;
     return result.err;
 }
+#undef cuDevicePrimaryCtxRelease
 DEF_FN(CUresult, cuDevicePrimaryCtxRelease, CUdevice, dev)
+#undef cuDevicePrimaryCtxSetFlags
 DEF_FN(CUresult, cuDevicePrimaryCtxSetFlags, CUdevice, dev, unsigned int, flags)
-DEF_FN(CUresult, cuDevicePrimaryCtxGetState, CUdevice, dev, unsigned int*, flags, int*, active)
+CUresult cuDevicePrimaryCtxGetState(CUdevice dev, unsigned int* flags, int* active)
+{
+	enum clnt_stat retval;
+    dint_result result;
+    if (flags == NULL || active == NULL) {
+        LOGE(LOG_ERROR, "%s flags or active is NULL.", __FUNCTION__);
+        return CUDA_ERROR_INVALID_VALUE;
+    }
+    retval = rpc_cudeviceprimaryctxgetstate_1(dev, &result, clnt);
+    LOGE(LOG_DEBUG, "%s = %d, result %d %d", __FUNCTION__, result.err,
+                                        result.dint_result_u.data.i1,
+                                        result.dint_result_u.data.i2);
+	if (retval != RPC_SUCCESS) {
+		LOGE(LOG_ERROR, "%s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *flags = result.dint_result_u.data.i1;
+    *active = result.dint_result_u.data.i2; 
+    return result.err;
+}
+#undef cuDevicePrimaryCtxReset
 DEF_FN(CUresult, cuDevicePrimaryCtxReset, CUdevice, dev)
 DEF_FN(CUresult, cuCtxGetFlags, unsigned int*, flags)
 //DEF_FN(CUresult, cuCtxSetCurrent, CUcontext, ctx)
@@ -402,6 +483,7 @@ DEF_FN(CUresult, cuPointerGetAttributes, unsigned int, numAttributes, CUpointer_
 DEF_FN(CUresult, cuMemcpy, CUdeviceptr, dst, CUdeviceptr, src, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpy_ptds, CUdeviceptr, dst, CUdeviceptr, src, size_t, ByteCount)
 //DEF_FN(CUresult, cuMemcpyHtoD, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
+#undef cuMemcpyHtoD
 CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void* srcHost, size_t ByteCount)
 {
 	enum clnt_stat retval;
@@ -418,34 +500,51 @@ CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void* srcHost, size_t ByteCou
     return result;
 }
 DEF_FN(CUresult, cuMemcpyHtoD_v2_ptds, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount)
+#undef cuMemcpyDtoH
 DEF_FN(CUresult, cuMemcpyDtoH, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpyDtoH_v2_ptds, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount)
+#undef cuMemcpyDtoD
 DEF_FN(CUresult, cuMemcpyDtoD, CUdeviceptr, dstDevice, CUdeviceptr, srcDevice, size_t, ByteCount)
 DEF_FN(CUresult, cuMemcpyDtoD_v2_ptds, CUdeviceptr, dstDevice, CUdeviceptr, srcDevice, size_t, ByteCount)
+#undef cuMemcpyDtoA
 DEF_FN(CUresult, cuMemcpyDtoA, CUarray, dstArray, size_t, dstOffset, CUdeviceptr, srcDevice, size_t, ByteCount)
+#undef cuMemcpyAtoD
 DEF_FN(CUresult, cuMemcpyAtoD, CUdeviceptr, dstDevice, CUarray, srcArray, size_t, srcOffset, size_t, ByteCount)
+#undef cuMemcpyHtoA
 DEF_FN(CUresult, cuMemcpyHtoA, CUarray, dstArray, size_t, dstOffset, const void*, srcHost, size_t, ByteCount)
+#undef cuMemcpyAtoH
 DEF_FN(CUresult, cuMemcpyAtoH, void*, dstHost, CUarray, srcArray, size_t, srcOffset, size_t, ByteCount)
+#undef cuMemcpyAtoA
 DEF_FN(CUresult, cuMemcpyAtoA, CUarray, dstArray, size_t, dstOffset, CUarray, srcArray, size_t, srcOffset, size_t, ByteCount)
+#undef cuMemcpy2D
 DEF_FN(CUresult, cuMemcpy2D, const CUDA_MEMCPY2D*, pCopy)
+#undef cuMemcpy2DUnaligned
 DEF_FN(CUresult, cuMemcpy2DUnaligned, const CUDA_MEMCPY2D*, pCopy)
 DEF_FN(CUresult, cuMemcpy2DUnaligned_v2_ptds, const CUDA_MEMCPY2D*, pCopy)
+#undef cuMemcpy3D
 DEF_FN(CUresult, cuMemcpy3D, const CUDA_MEMCPY3D*, pCopy)
 DEF_FN(CUresult, cuMemcpy3D_v2_ptds, const CUDA_MEMCPY3D*, pCopy)
 DEF_FN(CUresult, cuMemcpyPeerAsync, CUdeviceptr, dstDevice, CUcontext, dstContext, CUdeviceptr, srcDevice, CUcontext, srcContext, size_t, ByteCount, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpyPeerAsync_ptsz, CUdeviceptr, dstDevice, CUcontext, dstContext, CUdeviceptr, srcDevice, CUcontext, srcContext, size_t, ByteCount, CUstream, hStream)
+#undef cuMemcpyHtoAAsync
 DEF_FN(CUresult, cuMemcpyHtoAAsync, CUarray, dstArray, size_t, dstOffset, const void*, srcHost, size_t, ByteCount, CUstream, hStream)
+#undef cuMemcpyAtoHAsync
 DEF_FN(CUresult, cuMemcpyAtoHAsync, void*, dstHost, CUarray, srcArray, size_t, srcOffset, size_t, ByteCount, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpy3DPeerAsync, const CUDA_MEMCPY3D_PEER*, pCopy, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpy3DPeerAsync_ptsz, const CUDA_MEMCPY3D_PEER*, pCopy, CUstream, hStream)
+#undef cuMemcpyHtoDAsync
 DEF_FN(CUresult, cuMemcpyHtoDAsync, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpyHtoDAsync_v2_ptsz, CUdeviceptr, dstDevice, const void*, srcHost, size_t, ByteCount, CUstream, hStream)
+#undef cuMemcpyDtoHAsync
 DEF_FN(CUresult, cuMemcpyDtoHAsync, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpyDtoHAsync_v2_ptsz, void*, dstHost, CUdeviceptr, srcDevice, size_t, ByteCount, CUstream, hStream)
+#undef cuMemcpyDtoDAsync
 DEF_FN(CUresult, cuMemcpyDtoDAsync, CUdeviceptr, dstDevice, CUdeviceptr, srcDevice, size_t, ByteCount, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpyDtoDAsync_v2_ptsz, CUdeviceptr, dstDevice, CUdeviceptr, srcDevice, size_t, ByteCount, CUstream, hStream)
+#undef cuMemcpy2DAsync
 DEF_FN(CUresult, cuMemcpy2DAsync, const CUDA_MEMCPY2D*, pCopy, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpy2DAsync_v2_ptsz, const CUDA_MEMCPY2D*, pCopy, CUstream, hStream)
+#undef cuMemcpy3DAsync
 DEF_FN(CUresult, cuMemcpy3DAsync, const CUDA_MEMCPY3D*, pCopy, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpy3DAsync_v2_ptsz, const CUDA_MEMCPY3D*, pCopy, CUstream, hStream)
 DEF_FN(CUresult, cuMemcpyAsync, CUdeviceptr, dst, CUdeviceptr, src, size_t, ByteCount, CUstream, hStream)
@@ -567,14 +666,19 @@ DEF_FN(CUresult, cuEventRecord_ptsz, CUevent, hEvent, CUstream, hStream)
 DEF_FN(CUresult, cuEventQuery, CUevent, hEvent)
 DEF_FN(CUresult, cuEventSynchronize, CUevent, hEvent)
 DEF_FN(CUresult, cuEventElapsedTime, float*, pMilliseconds, CUevent, hStart, CUevent, hEnd)
+#undef cuStreamWaitValue32
 DEF_FN(CUresult, cuStreamWaitValue32, CUstream, stream, CUdeviceptr, addr, cuuint32_t, value, unsigned int, flags)
 DEF_FN(CUresult, cuStreamWaitValue32_ptsz, CUstream, stream, CUdeviceptr, addr, cuuint32_t, value, unsigned int, flags)
+#undef cuStreamWriteValue32
 DEF_FN(CUresult, cuStreamWriteValue32, CUstream, stream, CUdeviceptr, addr, cuuint32_t, value, unsigned int, flags)
 DEF_FN(CUresult, cuStreamWriteValue32_ptsz, CUstream, stream, CUdeviceptr, addr, cuuint32_t, value, unsigned int, flags)
+#undef cuStreamWaitValue64
 DEF_FN(CUresult, cuStreamWaitValue64, CUstream, stream, CUdeviceptr, addr, cuuint64_t, value, unsigned int, flags)
 DEF_FN(CUresult, cuStreamWaitValue64_ptsz, CUstream, stream, CUdeviceptr, addr, cuuint64_t, value, unsigned int, flags)
+#undef cuStreamWriteValue64
 DEF_FN(CUresult, cuStreamWriteValue64, CUstream, stream, CUdeviceptr, addr, cuuint64_t, value, unsigned int, flags)
 DEF_FN(CUresult, cuStreamWriteValue64_ptsz, CUstream, stream, CUdeviceptr, addr, cuuint64_t, value, unsigned int, flags)
+#undef cuStreamBatchMemOp
 DEF_FN(CUresult, cuStreamBatchMemOp, CUstream, stream, unsigned int, count, CUstreamBatchMemOpParams*, paramArray, unsigned int, flags)
 DEF_FN(CUresult, cuStreamBatchMemOp_ptsz, CUstream, stream, unsigned int, count, CUstreamBatchMemOpParams*, paramArray, unsigned int, flags)
 DEF_FN(CUresult, cuStreamCreate, CUstream*, phStream, unsigned int, Flags)
@@ -600,6 +704,7 @@ DEF_FN(CUresult, cuCtxDisablePeerAccess, CUcontext, peerContext)
 DEF_FN(CUresult, cuIpcGetEventHandle, CUipcEventHandle*, pHandle, CUevent, event)
 DEF_FN(CUresult, cuIpcOpenEventHandle, CUevent*, phEvent, CUipcEventHandle, handle)
 DEF_FN(CUresult, cuIpcGetMemHandle, CUipcMemHandle*, pHandle, CUdeviceptr, dptr)
+#undef cuIpcOpenMemHandle
 DEF_FN(CUresult, cuIpcOpenMemHandle, CUdeviceptr*, pdptr, CUipcMemHandle, handle, unsigned int, Flags)
 DEF_FN(CUresult, cuIpcCloseMemHandle, CUdeviceptr, dptr)
 DEF_FN(CUresult, cuGraphicsUnregisterResource, CUgraphicsResource, resource)
@@ -609,7 +714,9 @@ DEF_FN(CUresult, cuGraphicsUnmapResources, unsigned int, count, CUgraphicsResour
 DEF_FN(CUresult, cuGraphicsUnmapResources_ptsz, unsigned int, count, CUgraphicsResource*, resources, CUstream, hStream)
 DEF_FN(CUresult, cuGraphicsSubResourceGetMappedArray, CUarray*, pArray, CUgraphicsResource, resource, unsigned int, arrayIndex, unsigned int, mipLevel)
 DEF_FN(CUresult, cuGraphicsResourceGetMappedMipmappedArray, CUmipmappedArray*, pMipmappedArray, CUgraphicsResource, resource)
+#undef cuGraphicsResourceGetMappedPointer
 DEF_FN(CUresult, cuGraphicsResourceGetMappedPointer, CUdeviceptr*, pDevPtr, size_t*, pSize, CUgraphicsResource, resource)
+#undef cuGraphicsResourceSetMapFlags
 DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, unsigned int, flags)
 //DEF_FN(CUresult, cuGetExportTable, const void**, ppExportTable, const CUuuid*, pExportTableId)
 
@@ -672,8 +779,11 @@ CUresult cuGetErrorString(CUresult error, const char** pStr)
 }
 DEF_FN(CUresult, cuGetErrorName, CUresult, error, const char**, pStr)
 DEF_FN(CUresult, cuGraphCreate, CUgraph*, phGraph, unsigned int, flags)
+#undef cuGraphAddKernelNode
 DEF_FN(CUresult, cuGraphAddKernelNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)
+#undef cuGraphKernelNodeGetParams
 DEF_FN(CUresult, cuGraphKernelNodeGetParams, CUgraphNode, hNode, CUDA_KERNEL_NODE_PARAMS*, nodeParams)
+#undef cuGraphKernelNodeSetParams
 DEF_FN(CUresult, cuGraphKernelNodeSetParams, CUgraphNode, hNode, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)
 DEF_FN(CUresult, cuGraphAddMemcpyNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, const CUDA_MEMCPY3D*, copyParams, CUcontext, ctx)
 DEF_FN(CUresult, cuGraphMemcpyNodeGetParams, CUgraphNode, hNode, CUDA_MEMCPY3D*, nodeParams)
@@ -698,6 +808,7 @@ DEF_FN(CUresult, cuGraphNodeGetDependentNodes, CUgraphNode, hNode, CUgraphNode*,
 DEF_FN(CUresult, cuGraphAddDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
 DEF_FN(CUresult, cuGraphRemoveDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
 #if CUDA_VERSION >= 12000
+#undef cuGraphInstantiate
 DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, unsigned long long, flags)
 #else
 DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, CUgraphNode*, phErrorNode, char*, logBuffer, size_t, bufferSize)
@@ -709,7 +820,6 @@ DEF_FN(CUresult, cuGraphDestroyNode, CUgraphNode, hNode)
 DEF_FN(CUresult, cuGraphDestroy, CUgraph, hGraph)
 DEF_FN(CUresult, cuGraphDestroy_ptsz, CUgraph, hGraph)
 DEF_FN(CUresult, cuStreamBeginCapture_ptsz, CUstream, hStream)
-DEF_FN(CUresult, cuStreamBeginCapture, CUstream, hStream, CUstreamCaptureMode, mode)
 #undef cuStreamBeginCapture
 DEF_FN(CUresult, cuStreamBeginCapture, CUstream, hStream, CUstreamCaptureMode, mode)
 DEF_FN(CUresult, cuStreamBeginCapture_v2_ptsz, CUstream, hStream)
@@ -718,6 +828,31 @@ DEF_FN(CUresult, cuStreamEndCapture_ptsz, CUstream, hStream, CUgraph*, phGraph)
 DEF_FN(CUresult, cuStreamIsCapturing, CUstream, hStream, CUstreamCaptureStatus*, captureStatus)
 DEF_FN(CUresult, cuStreamIsCapturing_ptsz, CUstream, hStream, CUstreamCaptureStatus*, captureStatus)
 DEF_FN(CUresult, cuThreadExchangeStreamCaptureMode, CUstreamCaptureMode*, mode)
+#undef cuStreamGetCaptureInfo
 DEF_FN(CUresult, cuStreamGetCaptureInfo, CUstream, hStream, CUstreamCaptureStatus*, captureStatus_out, cuuint64_t*, id_out, CUgraph*. graph_out, const CUgraphNode**, dependencies_out, size_t*, numDependencies_out)
 DEF_FN(CUresult, cuStreamGetCaptureInfo_ptsz, CUstream, hStream, CUstreamCaptureStatus*, captureStatus, cuuint64_t*, id)
+#undef cuGraphExecKernelNodeSetParams
 DEF_FN(CUresult, cuGraphExecKernelNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)
+
+#if CUDA_VERSION >= 12000
+#undef cuGetProcAddress
+CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags, CUdriverProcAddressQueryResult* symbolStatus) 
+{
+	enum clnt_stat retval;
+    ptr_result result;
+    LOGE(LOG_DEBUG, "%s(%s, %d, %llx)", __FUNCTION__, symbol, cudaVersion, flags);
+
+    *pfn = NULL;
+    *symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
+	// if (retval != RPC_SUCCESS) {
+	// 	fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+    //     return CUDA_ERROR_UNKNOWN;
+	// }
+    // if (pStr != NULL) {
+    //    if ((*pStr = malloc(128)) != NULL) {
+    //        strncpy((char*)(*pStr), result.str_result_u.str, 128);
+    //     }
+    // }
+    return cudaSuccess;
+}
+#endif
