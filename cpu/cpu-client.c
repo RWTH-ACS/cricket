@@ -247,8 +247,9 @@ void *dlopen(const char *filename, int flag)
 
     if (filename != NULL && 
         (strcmp(filename, "libcuda.so.1") == 0 ||
-        strcmp(filename, "libcuda.so") == 0)) {
-        LOG(LOG_DEBUG, "replacing dlopen call to cuda driver library with "
+        strcmp(filename, "libcuda.so") == 0) ||
+        strcmp(filename, "libnvidia-ml.so.1") == 0) {
+        LOG(LOG_DEBUG, "replacing dlopen call to cuda library with "
                        "cricket-client.so");
         dl_handle = dlopen_orig("cricket-client.so", flag);
         if (clnt == NULL) {

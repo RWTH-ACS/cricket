@@ -40,7 +40,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 gsched_none.c 			    \
 			 oob.c 					    \
 			 mt-memcpy.c				\
-			 cpu-elf2.c
+			 cpu-elf2.c					\
+			 cpu-server-nvml.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -57,7 +58,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
 			 mt-memcpy.c				\
-			 cpu-elf2.c
+			 cpu-elf2.c					\
+			 cpu-client-nvml.c
 
 # 			 cpu-client-driver-hidden.c \
 
@@ -76,6 +78,7 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
+LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
@@ -102,7 +105,7 @@ ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
 CLIENT_LD_FLAGS = $(LD_FLAGS)
 

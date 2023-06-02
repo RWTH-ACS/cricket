@@ -364,5 +364,11 @@ program RPC_CD_PROG {
         int          rpc_cublasDgemm(ptr, int, int, int, int, int, double,
                          ptr, int, ptr, int, double, ptr, int)                 = 3002;
         int          rpc_cublasDestroy(ptr)                                    = 3003;
+
+        /* NVML */
+        int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;
+        int          rpc_nvmlInitWithFlags(int)                                = 4001;
+        int          rpc_nvmlInit_v2(void)                                     = 4002;
+        int          rpc_nvmlShutdown(void)                                    = 4003;
     } = 1;
 } = 99;

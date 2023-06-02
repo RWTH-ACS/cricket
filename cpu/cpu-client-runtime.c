@@ -352,7 +352,9 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
         LOGE(LOG_ERROR, "error: expected size != retrieved size");
         return result.err;
     }
-    if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+    // if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+    //FIXME: Don't know why, but pytorch expects a different definition of cudaDeviceProp, which is only 728 bytes long
+    if (memcpy(prop, result.mem_result_u.data.mem_data_val, 728) == NULL) {
         LOGE(LOG_ERROR, "error: memcpy failed");
         return result.err;
     }
