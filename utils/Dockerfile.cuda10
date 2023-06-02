@@ -27,7 +27,7 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 
 RUN dnf --refresh -y install https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-repo-rhel8-10.2.89-1.x86_64.rpm && \
     rpm --import https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/D42D0685.pub && \
-    dnf --refresh -y install cuda-compiler-10-2 cuda-libraries-dev-10-2 cuda-samples-10-2 cuda-driver-dev-10-2 cuda-misc-headers-10-2 cuda-nvml-dev-10-2 && \
+    dnf --refresh -y install cuda-compiler-10-2 cuda-libraries-dev-10-2 cuda-samples-10-2 cuda-driver-dev-10-2 cuda-misc-headers-10-2 cuda-nvml-dev-10-2 nvidia-driver-NVML-530.30.02 && \
     ln -s cuda-10.2 /usr/local/cuda && \
     ln -s libcuda.so /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
     
