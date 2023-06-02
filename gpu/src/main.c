@@ -1046,17 +1046,17 @@ int cricket_checkpoint(int argc, char *argv[])
     //cricket_focus_kernel(!batch_flag);
 
 
-    /// TODO: Logic Error: first_warp might always be invalid! In line 889 first_warp is looped over
-    /// the number of available warps. As far as I can tell it is never reset afterwards. 
-    /// That would explain why this line throws an invalid warp exception. Needs discussion.
+    /// TODO: verify if it is sufficient to set first_warp to 0 
+    first_warp = 0;
     if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
-    if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
-        printf("cricket_cr_ckp_globals unsuccessful\n");
-    }
+    /// TODO: work out globals
+    //if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
+    //    printf("cricket_cr_ckp_globals unsuccessful\n");
+    //}
 
 #ifdef CRICKET_PROFILE
     gettimeofday(&f, NULL);
