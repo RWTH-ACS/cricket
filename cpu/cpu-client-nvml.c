@@ -71,8 +71,10 @@ nvmlReturn_t nvmlShutdown ( void )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetAPIRestriction, nvmlDevice_t, device, nvmlRestrictedAPI_t, apiType, nvmlEnableState_t*, isRestricted )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetAdaptiveClockInfoStatus, nvmlDevice_t, device, unsigned int*, adaptiveClockStatus )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetApplicationsClock, nvmlDevice_t, device, nvmlClockType_t, clockType, unsigned int*, clockMHz )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceGetArchitecture, nvmlDevice_t, device, nvmlDeviceArchitecture_t*, arch )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetAttributes_v2, nvmlDevice_t, device, nvmlDeviceAttributes_t*, attributes )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceGetAutoBoostedClocksEnabled, nvmlDevice_t, device, nvmlEnableState_t*, isEnabled, nvmlEnableState_t*, defaultIsEnabled )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetBAR1MemoryInfo, nvmlDevice_t, device, nvmlBAR1Memory_t*, bar1Memory )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetBoardId, nvmlDevice_t, device, unsigned int*, boardId )
@@ -121,7 +123,9 @@ DEF_FN(nvmlReturn_t, nvmlDeviceGetEncoderUtilization, nvmlDevice_t, device, unsi
 DEF_FN(nvmlReturn_t, nvmlDeviceGetEnforcedPowerLimit, nvmlDevice_t, device, unsigned int*, limit )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetFBCSessions, nvmlDevice_t, device, unsigned int*, sessionCount, nvmlFBCSessionInfo_t*, sessionInfo )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetFBCStats, nvmlDevice_t, device, nvmlFBCStats_t*, fbcStats )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceGetFanControlPolicy_v2, nvmlDevice_t, device, unsigned int,  fan, nvmlFanControlPolicy_t*, policy )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceGetFanSpeed, nvmlDevice_t, device, unsigned int*, speed )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetFanSpeed_v2, nvmlDevice_t, device, unsigned int,  fan, unsigned int*, speed )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetGpuMaxPcieLinkGeneration, nvmlDevice_t, device, unsigned int*, maxLinkGenDevice )
@@ -162,14 +166,18 @@ DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerManagementDefaultLimit, nvmlDevice_t, dev
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerManagementLimit, nvmlDevice_t, device, unsigned int*, limit )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerManagementLimitConstraints, nvmlDevice_t, device, unsigned int*, minLimit, unsigned int*, maxLimit )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerManagementMode, nvmlDevice_t, device, nvmlEnableState_t*, mode )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerSource, nvmlDevice_t, device, nvmlPowerSource_t*, powerSource )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerState, nvmlDevice_t, device, nvmlPstates_t*, pState )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetPowerUsage, nvmlDevice_t, device, unsigned int*, power )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetRemappedRows, nvmlDevice_t, device, unsigned int*, corrRows, unsigned int*, uncRows, unsigned int*, isPending, unsigned int*, failureOccurred )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetRetiredPages, nvmlDevice_t, device, nvmlPageRetirementCause_t, cause, unsigned int*, pageCount, unsigned long long*, addresses )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetRetiredPagesPendingStatus, nvmlDevice_t, device, nvmlEnableState_t*, isPending )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetRetiredPages_v2, nvmlDevice_t, device, nvmlPageRetirementCause_t, cause, unsigned int*, pageCount, unsigned long long*, addresses, unsigned long long*, timestamps )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceGetRowRemapperHistogram, nvmlDevice_t, device, nvmlRowRemapperHistogramValues_t*, values )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceGetSamples, nvmlDevice_t, device, nvmlSamplingType_t, type, unsigned long long, lastSeenTimeStamp, nvmlValueType_t*, sampleValType, unsigned int*, sampleCount, nvmlSample_t*, samples )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetSerial, nvmlDevice_t, device, char*, serial, unsigned int,  length )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetSupportedClocksThrottleReasons, nvmlDevice_t, device, unsigned long long*, supportedClocksThrottleReasons )
@@ -178,7 +186,9 @@ DEF_FN(nvmlReturn_t, nvmlDeviceGetSupportedMemoryClocks, nvmlDevice_t, device, u
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTargetFanSpeed, nvmlDevice_t, device, unsigned int,  fan, unsigned int*, targetSpeed )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTemperature, nvmlDevice_t, device, nvmlTemperatureSensors_t, sensorType, unsigned int*, temp )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTemperatureThreshold, nvmlDevice_t, device, nvmlTemperatureThresholds_t, thresholdType, unsigned int*, temp )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceGetThermalSettings, nvmlDevice_t, device, unsigned int,  sensorIndex, nvmlGpuThermalSettings_t*, pThermalSettings )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTopologyCommonAncestor, nvmlDevice_t, device1, nvmlDevice_t, device2, nvmlGpuTopologyLevel_t*, pathInfo )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTopologyNearestGpus, nvmlDevice_t, device, nvmlGpuTopologyLevel_t, level, unsigned int*, count, nvmlDevice_t*, deviceArray )
 DEF_FN(nvmlReturn_t, nvmlDeviceGetTotalEccErrors, nvmlDevice_t, device, nvmlMemoryErrorType_t, errorType, nvmlEccCounterType_t, counterType, unsigned long long*, eccCounts )
@@ -192,7 +202,9 @@ DEF_FN(nvmlReturn_t, nvmlDeviceResetApplicationsClocks, nvmlDevice_t, device )
 DEF_FN(nvmlReturn_t, nvmlDeviceSetAutoBoostedClocksEnabled, nvmlDevice_t, device, nvmlEnableState_t, enabled )
 DEF_FN(nvmlReturn_t, nvmlDeviceSetDefaultAutoBoostedClocksEnabled, nvmlDevice_t, device, nvmlEnableState_t, enabled, unsigned int,  flags )
 DEF_FN(nvmlReturn_t, nvmlDeviceSetDefaultFanSpeed_v2, nvmlDevice_t, device, unsigned int,  fan )
+#if NVML_API_VERSION >= 12
 DEF_FN(nvmlReturn_t, nvmlDeviceSetFanControlPolicy, nvmlDevice_t, device, unsigned int,  fan, nvmlFanControlPolicy_t, policy )
+#endif
 DEF_FN(nvmlReturn_t, nvmlDeviceSetTemperatureThreshold, nvmlDevice_t, device, nvmlTemperatureThresholds_t, thresholdType, int*, temp )
 DEF_FN(nvmlReturn_t, nvmlDeviceValidateInforom, nvmlDevice_t, device )
 DEF_FN(nvmlReturn_t, nvmlSystemGetTopologyGpuSet, unsigned int,  cpuNumber, unsigned int*, count, nvmlDevice_t*, deviceArray )
