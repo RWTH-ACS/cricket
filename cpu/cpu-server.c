@@ -25,6 +25,7 @@
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "gsched.h"
+#include "cpu-server-nvml.h"
 
 INIT_SOCKTYPE
 
@@ -287,6 +288,11 @@ void cricket_main(size_t prog_num, size_t vers_num)
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;        
     }
+    
+    if (server_nvml_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_nvml failed.");
+        goto cleanup1;
+    }
 
 #ifdef WITH_IB
 
@@ -300,7 +306,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-        goto cleanup1;
+        goto cleanup0;
     }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
@@ -310,8 +316,10 @@ void cricket_main(size_t prog_num, size_t vers_num)
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
     ret = 0;
     //api_records_print();
- cleanup1:
+ cleanup0:
     server_driver_deinit();
+ cleanup1:
+    server_nvml_deinit();
  cleanup2:
     server_runtime_deinit();
  cleanup3:
