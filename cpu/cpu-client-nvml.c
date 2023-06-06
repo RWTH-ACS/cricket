@@ -97,7 +97,7 @@ nvmlReturn_t nvmlDeviceGetCount_v2(unsigned int* deviceCount )
     }
     retval_1 = rpc_nvmldevicegetcount_v2_1(&result, clnt);
     if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
+        LOGE(LOG_ERROR, "call failed: %s", __FUNCTION__);
     }
     if (result.err == 0) {
         *deviceCount = result.int_result_u.data;

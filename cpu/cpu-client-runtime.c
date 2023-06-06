@@ -338,7 +338,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     mem_result result;
     enum clnt_stat retval;
     if (prop == NULL) {
-        LOGE(LOG_ERROR, "error: prop == NULL\n");
+        LOGE(LOG_ERROR, "error: prop == NULL");
         return cudaErrorInvalidValue;
     }
     retval = cuda_get_device_properties_1(device, &result, clnt);
