@@ -234,6 +234,7 @@ static size_t decompress(const uint8_t* input, size_t input_size, uint8_t* outpu
 #endif
         opos += next_clen;
     }
+    LOGE(LOG_DEBUG, "ipos: %#zx, opos: %#zx, ilen: %#zx, olen: %#zx", ipos, opos, input_size, output_size);
     return opos;
 }
 
@@ -328,7 +329,7 @@ static ssize_t decompress_single_section(const uint8_t *input, uint8_t **output,
     size_t input_read = 0;
     size_t output_written = 0;
     size_t decompress_ret = 0;
-    const uint8_t zeroes[6] = {0};
+    const uint8_t zeroes[8] = {0};
 
     if (input == NULL || output == NULL || eh == NULL || th == NULL) {
         LOGE(LOG_ERROR, "invalid parameters");
@@ -346,12 +347,16 @@ static ssize_t decompress_single_section(const uint8_t *input, uint8_t **output,
     if ((decompress_ret = decompress(input, th->compressed_size, *output, th->decompressed_size)) != th->decompressed_size) {
         LOGE(LOG_ERROR, "Decompression failed: decompressed size is %#zx, but header says %#zx", 
                 decompress_ret, th->decompressed_size);
-        //goto error;
+        LOGE(LOG_ERROR, "input pos: %#zx, output pos: %#zx", input - (uint8_t*)eh, *output);
+        hexdump(input, 0x160);
+        if (decompress_ret >= 0x160)
+            hexdump((*output), 0x160);
+        goto error;
     }
     input_read += th->compressed_size;
     output_written += th->decompressed_size;
 
-    padding = (8 - (size_t)(input + input_read) % 8);
+    padding = ((8 - (size_t)(input + input_read)) % 8);
     if (memcmp(input + input_read, zeroes, padding) != 0) {
         LOGE(LOG_ERROR, "expected %#zx zero bytes, got:", padding);
         hexdump(input + input_read, 0x60);
