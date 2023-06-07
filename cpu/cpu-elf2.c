@@ -189,7 +189,9 @@ static size_t decompress(const uint8_t* input, size_t input_size, uint8_t* outpu
         next_nclen = (input[ipos] & 0xf0) >> 4;
         next_clen = 4 + (input[ipos] & 0xf);
         if (next_nclen == 0xf) {
-            next_nclen += input[++ipos];
+            do {
+                next_nclen += input[++ipos];
+            } while (input[ipos] == 0xff);
         }
         
         if (memcpy(output + opos, input + (++ipos), next_nclen) == NULL) {
@@ -349,8 +351,8 @@ static ssize_t decompress_single_section(const uint8_t *input, uint8_t **output,
                 decompress_ret, th->decompressed_size);
         LOGE(LOG_ERROR, "input pos: %#zx, output pos: %#zx", input - (uint8_t*)eh, *output);
         hexdump(input, 0x160);
-        if (decompress_ret >= 0x160)
-            hexdump((*output), 0x160);
+        if (decompress_ret >= 0x60)
+            hexdump((*output) + decompress_ret - 0x60, 0x60);
         goto error;
     }
     input_read += th->compressed_size;
