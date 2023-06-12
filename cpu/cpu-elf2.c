@@ -181,9 +181,9 @@ static int get_text_header(const uint8_t* fatbin_data, size_t fatbin_size, struc
 static size_t decompress(const uint8_t* input, size_t input_size, uint8_t* output, size_t output_size)
 {
     size_t ipos = 0, opos = 0;  
-    uint16_t next_nclen;  // length of next non-compressed segment
-    uint16_t next_clen;   // length of next compressed segment
-    uint16_t back_offset; // negative offset where redudant data is located, relative to current opos
+    uint64_t next_nclen;  // length of next non-compressed segment
+    uint64_t next_clen;   // length of next compressed segment
+    uint64_t back_offset; // negative offset where redudant data is located, relative to current opos
 
     while (ipos < input_size) {
         next_nclen = (input[ipos] & 0xf0) >> 4;
