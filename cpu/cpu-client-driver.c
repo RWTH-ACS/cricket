@@ -455,7 +455,7 @@ CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
 	}
     *hfun = (CUfunction)result.ptr_result_u.ptr;
     if ((info = utils_search_info(&kernel_infos, (char*)name)) == NULL) {
-        LOGE(LOG_ERROR, "cannot find kernel %s kernel_info_t");
+        LOGE(LOG_ERROR, "cannot find kernel %s kernel_info_t", name);
         return CUDA_ERROR_UNKNOWN;
     }
     info->host_fun = *hfun;
