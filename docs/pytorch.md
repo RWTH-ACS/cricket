@@ -39,6 +39,7 @@ index 815a9108ce9..53ec7689493 100644
 +        libssl-dev \
 +        inetutils-ping \
 +        vim \
++        libgl1-mesa-dev \
 +        gdb && \
 +    rm -rf /var/lib/apt/lists/*
 diff --git a/aten/src/ATen/CMakeLists.txt b/aten/src/ATen/CMakeLists.txt
