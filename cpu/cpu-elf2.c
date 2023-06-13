@@ -7,6 +7,7 @@
 #include <string.h>
 #include <libelf.h>
 #include <gelf.h>
+#include <dlfcn.h>
 
 #include "cpu-common.h"
 #include "log.h"
@@ -992,4 +993,9 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         elf_end(elf);
     }
     return ret;
+}
+
+void* elf2_symbol_address(const char *symbol)
+{
+    return dlsym(RTLD_DEFAULT, symbol);
 }

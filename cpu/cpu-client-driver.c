@@ -15,6 +15,7 @@
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
 #include "cpu-utils.h"
+#include "cpu-elf2.h"
 
 
 //DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
@@ -842,17 +843,14 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
     ptr_result result;
     LOGE(LOG_DEBUG, "%s(%s, %d, %llx)", __FUNCTION__, symbol, cudaVersion, flags);
 
-    *pfn = NULL;
-    *symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
-	// if (retval != RPC_SUCCESS) {
-	// 	fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
-    //     return CUDA_ERROR_UNKNOWN;
-	// }
-    // if (pStr != NULL) {
-    //    if ((*pStr = malloc(128)) != NULL) {
-    //        strncpy((char*)(*pStr), result.str_result_u.str, 128);
-    //     }
-    // }
+    *pfn = elf2_symbol_address(symbol);
+    if (*pfn == NULL) {
+        LOGE(LOG_WARNING, "symbol %s found.", symbol);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    // Pytorch uses the 11.3 API of this function which does not have the symbolStatus parameter
+    // Because we do not support API versioning yet and to avoid segfaults, we ignore this parameter for now.
+    //*symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
     return cudaSuccess;
 }
 #endif
