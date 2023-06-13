@@ -360,6 +360,11 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     }
     return result.err;
 }
+cudaError_t cudaGetDeviceProperties_v2(struct cudaDeviceProp* prop, int device)
+{
+    return cudaGetDeviceProperties(prop, device);
+}
+
 
 DEF_FN(cudaError_t, cudaIpcCloseMemHandle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcGetEventHandle, cudaIpcEventHandle_t*, handle, cudaEvent_t, event)
