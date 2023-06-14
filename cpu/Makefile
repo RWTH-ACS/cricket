@@ -32,16 +32,17 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-driver-hidden.c \
 			 log.c                      \
 			 cpu-libwrap.c              \
-			 cpu-server-cusolver.c 		\
-			 cpu-server-cublas.c 		\
+			 cpu-server-cusolver.c 	    \
+			 cpu-server-cublas.c 	    \
 			 list.c                     \
-			 api-recorder.c 			\
-			 resource-mg.c 			    \
-			 cr.c 					    \
-			 gsched_none.c 			    \
-			 oob.c 					    \
-			 mt-memcpy.c				\
-			 cpu-elf2.c
+			 api-recorder.c	            \
+			 resource-mg.c 		    \
+			 cr.c 			    \
+			 gsched_none.c 		    \
+			 oob.c 			    \
+			 mt-memcpy.c		    \
+			 cpu-elf2.c                 \
+                         gpu/ckp-kernel.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c

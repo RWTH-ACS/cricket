@@ -18,6 +18,7 @@
 #include "cpu-server-driver.h"
 #include "rpc/xdr.h"
 #include "cr.h"
+#include "gpu/ckp-kernel.h"
 #include "cpu-elf2.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
@@ -88,6 +89,11 @@ int cricket_server_checkpoint(int dump_memory)
     if ((ret = server_runtime_checkpoint(ckp_path, dump_memory, prog, vers)) != 0) {
         LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
         goto error;
+    }
+
+    if ((ret = gpu_checkpoint(/*TODO*/)) != 0) {
+	LOGE(LOG_ERROR, "gpu_checkpoint returned %d", ret);
+	goto error;
     }
 
     LOG(LOG_INFO, "checkpoint successfully created.");

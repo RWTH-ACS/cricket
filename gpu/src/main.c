@@ -124,7 +124,7 @@ cuda_error:
 int cricket_analyze(int argc, char *argv[])
 {
     if (argc != 3) {
-        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s analyze <executable>", argv[0]);
         return -1;
     }
     LOG(LOG_INFO, "Analyzing \"%s\"", argv[2]);
@@ -155,7 +155,7 @@ int cricket_restore(int argc, char *argv[])
     double bt, ct, dt, et, ft, gt, comt;
 #endif
     if (argc != 3) {
-        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s restore <executable>", argv[0]);
         return -1;
     }
 
@@ -1046,17 +1046,17 @@ int cricket_checkpoint(int argc, char *argv[])
     //cricket_focus_kernel(!batch_flag);
 
 
-    /// TODO: verify if it is sufficient to set first_warp to 0 
-    first_warp = 0;
+    /// TODO: There is a loop to determine the first warp, however
+    /// cricket_cr_ckp_params still causes errors over invalid warps...
     if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
     /// TODO: work out globals
-    //if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
-    //    printf("cricket_cr_ckp_globals unsuccessful\n");
-    //}
+    if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
+        printf("cricket_cr_ckp_globals unsuccessful\n");
+    }
 
 #ifdef CRICKET_PROFILE
     gettimeofday(&f, NULL);

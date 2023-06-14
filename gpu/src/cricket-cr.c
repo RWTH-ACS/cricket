@@ -1113,6 +1113,7 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
                 cudbgGetErrorString(res));
         goto cleanup;
     }
+    /*
     for (int i = 0; i != elf_info->param_num; ++i) {
         if (elf_info->params[i].size != 8)
             continue;
@@ -1150,6 +1151,7 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         free(param_data);
         param_data = NULL;
     }
+    */
     ret = true;
 cleanup:
     free(param_mem);
