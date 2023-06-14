@@ -11,6 +11,7 @@ CUDA_PATH = /usr/local/cuda
 SMS = 75 60
 CUDA_SAMPLES_RELEASE ?= 12.1
 CUDA_SAMPLES_URL = https://github.com/NVIDIA/cuda-samples/archive/refs/tags/v${CUDA_SAMPLES_RELEASE}.tar.gz
+CUDNN_SAMPLES_URL = https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/libcudnn8-samples-8.9.2.26-1.cuda12.1.x86_64.rpm
 
 PWD = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -22,8 +23,21 @@ samples:
 	mkdir -p $@
 	wget ${CUDA_SAMPLES_URL} -O - | tar -xz --strip-components=1 -C $@
 
+cudnn-samples:
+	mkdir -p $@
+	wget ${CUDNN_SAMPLES_URL} -O - | rpm2archive - | tar zxf - --strip-components=4 -C $@
+
 samples-bin:
 	mkdir -p $@
+
+samples-bin/mnistCUDNN.sample : cudnn-samples samples-bin
+	make -C cudnn-samples/mnistCUDNN \
+		clean
+	make -C cudnn-samples/mnistCUDNN \
+		NVCCFLAGS="-cudart shared --no-compress -g -G" \
+		SMS="${SMS}" \
+		CUDA_PATH=${CUDA_PATH}
+	cp cudnn-samples/mnistCUDNN/mnistCUDNN $@
 
 samples-bin/nbody.uncompressed.sample : samples samples-bin
 	make -C samples/Samples/5_Domain_Specific/nbody \

@@ -22,7 +22,8 @@ RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \
                    libvdpau-devel mesa-libEGL-devel openssl-devel rpcbind \
                    texinfo bison flex python3 which libibverbs libibverbs-devel \
                    libasan cppcheck wget expat-devel xz-devel mesa-libGLU-devel freeglut-devel \
-                   elfutils-libelf-devel cpio openssl-devel openssl-libs
+                   elfutils-libelf-devel cpio openssl-devel openssl-libs \
+                   freeimage freeimage-devel
 
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 
