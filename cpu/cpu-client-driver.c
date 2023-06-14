@@ -845,7 +845,7 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
 
     *pfn = elf2_symbol_address(symbol);
     if (*pfn == NULL) {
-        LOGE(LOG_WARNING, "symbol %s found.", symbol);
+        LOGE(LOG_WARNING, "symbol %s not found.", symbol);
         return CUDA_ERROR_UNKNOWN;
     }
     // Pytorch uses the 11.3 API of this function which does not have the symbolStatus parameter

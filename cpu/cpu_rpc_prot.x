@@ -1,6 +1,7 @@
 typedef opaque mem_data<>;
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
+typedef opaque rpc_cuda_device_prop[1032];
 
 struct dint {
     int i1;
@@ -122,6 +123,13 @@ default:
     void;
 };
 
+union cuda_device_prop_result switch (int err) {
+case 0:
+    rpc_cuda_device_prop data;
+default:
+    void;
+};
+
 program RPC_CD_PROG {
     version RPC_CD_VERS {
         int          rpc_checkpoint(void)                                         = 0;
@@ -154,7 +162,7 @@ program RPC_CD_PROG {
         int_result   CUDA_GET_DEVICE(void)                                      = 117;
         int_result   CUDA_GET_DEVICE_COUNT(void)                                = 118;
         int_result   CUDA_GET_DEVICE_FLAGS(void)                                = 119;
-        mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                            = 120;
+        cuda_device_prop_result CUDA_GET_DEVICE_PROPERTIES(int)                 = 120;
         /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                             = 121;*/
         /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                             = 122;*/
         /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                               = 123;*/

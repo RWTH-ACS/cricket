@@ -360,19 +360,14 @@ bool_t cuda_get_device_flags_1_svc(int_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct svc_req *rqstp)
+bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaGetDeviceProperties");
-    result->mem_result_u.data.mem_data_val = malloc(sizeof(struct cudaDeviceProp));
-    if (result->mem_result_u.data.mem_data_val == NULL) {
-        LOGE(LOG_ERROR, "malloc failed.");
+    if (sizeof(result->cuda_device_prop_result_u.data) != sizeof(struct cudaDeviceProp)) {
+        LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch");
         return 0;
     }
-    result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
-    result->err = cudaGetDeviceProperties((void*)result->mem_result_u.data.mem_data_val, device);
-    if (result->err != 0) {
-        free(result->mem_result_u.data.mem_data_val);
-    }
+    result->err = cudaGetDeviceProperties((void*)result->cuda_device_prop_result_u.data, device);
     return 1;
 }
 
