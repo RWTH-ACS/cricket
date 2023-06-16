@@ -226,7 +226,7 @@ CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 }
 
 DEF_FN(CUresult, cuDeviceGetLuid, char*, luid, unsigned int*, deviceNodeMask, CUdevice, dev)
-//DEF_FN(CUresult, cuDeviceGetAttribute, int*, pi, CUdevice_attribute, attrib, CUdevice, dev)
+
 CUresult cuDeviceGetAttribute(int* pi, CUdevice_attribute attrib, CUdevice dev)
 {
 	enum clnt_stat retval;
@@ -289,7 +289,19 @@ CUresult cuDeviceComputeCapability(int* major, int* minor, CUdevice dev)
 } 
 
 DEF_FN(CUresult, cuDeviceGetByPCIBusId, CUdevice*, dev, const char*, pciBusId)
-DEF_FN(CUresult, cuDeviceGetP2PAttribute, int*, value, CUdevice_P2PAttribute, attrib, CUdevice, srcDevice, CUdevice, dstDevice)
+CUresult cuDeviceGetP2PAttribute ( int* value, CUdevice_P2PAttribute attrib, CUdevice srcDevice, CUdevice dstDevice ) 
+{
+	enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cudevicegetp2pattribute_1((int)attrib, (ptr)srcDevice, (ptr)dstDevice, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%d, %p, %p) = %d, result %s", __FUNCTION__, attrib, srcDevice, dstDevice, result.err, result.int_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result.err;
+}
+
 //DEF_FN(CUresult, cuDriverGetVersion, int*, driverVersion)
 CUresult cuDriverGetVersion(int* driverVersion)
 {

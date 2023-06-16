@@ -224,6 +224,7 @@ void __attribute__((destructor)) deinit_rpc(void)
     }
 }
 
+
 static void *(*dlopen_orig)(const char *, int) = NULL;
 static int (*dlclose_orig)(void *) = NULL;
 static void *dl_handle = NULL;

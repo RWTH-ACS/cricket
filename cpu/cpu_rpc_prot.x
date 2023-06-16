@@ -346,6 +346,7 @@ program RPC_CD_PROG {
         dint_result  rpc_cuDevicePrimaryCtxGetState(int)                       = 1022;
         mem_result   rpc_cuDeviceGetProperties(int)                            = 1023;
         dint_result  rpc_cuDeviceComputeCapability(int)                        = 1024;
+        int_result   rpc_cuDeviceGetP2PAttribute(int, ptr, ptr)                = 1025; 
 
         /* HIDDEN DRIVER API */
 /*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;

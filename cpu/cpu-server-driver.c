@@ -496,6 +496,15 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
 
 }
 
+bool_t rpc_cudevicegetp2pattribute_1_svc(int attrib, ptr srcDevice, ptr dstDevice, int_result *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cuDeviceGetP2PAttribute(&result->int_result_u.data, (CUdevice_P2PAttribute)attrib, (CUdevice)srcDevice, (CUdevice)dstDevice);
+    GSCHED_RELEASE;
+    return 1;
+}
+
 /* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
 /*
