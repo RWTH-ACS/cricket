@@ -38,7 +38,10 @@ resource_mg rm_globals;
 //Other RMs
 resource_mg rm_cusolver;
 resource_mg rm_cublas;
+
+//CUDNN RMs
 resource_mg rm_cudnn;
+resource_mg rm_cudnn_tensors;
 
 
 /** initializes the resource manager

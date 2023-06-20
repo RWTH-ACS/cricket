@@ -297,7 +297,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
 
     if (server_cudnn_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
-        goto cleanup1;
+        goto cleanup0;
     }
 
 #ifdef WITH_IB
@@ -312,7 +312,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-        goto cleanup0;
+        goto cleanup00;
     }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
@@ -322,6 +322,8 @@ void cricket_main(size_t prog_num, size_t vers_num)
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
     ret = 0;
     //api_records_print();
+ cleanup00:
+    server_cudnn_cleanup();
  cleanup0:
     server_driver_deinit();
  cleanup1:

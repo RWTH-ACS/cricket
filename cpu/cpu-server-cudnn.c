@@ -18,7 +18,7 @@
 
 
 
-int server_cudnn_init(int bypass, resource_mg *memory)
+int server_cudnn_init(int bypass)
 {
     int ret = 0;
     ret &= resource_mg_init(&rm_cudnn, bypass);
@@ -80,7 +80,9 @@ bool_t rpc_cudnnqueryruntimeerror_1_svc(ptr handle, int mode, int_result *result
     cudnnRuntimeTag_t *tag;
 
     GSCHED_RETAIN;
-    result->err = cudnnQueryRuntimeError((cudnnHandle_t)handle, (cudnnStatus_t*)&result->int_result_u.data, (cudnnErrQueryMode_t)mode, tag);
+    result->err = cudnnQueryRuntimeError(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnStatus_t*)&result->int_result_u.data, (cudnnErrQueryMode_t)mode, tag);
     GSCHED_RELEASE;
     return 1;
 }
@@ -101,7 +103,10 @@ bool_t rpc_cudnncreate_1_svc(ptr_result *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
     GSCHED_RETAIN;
-    result->err = cudnnCreate((cudnnHandle_t*)result->ptr_result_u.ptr);
+    result->err = cudnnCreate((cudnnHandle_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cudnn, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
@@ -114,7 +119,8 @@ bool_t rpc_cudnndestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
     GSCHED_RETAIN;
-    *result = cudnnDestroy((cudnnHandle_t)handle);
+    *result = cudnnDestroy(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -128,7 +134,9 @@ bool_t rpc_cudnnsetstream_1_svc(ptr handle, ptr streamId, int *result, struct sv
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
     GSCHED_RETAIN;
-    *result = cudnnSetStream((cudnnHandle_t)handle, (cudaStream_t)streamId);
+    *result = cudnnSetStream(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudaStream_t)resource_mg_get(&rm_streams, (void*)streamId));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -139,7 +147,10 @@ bool_t rpc_cudnngetstream_1_svc(ptr handle, ptr_result *result, struct svc_req *
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
     GSCHED_RETAIN;
-    result->err = cudnnGetStream((cudnnHandle_t)handle, (cudaStream_t*)&result->ptr_result_u.ptr);
+    result->err = cudnnGetStream(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudaStream_t*)&result->ptr_result_u.ptr);
+
     GSCHED_RELEASE;
     return 1;
 }
@@ -151,6 +162,9 @@ bool_t rpc_cudnncreatetensordescriptor_1_svc(ptr_result *result, struct svc_req 
 
     GSCHED_RETAIN;
     result->err = cudnnCreateTensorDescriptor((cudnnTensorDescriptor_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cudnn_tensors, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
