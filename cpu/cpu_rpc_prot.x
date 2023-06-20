@@ -379,5 +379,18 @@ program RPC_CD_PROG {
         int          rpc_nvmlInitWithFlags(int)                                = 4001;
         int          rpc_nvmlInit_v2(void)                                     = 4002;
         int          rpc_nvmlShutdown(void)                                    = 4003;
+        
+        /* CUDNN */
+        size_t      rpc_cudnnGetVersion(void) = 5000;
+        size_t      rpc_cudnnGetMaxDeviceVersion(void) = 5001;
+        size_t      rpc_cudnnGetCudartVersion(void) = 5002;
+        string      rpc_cudnnGetErrorString (int status) = 5003;
+        int_result  rpc_cudnnQueryRuntimeError(ptr handle, int mode) = 5004;
+        int_result  rpc_cudnnGetProperty(int type) = 5005;
+        ptr_result  rpc_cudnnCreate(void) = 5006;
+        int         rpc_cudnnDestroy(ptr handle) = 5007;
+        int         rpc_cudnnSetStream(ptr handle, ptr streamId) = 5008;
+        ptr_result  rpc_cudnnGetStream(ptr handle) = 5009;
+        ptr_result  rpc_cudnnCreateTensorDescriptor(void) = 5010;
     } = 1;
 } = 99;

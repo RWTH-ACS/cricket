@@ -8,17 +8,210 @@
 #include "cpu-utils.h"
 #include "log.h"
 
-DEF_FN(size_t, cudnnGetVersion, void)
-DEF_FN(size_t, cudnnGetMaxDeviceVersion, void)
-DEF_FN(size_t, cudnnGetCudartVersion, void)
-DEF_FN(const char *cudnnGetErrorString, cudnnStatus_t, status)
-DEF_FN(cudnnStatus_t, cudnnQueryRuntimeError, cudnnHandle_t, handle, cudnnStatus_t*, rstatus, cudnnErrQueryMode_t  mode, cudnnRuntimeTag_t *, tag)
-DEF_FN(cudnnStatus_t, cudnnGetProperty, libraryPropertyType, type, int *, value)
-DEF_FN(cudnnStatus_t, cudnnCreate, cudnnHandle_t*, handle)
-DEF_FN(cudnnStatus_t, cudnnDestroy, cudnnHandle_t, handle)
-DEF_FN(cudnnStatus_t, cudnnSetStream, cudnnHandle_t, handle, cudaStream_t, streamId)
-DEF_FN(cudnnStatus_t, cudnnGetStream, cudnnHandle_t, handle, cudaStream_t *, streamId)
-DEF_FN(cudnnStatus_t, cudnnCreateTensorDescriptor, cudnnTensorDescriptor_t *, tensorDesc)
+static size_t cudnn_call_cnt = 0;
+
+size_t cudnnGetVersion(void)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    size_t result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnngetversion_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    return result;
+}
+size_t cudnnGetMaxDeviceVersion(void)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    size_t result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnngetmaxdeviceversion_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    return result;
+}
+size_t cudnnGetCudartVersion(void)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    size_t result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnngetcudartversion_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    return result;
+}
+const char *cudnnGetErrorString(cudnnStatus_t status)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    char *result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnngeterrorstring_1((int)status, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result == NULL) {
+        LOGE(LOG_ERROR, "%s failed (result is NULL)", __FUNCTION__);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnQueryRuntimeError(cudnnHandle_t handle, cudnnStatus_t* rstatus, cudnnErrQueryMode_t  mode, cudnnRuntimeTag_t * tag)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnqueryruntimeerror_1((ptr)handle, (int)mode, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *rstatus = (cudnnStatus_t)result.int_result_u.data;
+        //*tag = NULL;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnGetProperty(libraryPropertyType type, int * value)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    if (value == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetproperty_1((int)type, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *value = result.int_result_u.data;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnCreate(cudnnHandle_t* handle)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (handle == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreate_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *handle = (cudnnHandle_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnDestroy(cudnnHandle_t handle)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroy_1((ptr)handle, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnSetStream(cudnnHandle_t handle, cudaStream_t streamId)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetstream_1((ptr)handle, (ptr)streamId, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnGetStream(cudnnHandle_t handle, cudaStream_t * streamId)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (streamId == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetstream_1((ptr)handle, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *streamId = (cudaStream_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnCreateTensorDescriptor(cudnnTensorDescriptor_t * tensorDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (tensorDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreatetensordescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *tensorDesc = (cudnnTensorDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 DEF_FN(cudnnStatus_t, cudnnSetTensor4dDescriptor, cudnnTensorDescriptor_t, tensorDesc, cudnnTensorFormat_t, format, cudnnDataType_t, dataType, int, n, int, c, int, h, int, w) 
 DEF_FN(cudnnStatus_t, cudnnSetTensor4dDescriptorEx, cudnnTensorDescriptor_t, tensorDesc, cudnnDataType_t, dataType, int, n, int, c, int, h, int, w, int, nStride, int, cStride, int, hStride, int, wStride)
 DEF_FN(cudnnStatus_t, cudnnGetTensor4dDescriptor, const cudnnTensorDescriptor_t, tensorDesc, cudnnDataType_t *, dataType, int*, n, int*, c, int*, h, int*, w, int*, nStride, int*, cStride, int*, hStride, int*, wStride)

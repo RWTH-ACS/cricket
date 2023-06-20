@@ -35,6 +35,8 @@
     *arguments = ARG
 #define RECORD_ARG(NUM, ARG) \
     arguments->arg##NUM = ARG
+#define RECORD_NARG(ARG) \
+    arguments->ARG = ARG
 #define RECORD_DATA(SIZE, PTR) \
     record->data_size = SIZE; \
     record->data = malloc(SIZE); \

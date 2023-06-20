@@ -26,6 +26,7 @@
 #include "api-recorder.h"
 #include "gsched.h"
 #include "cpu-server-nvml.h"
+#include "cpu-server-cudnn.h"
 
 INIT_SOCKTYPE
 
@@ -290,6 +291,11 @@ void cricket_main(size_t prog_num, size_t vers_num)
     }
     
     if (server_nvml_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_nvml failed.");
+        goto cleanup1;
+    }
+
+    if (server_cudnn_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup1;
     }

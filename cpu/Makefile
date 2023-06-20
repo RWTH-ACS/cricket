@@ -41,7 +41,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 oob.c 					    \
 			 mt-memcpy.c				\
 			 cpu-elf2.c					\
-			 cpu-server-nvml.c
+			 cpu-server-nvml.c			\
+			 cpu-server-cudnn.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
