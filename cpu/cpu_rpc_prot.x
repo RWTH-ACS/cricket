@@ -39,6 +39,14 @@ struct rpc_dim3 {
     unsigned int z;
 };
 
+union cudnn_scaling_t switch (int dataType) {
+case 2:
+case 0:
+    float f;
+case 1:
+    double d;
+};
+
 union int_result switch (int err) {
 case 0:
     int data;
@@ -126,6 +134,34 @@ default:
 union cuda_device_prop_result switch (int err) {
 case 0:
     rpc_cuda_device_prop data;
+default:
+    void;
+};
+
+union int3_result switch (int err) {
+case 0:
+    int data[3];
+default:
+    void;
+};
+
+union int5_result switch (int err) {
+case 0:
+    int data[5];
+default:
+    void;
+};
+
+union int6_result switch (int err) {
+case 0:
+    int data[6];
+default:
+    void;
+};
+
+union int9_result switch (int err) {
+case 0:
+    int data[9];
 default:
     void;
 };
@@ -392,5 +428,44 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetStream(ptr handle, ptr streamId) = 5008;
         ptr_result  rpc_cudnnGetStream(ptr handle) = 5009;
         ptr_result  rpc_cudnnCreateTensorDescriptor(void) = 5010;
+        
+        int         rpc_cudnnSetTensor4dDescriptor(ptr tensorDesc, int format, int dataType, int n, int c, int h, int w) = 5011;
+        int         rpc_cudnnSetTensor4dDescriptorEx(ptr tensorDesc, int dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride) = 5012;
+        int9_result rpc_cudnnGetTensor4dDescriptor(ptr tensorDesc) = 5013;
+        int         rpc_cudnnSetTensorNdDescriptor(ptr tensorDesc, int dataType, int nbDims, mem_data dimA, mem_data strideA) = 5014;
+        int         rpc_cudnnSetTensorNdDescriptorEx(ptr tensorDesc, int format, int dataType, int nbDims, mem_data dimA) = 5015;
+        mem_result  rpc_cudnnGetTensorNdDescriptor(ptr tensorDesc, int nbDimsRequested) = 5016;
+        sz_result   rpc_cudnnGetTensorSizeInBytes(ptr tensorDesc) = 5017;
+        int         rpc_cudnnDestroyTensorDescriptor(ptr tensorDesc) = 5018;
+        sz_result   rpc_cudnnInitTransformDest(ptr transformDesc, ptr srcDesc, ptr destDesc) = 5019;
+        ptr_result  rpc_cudnnCreateTensorTransformDescriptor(void) = 5020;
+        int         rpc_cudnnSetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDims, int destFormat, mem_data padBeforeA, mem_data padAfterA, mem_data foldA, int direction) = 5021;
+        mem_result  rpc_cudnnGetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDimsRequested) = 5022;
+        int         rpc_cudnnDestroyTensorTransformDescriptor(ptr transformDesc) = 5023;
+        ptr_result  rpc_cudnnTransformTensor(ptr handle, cudnn_scaling_t alpha, ptr xDesc, cudnn_scaling_t x, cudnn_scaling_t beta, ptr yDesc) = 5024;
+        ptr_result  rpc_cudnnTransformTensorEx(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, cudnn_scaling_t srcData, cudnn_scaling_t beta, ptr destDesc) = 5025;
+        ptr_result  rpc_cudnnAddTensor(ptr handle, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5026;
+        ptr_result  rpc_cudnnCreateOpTensorDescriptor(void) = 5027;
+        int         rpc_cudnnSetOpTensorDescriptor(ptr opTensorDesc, int opTensorOp, int opTensorCompType, int opTensorNanOpt) = 5028;
+        int3_result rpc_cudnnGetOpTensorDescriptor(ptr opTensorDesc) = 5029;
+        int         rpc_cudnnDestroyOpTensorDescriptor(ptr opTensorDesc) = 5030;
+        mem_result  rpc_cudnnOpTensor(ptr handle, ptr opTensorDesc, cudnn_scaling_t alpha1, ptr aDesc, mem_data A, cudnn_scaling_t alpha2, ptr bDesc, mem_data B, cudnn_scaling_t beta, ptr  cDesc) = 5031;
+        ptr_result  rpc_cudnnCreateReduceTensorDescriptor(void) = 5032;
+        int         rpc_cudnnSetReduceTensorDescriptor(ptr reduceTensorDesc, int reduceTensorOp, int reduceTensorCompType, int reduceTensorNanOpt, int reduceTensorIndices, int reduceTensorIndicesType) = 5033;
+        int5_result rpc_cudnnGetReduceTensorDescriptor(ptr reduceTensorDesc) = 5034;
+        int         rpc_cudnnDestroyReduceTensorDescriptor(ptr reduceTensorDesc) = 5035;
+        sz_result   rpc_cudnnGetReductionIndicesSize(ptr handle, ptr reduceTensorDesc, ptr aDesc, ptr cDesc) = 5036;
+        sz_result   rpc_cudnnGetReductionWorkspaceSize(ptr handle, ptr reduceTensorDesc, ptr aDesc, ptr cDesc) = 5037;
+        mem_result  rpc_cudnnReduceTensor(ptr handle, ptr reduceTensorDesc, ptr indices, size_t indicesSizeInBytes, ptr workspace, size_t workspaceSizeInBytes, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5038;
+        int         rpc_cudnnSetTensor(ptr handle, ptr yDesc, ptr y, mem_data valuePtr) = 5039;
+        int         rpc_cudnnScaleTensor(ptr handle, ptr yDesc, ptr y, cudnn_scaling_t alpha) = 5040;
+        ptr_result  rpc_cudnnCreateFilterDescriptor(void) = 5041;
+        int         rpc_cudnnSetFilter4dDescriptor(ptr filterDesc, int dataType, int format, int k, int c, int h, int w) = 5042;
+        int6_result rpc_cudnnGetFilter4dDescriptor(ptr filterDesc) = 5043;
+        int         rpc_cudnnSetFilterNdDescriptor(ptr filterDesc, int dataType, int format, int nbDims, mem_data filterDimA) = 5044;
+        mem_result  rpc_cudnnGetFilterNdDescriptor(ptr filterDesc, int nbDimsRequested) = 5045;
+        sz_result   rpc_cudnnGetFilterSizeInBytes(ptr filterDesc) = 5046;
+        int         rpc_cudnnTransformFilter(ptr handle, ptr transDesc, cudnn_scaling_t, ptr srcDesc, ptr srcData, cudnn_scaling_t beta, ptr destDesc, ptr destData) = 5047;
+        int         rpc_cudnnDestroyFilterDescriptor(ptr filterDesc) = 5048;
     } = 1;
 } = 99;

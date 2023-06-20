@@ -323,7 +323,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
     ret = 0;
     //api_records_print();
  cleanup00:
-    server_cudnn_cleanup();
+    server_cudnn_deinit();
  cleanup0:
     server_driver_deinit();
  cleanup1:

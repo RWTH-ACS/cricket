@@ -242,9 +242,81 @@ DEF_FN(cudnnStatus_t, cudnnGetReductionWorkspaceSize, cudnnHandle_t, handle, con
 DEF_FN(cudnnStatus_t, cudnnReduceTensor, cudnnHandle_t, handle, const cudnnReduceTensorDescriptor_t, reduceTensorDesc, void *, indices, size_t, indicesSizeInBytes, void *, workspace, size_t, workspaceSizeInBytes, const void *, alpha, const cudnnTensorDescriptor_t, aDesc, const void *, A, const void *, beta, const cudnnTensorDescriptor_t, cDesc, void *, C)
 DEF_FN(cudnnStatus_t, cudnnSetTensor, cudnnHandle_t, handle, const cudnnTensorDescriptor_t, yDesc, void *, y, const void *, valuePtr)
 DEF_FN(cudnnStatus_t, cudnnScaleTensor, cudnnHandle_t, handle, const cudnnTensorDescriptor_t, yDesc, void *, y, const void *, alpha)
-DEF_FN(cudnnStatus_t, cudnnCreateFilterDescriptor, cudnnFilterDescriptor_t *, filterDesc)
-DEF_FN(cudnnStatus_t, cudnnSetFilter4dDescriptor, cudnnFilterDescriptor_t, filterDesc, cudnnDataType_t, dataType, cudnnTensorFormat_t, format, int, k, int, c, int, h, int, w) 
-DEF_FN(cudnnStatus_t, cudnnGetFilter4dDescriptor, const cudnnFilterDescriptor_t, filterDesc, cudnnDataType_t *, dataType, cudnnTensorFormat_t *, format, int*, k, int*, c, int*, h, int*, w) 
+
+cudnnStatus_t cudnnCreateFilterDescriptor(cudnnFilterDescriptor_t * filterDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (filterDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreatefilterdescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *filterDesc = (cudnnFilterDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetFilter4dDescriptor(cudnnFilterDescriptor_t filterDesc, cudnnDataType_t dataType, cudnnTensorFormat_t format, int k, int c, int h, int w) 
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetfilter4ddescriptor_1(
+        (ptr)filterDesc,
+        (int)dataType,
+        (int)format,
+        k, c, h, w, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetFilter4dDescriptor(const cudnnFilterDescriptor_t filterDesc, cudnnDataType_t *dataType, cudnnTensorFormat_t *format, int* k, int* c, int* h, int* w) 
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int6_result result;
+    enum clnt_stat retval_1;
+    if (dataType == NULL || format == NULL || k == NULL || c == NULL || h == NULL || w == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetfilter4ddescriptor_1(
+        (ptr)filterDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    *dataType = (cudnnDataType_t)result.int6_result_u.data[0];
+    *format = (cudnnTensorFormat_t)result.int6_result_u.data[1];
+    *k = result.int6_result_u.data[2];
+    *c = result.int6_result_u.data[3];
+    *h = result.int6_result_u.data[4];
+    *w = result.int6_result_u.data[5];
+    return result.err;
+}
 DEF_FN(cudnnStatus_t, cudnnSetFilterNdDescriptor, cudnnFilterDescriptor_t, filterDesc, cudnnDataType_t, dataType, cudnnTensorFormat_t, format, int, nbDims, const int*, filterDimA)
 DEF_FN(cudnnStatus_t, cudnnGetFilterNdDescriptor, const cudnnFilterDescriptor_t, filterDesc, int, nbDimsRequested, cudnnDataType_t *, dataType, cudnnTensorFormat_t *, format, int*, nbDims, int*, filterDimA)
 DEF_FN(cudnnStatus_t, cudnnGetFilterSizeInBytes, const cudnnFilterDescriptor_t, filterDesc, size_t*, size)
