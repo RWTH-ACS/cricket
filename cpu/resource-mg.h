@@ -42,6 +42,10 @@ resource_mg rm_cublas;
 //CUDNN RMs
 resource_mg rm_cudnn;
 resource_mg rm_cudnn_tensors;
+resource_mg rm_cudnn_filters;
+resource_mg rm_cudnn_tensortransform;
+resource_mg rm_cudnn_poolings;
+resource_mg rm_cudnn_activations;
 
 
 /** initializes the resource manager

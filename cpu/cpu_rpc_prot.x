@@ -1,4 +1,5 @@
 typedef opaque mem_data<>;
+
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
 typedef opaque rpc_cuda_device_prop[1032];
@@ -37,6 +38,11 @@ struct rpc_dim3 {
     unsigned int x;
     unsigned int y;
     unsigned int z;
+};
+
+struct int2d1 {
+    int i[2];
+    double d;
 };
 
 union cudnn_scaling_t switch (int dataType) {
@@ -124,6 +130,8 @@ default:
     void;
 };
 
+/* memory allocated for RPC. */
+/* Freed rpc_cd_prog_1_freeresult by after RPC. */
 union mem_result switch (int err) {
 case 0:
     mem_data data;
@@ -145,6 +153,13 @@ default:
     void;
 };
 
+union int4_result switch (int err) {
+case 0:
+    int data[4];
+default:
+    void;
+};
+
 union int5_result switch (int err) {
 case 0:
     int data[5];
@@ -159,9 +174,23 @@ default:
     void;
 };
 
+union int8_result switch (int err) {
+case 0:
+    int data[8];
+default:
+    void;
+};
+
 union int9_result switch (int err) {
 case 0:
     int data[9];
+default:
+    void;
+};
+
+union int2d1_result switch (int err) {
+case 0:
+    int2d1 data;
 default:
     void;
 };
@@ -465,7 +494,21 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetFilterNdDescriptor(ptr filterDesc, int dataType, int format, int nbDims, mem_data filterDimA) = 5044;
         mem_result  rpc_cudnnGetFilterNdDescriptor(ptr filterDesc, int nbDimsRequested) = 5045;
         sz_result   rpc_cudnnGetFilterSizeInBytes(ptr filterDesc) = 5046;
-        int         rpc_cudnnTransformFilter(ptr handle, ptr transDesc, cudnn_scaling_t, ptr srcDesc, ptr srcData, cudnn_scaling_t beta, ptr destDesc, ptr destData) = 5047;
+        int         rpc_cudnnTransformFilter(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, ptr srcData, cudnn_scaling_t beta, ptr destDesc, ptr destData) = 5047;
         int         rpc_cudnnDestroyFilterDescriptor(ptr filterDesc) = 5048;
+        ptr_result  rpc_cudnnCreatePoolingDescriptor(void) = 5050;
+        int         rpc_cudnnSetPooling2dDescriptor(ptr poolingDesc, int mode, int maxpoolingNanOpt, int windowHeight, int windowWidth, int verticalPadding, int horizontalPadding, int verticalStride, int horizontalStride) = 5051;
+        int8_result rpc_cudnnGetPooling2dDescriptor(ptr poolingDesc) = 5052;
+        int         rpc_cudnnSetPoolingNdDescriptor(ptr poolingDesc, int mode, int maxpoolingNanOpt, int nbDims, mem_data windowDimA, mem_data paddingA, mem_data strideA) = 5053;
+        mem_result  rpc_cudnnGetPoolingNdDescriptor(ptr poolingDesc, int nbDimsRequested) = 5054;
+        mem_result  rpc_cudnnGetPoolingNdForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc, int nbDims) = 5055;
+        int4_result rpc_cudnnGetPooling2dForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc) = 5056;
+        int         rpc_cudnnDestroyPoolingDescriptor(ptr poolingDesc) = 5057;
+        ptr_result  rpc_cudnnCreateActivationDescriptor(void) = 5059;
+        int         rpc_cudnnSetActivationDescriptor(ptr activationDesc, int mode, int reluNanOpt, double coef) = 5060;
+        int2d1_result rpc_cudnnGetActivationDescriptor(ptr activationDesc) = 5061;
+        int         rpc_cudnnSetActivationDescriptorSwishBeta(ptr activationDesc, double swish_beta) = 5062;
+        d_result    rpc_cudnnGetActivationDescriptorSwishBeta(ptr activationDesc) = 5063;
+        int         rpc_cudnnDestroyActivationDescriptor(ptr activationDesc) = 5064;
     } = 1;
 } = 99;

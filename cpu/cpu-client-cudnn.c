@@ -308,36 +308,536 @@ cudnnStatus_t cudnnGetFilter4dDescriptor(const cudnnFilterDescriptor_t filterDes
     }
     if (result.err != CUDNN_STATUS_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
-    } 
-    *dataType = (cudnnDataType_t)result.int6_result_u.data[0];
-    *format = (cudnnTensorFormat_t)result.int6_result_u.data[1];
-    *k = result.int6_result_u.data[2];
-    *c = result.int6_result_u.data[3];
-    *h = result.int6_result_u.data[4];
-    *w = result.int6_result_u.data[5];
+    } else {
+        *dataType = (cudnnDataType_t)result.int6_result_u.data[0];
+        *format = (cudnnTensorFormat_t)result.int6_result_u.data[1];
+        *k = result.int6_result_u.data[2];
+        *c = result.int6_result_u.data[3];
+        *h = result.int6_result_u.data[4];
+        *w = result.int6_result_u.data[5];
+    }
     return result.err;
 }
-DEF_FN(cudnnStatus_t, cudnnSetFilterNdDescriptor, cudnnFilterDescriptor_t, filterDesc, cudnnDataType_t, dataType, cudnnTensorFormat_t, format, int, nbDims, const int*, filterDimA)
-DEF_FN(cudnnStatus_t, cudnnGetFilterNdDescriptor, const cudnnFilterDescriptor_t, filterDesc, int, nbDimsRequested, cudnnDataType_t *, dataType, cudnnTensorFormat_t *, format, int*, nbDims, int*, filterDimA)
-DEF_FN(cudnnStatus_t, cudnnGetFilterSizeInBytes, const cudnnFilterDescriptor_t, filterDesc, size_t*, size)
-DEF_FN(cudnnStatus_t, cudnnTransformFilter, cudnnHandle_t, handle, const cudnnTensorTransformDescriptor_t, transDesc, const void *, alpha, const cudnnFilterDescriptor_t, srcDesc, const void *, srcData, const void *, beta, const cudnnFilterDescriptor_t, destDesc, void *, destData)
-DEF_FN(cudnnStatus_t, cudnnDestroyFilterDescriptor, cudnnFilterDescriptor_t, filterDesc)
+
+cudnnStatus_t cudnnSetFilterNdDescriptor(cudnnFilterDescriptor_t filterDesc, cudnnDataType_t dataType, cudnnTensorFormat_t format, int nbDims, const int* filterDimA)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data rpc_filterDimA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)filterDimA
+    };
+    retval_1 = rpc_cudnnsetfilternddescriptor_1(
+        (ptr)filterDesc,
+        (int)dataType,
+        (int)format,
+        (int)nbDims,
+        rpc_filterDimA, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDesc, int nbDimsRequested, cudnnDataType_t * dataType, cudnnTensorFormat_t * format, int* nbDims, int* filterDimA)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    if (dataType == NULL || format == NULL || nbDims == NULL || filterDimA == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetfilternddescriptor_1(
+        (ptr)filterDesc,
+        nbDimsRequested,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = nbDimsRequested * sizeof(int) + sizeof(int) + sizeof(cudnnDataType_t) + sizeof(cudnnTensorFormat_t);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len < expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        size_t offset = 0;
+        *dataType = (cudnnDataType_t)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(cudnnDataType_t);
+        *format = (cudnnTensorFormat_t)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(cudnnTensorFormat_t);
+        *nbDims = (int)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(int);
+        memcpy(filterDimA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnGetFilterSizeInBytes(const cudnnFilterDescriptor_t filterDesc, size_t* size)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    sz_result result;
+    enum clnt_stat retval_1;
+    if (size == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetfiltersizeinbytes_1(
+        (ptr)filterDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *size = result.sz_result_u.data;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnTransformFilter(cudnnHandle_t handle, const cudnnTensorTransformDescriptor_t transDesc, const void * alpha, const cudnnFilterDescriptor_t srcDesc, const void * srcData, const void * beta, const cudnnFilterDescriptor_t destDesc, void * destData)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnntransformfilter_1(
+        (ptr)handle,
+        (ptr)transDesc,
+        rpc_alpha,
+        (ptr)srcDesc,
+        (ptr)srcData,
+        rpc_beta,
+        (ptr)destDesc,
+        (ptr)destData,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnDestroyFilterDescriptor(cudnnFilterDescriptor_t filterDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroyfilterdescriptor_1(
+        (ptr)filterDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnSoftmaxForward, cudnnHandle_t, handle, cudnnSoftmaxAlgorithm_t, algo, cudnnSoftmaxMode_t, mode, const void *,alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
-DEF_FN(cudnnStatus_t, cudnnCreatePoolingDescriptor, cudnnPoolingDescriptor_t *, poolingDesc)
-DEF_FN(cudnnStatus_t, cudnnSetPooling2dDescriptor, cudnnPoolingDescriptor_t, poolingDesc, cudnnPoolingMode_t, mode, cudnnNanPropagation_t, maxpoolingNanOpt, int, windowHeight, int, windowWidth, int, verticalPadding, int, horizontalPadding, int, verticalStride, int, horizontalStride)
-DEF_FN(cudnnStatus_t, cudnnGetPooling2dDescriptor, const cudnnPoolingDescriptor_t, poolingDesc, cudnnPoolingMode_t *, mode, cudnnNanPropagation_t *, maxpoolingNanOpt, int*, windowHeight, int*, windowWidth, int*, verticalPadding, int*, horizontalPadding, int*, verticalStride, int*, horizontalStride)
-DEF_FN(cudnnStatus_t, cudnnSetPoolingNdDescriptor, cudnnPoolingDescriptor_t, poolingDesc, const cudnnPoolingMode_t, mode, const cudnnNanPropagation_t, maxpoolingNanOpt, int, nbDims, const int*, windowDimA, const int*, paddingA, const int*, strideA)
-DEF_FN(cudnnStatus_t, cudnnGetPoolingNdDescriptor, const cudnnPoolingDescriptor_t, poolingDesc, int, nbDimsRequested, cudnnPoolingMode_t *, mode, cudnnNanPropagation_t *, maxpoolingNanOpt, int*, nbDims, int*, windowDimA, int*, paddingA, int*, strideA)
-DEF_FN(cudnnStatus_t, cudnnGetPoolingNdForwardOutputDim, const cudnnPoolingDescriptor_t, poolingDesc, const cudnnTensorDescriptor_t, inputTensorDesc, int, nbDims, int*, outputTensorDimA)
-DEF_FN(cudnnStatus_t, cudnnGetPooling2dForwardOutputDim, const cudnnPoolingDescriptor_t, poolingDesc, const cudnnTensorDescriptor_t, inputTensorDesc, int*, n, int*, c, int*, h, int*, w)
-DEF_FN(cudnnStatus_t, cudnnDestroyPoolingDescriptor, cudnnPoolingDescriptor_t, poolingDesc)
+cudnnStatus_t cudnnCreatePoolingDescriptor(cudnnPoolingDescriptor_t *poolingDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (poolingDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreatepoolingdescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *poolingDesc = (cudnnPoolingDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetPooling2dDescriptor(cudnnPoolingDescriptor_t poolingDesc, cudnnPoolingMode_t mode, cudnnNanPropagation_t maxpoolingNanOpt, int windowHeight, int windowWidth, int verticalPadding, int horizontalPadding, int verticalStride, int horizontalStride)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetpooling2ddescriptor_1(
+        (ptr)poolingDesc,
+        (int)mode,
+        (int)maxpoolingNanOpt,
+        windowHeight,
+        windowWidth,
+        verticalPadding,
+        horizontalPadding,
+        verticalStride,
+        horizontalStride,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+    
+cudnnStatus_t cudnnGetPooling2dDescriptor(const cudnnPoolingDescriptor_t poolingDesc, cudnnPoolingMode_t *mode, cudnnNanPropagation_t *maxpoolingNanOpt, int* windowHeight, int* windowWidth, int* verticalPadding, int* horizontalPadding, int* verticalStride, int* horizontalStride)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int8_result result;
+    enum clnt_stat retval_1;
+    if (mode == NULL || maxpoolingNanOpt == NULL || windowHeight == NULL || windowWidth == NULL || verticalPadding == NULL || verticalStride == NULL || horizontalPadding == NULL || horizontalStride == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetpooling2ddescriptor_1(
+        (ptr)poolingDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } else {
+        *mode = (cudnnPoolingMode_t)result.int8_result_u.data[0];
+        *maxpoolingNanOpt = (cudnnNanPropagation_t)result.int8_result_u.data[1];
+        *windowHeight = result.int8_result_u.data[2];
+        *windowWidth = result.int8_result_u.data[3];
+        *verticalPadding = result.int8_result_u.data[4];
+        *horizontalPadding = result.int8_result_u.data[5];
+        *verticalStride = result.int8_result_u.data[6];
+        *horizontalStride = result.int8_result_u.data[7];
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetPoolingNdDescriptor(cudnnPoolingDescriptor_t poolingDesc, const cudnnPoolingMode_t mode, const cudnnNanPropagation_t maxpoolingNanOpt, int nbDims, const int* windowDimA, const int* paddingA, const int* strideA)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data rpc_windowDimA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)windowDimA
+    };
+    mem_data rpc_paddingA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)paddingA
+    };
+    mem_data rpc_strideA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)strideA
+    };
+    retval_1 = rpc_cudnnsetpoolingnddescriptor_1(
+        (ptr)poolingDesc,
+        (int)mode,
+        (int)maxpoolingNanOpt,
+        (int)nbDims,
+        rpc_windowDimA,
+        rpc_paddingA,
+        rpc_strideA,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t poolingDesc, int nbDimsRequested, cudnnPoolingMode_t * mode, cudnnNanPropagation_t * maxpoolingNanOpt, int* nbDims, int* windowDimA, int* paddingA, int* strideA)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    if (mode == NULL || maxpoolingNanOpt == NULL || nbDims == NULL || windowDimA == NULL || paddingA == NULL || strideA == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetpoolingnddescriptor_1(
+        (ptr)poolingDesc,
+        nbDimsRequested,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = nbDimsRequested * sizeof(int) * 3 + sizeof(int) + sizeof(cudnnPoolingMode_t) + sizeof(cudnnNanPropagation_t);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        size_t offset = 0;
+        *mode = (cudnnPoolingMode_t)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(cudnnPoolingMode_t);
+        *maxpoolingNanOpt = (cudnnNanPropagation_t)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(cudnnNanPropagation_t);
+        *nbDims = (int)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(int);
+        memcpy(windowDimA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+        offset += *nbDims * sizeof(int);
+        memcpy(paddingA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+        offset += *nbDims * sizeof(int);
+        memcpy(strideA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t poolingDesc, const cudnnTensorDescriptor_t inputTensorDesc, int nbDims, int* outputTensorDimA)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    if (outputTensorDimA == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetpoolingndforwardoutputdim_1(
+        (ptr)poolingDesc,
+        (ptr)inputTensorDesc,
+        nbDims,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = nbDims * sizeof(int);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        memcpy(outputTensorDimA, result.mem_result_u.data.mem_data_val, nbDims * sizeof(int));
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnGetPooling2dForwardOutputDim(const cudnnPoolingDescriptor_t poolingDesc, const cudnnTensorDescriptor_t inputTensorDesc, int* n, int* c, int* h, int* w)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int4_result result;
+    enum clnt_stat retval_1;
+    if (n == NULL || c == NULL || h == NULL || w == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetpooling2dforwardoutputdim_1(
+        (ptr)poolingDesc,
+        (ptr)inputTensorDesc,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *n = result.int4_result_u.data[0];
+        *c = result.int4_result_u.data[1];
+        *h = result.int4_result_u.data[2];
+        *w = result.int4_result_u.data[3];
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnDestroyPoolingDescriptor(cudnnPoolingDescriptor_t poolingDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroypoolingdescriptor_1(
+        (ptr)poolingDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnPoolingForward, cudnnHandle_t, handle, const cudnnPoolingDescriptor_t, poolingDesc, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
-DEF_FN(cudnnStatus_t, cudnnCreateActivationDescriptor, cudnnActivationDescriptor_t *, activationDesc)
-DEF_FN(cudnnStatus_t, cudnnSetActivationDescriptor, cudnnActivationDescriptor_t, activationDesc, cudnnActivationMode_t, mode, cudnnNanPropagation_t, reluNanOpt, double, coef) 
-DEF_FN(cudnnStatus_t, cudnnGetActivationDescriptor, const cudnnActivationDescriptor_t, activationDesc, cudnnActivationMode_t *, mode, cudnnNanPropagation_t *, reluNanOpt, double *, coef) 
-DEF_FN(cudnnStatus_t, cudnnSetActivationDescriptorSwishBeta, cudnnActivationDescriptor_t, activationDesc, double, swish_beta)
-DEF_FN(cudnnStatus_t, cudnnGetActivationDescriptorSwishBeta, cudnnActivationDescriptor_t, activationDesc, double *, swish_beta)
-DEF_FN(cudnnStatus_t, cudnnDestroyActivationDescriptor, cudnnActivationDescriptor_t, activationDesc)
+
+cudnnStatus_t cudnnCreateActivationDescriptor(cudnnActivationDescriptor_t * activationDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (activationDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreateactivationdescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *activationDesc = (cudnnActivationDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetActivationDescriptor(cudnnActivationDescriptor_t activationDesc, cudnnActivationMode_t mode, cudnnNanPropagation_t reluNanOpt, double coef) 
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetactivationdescriptor_1(
+        (ptr)activationDesc,
+        (int)mode,
+        (int)reluNanOpt,
+        coef,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetActivationDescriptor(const cudnnActivationDescriptor_t activationDesc, cudnnActivationMode_t *mode, cudnnNanPropagation_t *reluNanOpt, double *coef) 
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int2d1_result result;
+    enum clnt_stat retval_1;
+    if (mode == NULL || reluNanOpt == NULL || coef == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetactivationdescriptor_1(
+        (ptr)activationDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } else {
+        *mode = (cudnnActivationMode_t)result.int2d1_result_u.data.i[0];
+        *reluNanOpt = (cudnnNanPropagation_t)result.int2d1_result_u.data.i[1];
+        *coef = result.int2d1_result_u.data.d;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t activationDesc, double swish_beta)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetactivationdescriptorswishbeta_1(
+        (ptr)activationDesc,
+        swish_beta,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+    
+cudnnStatus_t cudnnGetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t activationDesc, double * swish_beta)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    d_result result;
+    enum clnt_stat retval_1;
+    if (swish_beta == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetactivationdescriptorswishbeta_1(
+        (ptr)activationDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } else {
+        *swish_beta = result.d_result_u.data;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnDestroyActivationDescriptor(cudnnActivationDescriptor_t activationDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroyactivationdescriptor_1(
+        (ptr)activationDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnActivationForward, cudnnHandle_t, handle, cudnnActivationDescriptor_t, activationDesc, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
 DEF_FN(cudnnStatus_t, cudnnCreateLRNDescriptor, cudnnLRNDescriptor_t *, normDesc)
 DEF_FN(cudnnStatus_t, cudnnSetLRNDescriptor, cudnnLRNDescriptor_t, normDesc, unsigned, lrnN, double, lrnAlpha, double, lrnBeta, double, lrnK)
