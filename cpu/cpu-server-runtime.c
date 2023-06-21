@@ -1801,7 +1801,7 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
     return 1;
 }
 
-bool_t cuda_memset_asycn_1_svc(ptr devPtr, int value, size_t count, ptr stream, int *result, struct svc_req *rqstp)
+bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, int *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_memset_async_1_argument);
     RECORD_ARG(1, devPtr);

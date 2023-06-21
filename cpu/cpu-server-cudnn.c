@@ -474,7 +474,7 @@ bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequeste
     return 1;
 }
 
-bool_t rpc_cudnngetPoolingNdForwardOutputDim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int nbDims, mem_result *result, struct svc_req *rqstp)
+bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int nbDims, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
@@ -492,7 +492,7 @@ bool_t rpc_cudnngetPoolingNdForwardOutputDim_1_svc(ptr poolingDesc, ptr inputTen
     return 1;
 }
 
-bool_t rpc_cudnngetPooling2dForwardOutputDim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int4_result *result, struct svc_req *rqstp)
+bool_t rpc_cudnngetpooling2dforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int4_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
@@ -610,6 +610,74 @@ bool_t rpc_cudnndestroyactivationdescriptor_1_svc(ptr activationDesc, int *resul
     GSCHED_RETAIN;
     *result = cudnnDestroyActivationDescriptor(
         (cudnnActivationDescriptor_t)resource_mg_get(&rm_cudnn_activations, (void*)activationDesc));
+    // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnncreatelrndescriptor_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    result->err = cudnnCreateLRNDescriptor((cudnnLRNDescriptor_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cudnn_lrns, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    GSCHED_RELEASE;
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnsetlrndescriptor_1_svc(ptr normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetlrndescriptor_1_argument);
+    RECORD_NARG(normDesc);
+    RECORD_NARG(lrnN);
+    RECORD_NARG(lrnAlpha);
+    RECORD_NARG(lrnBeta);
+    RECORD_NARG(lrnK);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetLRNDescriptor(
+        (cudnnLRNDescriptor_t)resource_mg_get(&rm_cudnn_lrns, (void*)normDesc),
+        lrnN,
+        lrnAlpha,
+        lrnBeta,
+        lrnK);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnngetlrndescriptor_1_svc(ptr normDesc, int1d3_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    result->err = cudnnGetLRNDescriptor(
+        (cudnnLRNDescriptor_t)resource_mg_get(&rm_cudnn_lrns, (void*)normDesc),
+        (unsigned int*)&result->int1d3_result_u.data.i,
+        &result->int1d3_result_u.data.d[0],
+        &result->int1d3_result_u.data.d[1],
+        &result->int1d3_result_u.data.d[2]);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnndestroylrndescriptor_1_svc(ptr lrnDesc, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(lrnDesc);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnDestroyLRNDescriptor(
+        (cudnnLRNDescriptor_t)resource_mg_get(&rm_cudnn_lrns, (void*)lrnDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
