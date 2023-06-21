@@ -8,12 +8,14 @@
 #include "cpu-utils.h"
 #include "log.h"
 
-static size_t cudnn_call_cnt = 0;
+#ifdef WITH_API_CNT
+extern int api_call_cnt;
+#endif //WITH_API_CNT
 
 size_t cudnnGetVersion(void)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
@@ -26,7 +28,7 @@ size_t cudnnGetVersion(void)
 size_t cudnnGetMaxDeviceVersion(void)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
@@ -39,7 +41,7 @@ size_t cudnnGetMaxDeviceVersion(void)
 size_t cudnnGetCudartVersion(void)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
@@ -52,7 +54,7 @@ size_t cudnnGetCudartVersion(void)
 const char *cudnnGetErrorString(cudnnStatus_t status)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     char *result;
     enum clnt_stat retval_1;
@@ -69,7 +71,7 @@ const char *cudnnGetErrorString(cudnnStatus_t status)
 cudnnStatus_t cudnnQueryRuntimeError(cudnnHandle_t handle, cudnnStatus_t* rstatus, cudnnErrQueryMode_t  mode, cudnnRuntimeTag_t * tag)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
@@ -89,7 +91,7 @@ cudnnStatus_t cudnnQueryRuntimeError(cudnnHandle_t handle, cudnnStatus_t* rstatu
 cudnnStatus_t cudnnGetProperty(libraryPropertyType type, int * value)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
@@ -112,7 +114,7 @@ cudnnStatus_t cudnnGetProperty(libraryPropertyType type, int * value)
 cudnnStatus_t cudnnCreate(cudnnHandle_t* handle)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -135,7 +137,7 @@ cudnnStatus_t cudnnCreate(cudnnHandle_t* handle)
 cudnnStatus_t cudnnDestroy(cudnnHandle_t handle)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -152,7 +154,7 @@ cudnnStatus_t cudnnDestroy(cudnnHandle_t handle)
 cudnnStatus_t cudnnSetStream(cudnnHandle_t handle, cudaStream_t streamId)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -169,7 +171,7 @@ cudnnStatus_t cudnnSetStream(cudnnHandle_t handle, cudaStream_t streamId)
 cudnnStatus_t cudnnGetStream(cudnnHandle_t handle, cudaStream_t * streamId)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -192,7 +194,7 @@ cudnnStatus_t cudnnGetStream(cudnnHandle_t handle, cudaStream_t * streamId)
 cudnnStatus_t cudnnCreateTensorDescriptor(cudnnTensorDescriptor_t * tensorDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -246,7 +248,7 @@ DEF_FN(cudnnStatus_t, cudnnScaleTensor, cudnnHandle_t, handle, const cudnnTensor
 cudnnStatus_t cudnnCreateFilterDescriptor(cudnnFilterDescriptor_t * filterDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -269,7 +271,7 @@ cudnnStatus_t cudnnCreateFilterDescriptor(cudnnFilterDescriptor_t * filterDesc)
 cudnnStatus_t cudnnSetFilter4dDescriptor(cudnnFilterDescriptor_t filterDesc, cudnnDataType_t dataType, cudnnTensorFormat_t format, int k, int c, int h, int w) 
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -291,7 +293,7 @@ cudnnStatus_t cudnnSetFilter4dDescriptor(cudnnFilterDescriptor_t filterDesc, cud
 cudnnStatus_t cudnnGetFilter4dDescriptor(const cudnnFilterDescriptor_t filterDesc, cudnnDataType_t *dataType, cudnnTensorFormat_t *format, int* k, int* c, int* h, int* w) 
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int6_result result;
     enum clnt_stat retval_1;
@@ -322,7 +324,7 @@ cudnnStatus_t cudnnGetFilter4dDescriptor(const cudnnFilterDescriptor_t filterDes
 cudnnStatus_t cudnnSetFilterNdDescriptor(cudnnFilterDescriptor_t filterDesc, cudnnDataType_t dataType, cudnnTensorFormat_t format, int nbDims, const int* filterDimA)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -349,7 +351,7 @@ cudnnStatus_t cudnnSetFilterNdDescriptor(cudnnFilterDescriptor_t filterDesc, cud
 cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDesc, int nbDimsRequested, cudnnDataType_t * dataType, cudnnTensorFormat_t * format, int* nbDims, int* filterDimA)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
@@ -384,7 +386,7 @@ cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDes
 cudnnStatus_t cudnnGetFilterSizeInBytes(const cudnnFilterDescriptor_t filterDesc, size_t* size)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     sz_result result;
     enum clnt_stat retval_1;
@@ -410,7 +412,7 @@ cudnnStatus_t cudnnGetFilterSizeInBytes(const cudnnFilterDescriptor_t filterDesc
 cudnnStatus_t cudnnTransformFilter(cudnnHandle_t handle, const cudnnTensorTransformDescriptor_t transDesc, const void * alpha, const cudnnFilterDescriptor_t srcDesc, const void * srcData, const void * beta, const cudnnFilterDescriptor_t destDesc, void * destData)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -440,7 +442,7 @@ cudnnStatus_t cudnnTransformFilter(cudnnHandle_t handle, const cudnnTensorTransf
 cudnnStatus_t cudnnDestroyFilterDescriptor(cudnnFilterDescriptor_t filterDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -461,7 +463,7 @@ DEF_FN(cudnnStatus_t, cudnnSoftmaxForward, cudnnHandle_t, handle, cudnnSoftmaxAl
 cudnnStatus_t cudnnCreatePoolingDescriptor(cudnnPoolingDescriptor_t *poolingDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -484,7 +486,7 @@ cudnnStatus_t cudnnCreatePoolingDescriptor(cudnnPoolingDescriptor_t *poolingDesc
 cudnnStatus_t cudnnSetPooling2dDescriptor(cudnnPoolingDescriptor_t poolingDesc, cudnnPoolingMode_t mode, cudnnNanPropagation_t maxpoolingNanOpt, int windowHeight, int windowWidth, int verticalPadding, int horizontalPadding, int verticalStride, int horizontalStride)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -512,7 +514,7 @@ cudnnStatus_t cudnnSetPooling2dDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
 cudnnStatus_t cudnnGetPooling2dDescriptor(const cudnnPoolingDescriptor_t poolingDesc, cudnnPoolingMode_t *mode, cudnnNanPropagation_t *maxpoolingNanOpt, int* windowHeight, int* windowWidth, int* verticalPadding, int* horizontalPadding, int* verticalStride, int* horizontalStride)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int8_result result;
     enum clnt_stat retval_1;
@@ -545,7 +547,7 @@ cudnnStatus_t cudnnGetPooling2dDescriptor(const cudnnPoolingDescriptor_t pooling
 cudnnStatus_t cudnnSetPoolingNdDescriptor(cudnnPoolingDescriptor_t poolingDesc, const cudnnPoolingMode_t mode, const cudnnNanPropagation_t maxpoolingNanOpt, int nbDims, const int* windowDimA, const int* paddingA, const int* strideA)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -583,7 +585,7 @@ cudnnStatus_t cudnnSetPoolingNdDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
 cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t poolingDesc, int nbDimsRequested, cudnnPoolingMode_t * mode, cudnnNanPropagation_t * maxpoolingNanOpt, int* nbDims, int* windowDimA, int* paddingA, int* strideA)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
@@ -621,7 +623,7 @@ cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t pooling
 cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t poolingDesc, const cudnnTensorDescriptor_t inputTensorDesc, int nbDims, int* outputTensorDimA)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
@@ -649,7 +651,7 @@ cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t p
 cudnnStatus_t cudnnGetPooling2dForwardOutputDim(const cudnnPoolingDescriptor_t poolingDesc, const cudnnTensorDescriptor_t inputTensorDesc, int* n, int* c, int* h, int* w)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int4_result result;
     enum clnt_stat retval_1;
@@ -678,7 +680,7 @@ cudnnStatus_t cudnnGetPooling2dForwardOutputDim(const cudnnPoolingDescriptor_t p
 cudnnStatus_t cudnnDestroyPoolingDescriptor(cudnnPoolingDescriptor_t poolingDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -700,7 +702,7 @@ DEF_FN(cudnnStatus_t, cudnnPoolingForward, cudnnHandle_t, handle, const cudnnPoo
 cudnnStatus_t cudnnCreateActivationDescriptor(cudnnActivationDescriptor_t * activationDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -723,7 +725,7 @@ cudnnStatus_t cudnnCreateActivationDescriptor(cudnnActivationDescriptor_t * acti
 cudnnStatus_t cudnnSetActivationDescriptor(cudnnActivationDescriptor_t activationDesc, cudnnActivationMode_t mode, cudnnNanPropagation_t reluNanOpt, double coef) 
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -746,7 +748,7 @@ cudnnStatus_t cudnnSetActivationDescriptor(cudnnActivationDescriptor_t activatio
 cudnnStatus_t cudnnGetActivationDescriptor(const cudnnActivationDescriptor_t activationDesc, cudnnActivationMode_t *mode, cudnnNanPropagation_t *reluNanOpt, double *coef) 
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int2d1_result result;
     enum clnt_stat retval_1;
@@ -774,7 +776,7 @@ cudnnStatus_t cudnnGetActivationDescriptor(const cudnnActivationDescriptor_t act
 cudnnStatus_t cudnnSetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t activationDesc, double swish_beta)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -795,7 +797,7 @@ cudnnStatus_t cudnnSetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t 
 cudnnStatus_t cudnnGetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t activationDesc, double * swish_beta)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     d_result result;
     enum clnt_stat retval_1;
@@ -821,7 +823,7 @@ cudnnStatus_t cudnnGetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t 
 cudnnStatus_t cudnnDestroyActivationDescriptor(cudnnActivationDescriptor_t activationDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -843,7 +845,7 @@ DEF_FN(cudnnStatus_t, cudnnActivationForward, cudnnHandle_t, handle, cudnnActiva
 cudnnStatus_t cudnnCreateLRNDescriptor(cudnnLRNDescriptor_t * normDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
@@ -866,7 +868,7 @@ cudnnStatus_t cudnnCreateLRNDescriptor(cudnnLRNDescriptor_t * normDesc)
 cudnnStatus_t cudnnSetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
@@ -890,7 +892,7 @@ cudnnStatus_t cudnnSetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned lrnN
 cudnnStatus_t cudnnGetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned * lrnN, double * lrnAlpha, double * lrnBeta, double * lrnK)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int1d3_result result;
     enum clnt_stat retval_1;
@@ -919,7 +921,7 @@ cudnnStatus_t cudnnGetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned * lr
 cudnnStatus_t cudnnDestroyLRNDescriptor(cudnnLRNDescriptor_t lrnDesc)
 {
 #ifdef WITH_API_CNT
-    cudnn_call_cnt++;
+    api_call_cnt++;
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;

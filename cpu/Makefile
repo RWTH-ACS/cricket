@@ -61,7 +61,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 mt-memcpy.c				\
 			 cpu-elf2.c					\
 			 cpu-client-nvml.c          \
-			 cpu-client-cudnn.c
+			 cpu-client-cudnn.c			\
+			 cpu-client-cublas.c
 
 # 			 cpu-client-driver-hidden.c \
 

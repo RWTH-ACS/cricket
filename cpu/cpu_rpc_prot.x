@@ -450,6 +450,12 @@ program RPC_CD_PROG {
         int          rpc_cublasDgemm(ptr, int, int, int, int, int, double,
                          ptr, int, ptr, int, double, ptr, int)                 = 3002;
         int          rpc_cublasDestroy(ptr)                                    = 3003;
+        int          rpc_cublasSgemm(ptr, int, int, int, int, int, float,
+                         ptr, int, ptr, int, float, ptr, int)                 = 3004;
+        int          rpc_cublasSgemv(ptr, int, int, int, float,
+                         ptr, int, ptr, int, float, ptr, int)                 = 3005;
+        int          rpc_cublasDgemv(ptr, int, int, int, double,
+                         ptr, int, ptr, int, double, ptr, int)                 = 3006;
 
         /* NVML */
         int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;
