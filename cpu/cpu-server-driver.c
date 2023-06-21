@@ -320,7 +320,7 @@ bool_t rpc_cumoduleunload_1_svc(ptr module, int *result,
     RECORD_SINGLE_ARG(module);
     LOG(LOG_DEBUG, "%s(%p)", __FUNCTION__, (void*)module);
     GSCHED_RETAIN;
-    *result = cuModuleUnload(resource_mg_get(&rm_streams, (void*)module));
+    *result = cuModuleUnload(resource_mg_get(&rm_modules, (void*)module));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;

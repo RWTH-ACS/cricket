@@ -475,7 +475,6 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetStream(ptr handle, ptr streamId) = 5008;
         ptr_result  rpc_cudnnGetStream(ptr handle) = 5009;
         ptr_result  rpc_cudnnCreateTensorDescriptor(void) = 5010;
-        /*
         int         rpc_cudnnSetTensor4dDescriptor(ptr tensorDesc, int format, int dataType, int n, int c, int h, int w) = 5011;
         int         rpc_cudnnSetTensor4dDescriptorEx(ptr tensorDesc, int dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride) = 5012;
         int9_result rpc_cudnnGetTensor4dDescriptor(ptr tensorDesc) = 5013;
@@ -484,6 +483,7 @@ program RPC_CD_PROG {
         mem_result  rpc_cudnnGetTensorNdDescriptor(ptr tensorDesc, int nbDimsRequested) = 5016;
         sz_result   rpc_cudnnGetTensorSizeInBytes(ptr tensorDesc) = 5017;
         int         rpc_cudnnDestroyTensorDescriptor(ptr tensorDesc) = 5018;
+        /*
         sz_result   rpc_cudnnInitTransformDest(ptr transformDesc, ptr srcDesc, ptr destDesc) = 5019;
         ptr_result  rpc_cudnnCreateTensorTransformDescriptor(void) = 5020;
         int         rpc_cudnnSetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDims, int destFormat, mem_data padBeforeA, mem_data padAfterA, mem_data foldA, int direction) = 5021;

@@ -181,6 +181,130 @@ bool_t rpc_cudnncreatetensordescriptor_1_svc(ptr_result *result, struct svc_req 
     return 1;
 }
 
+bool_t rpc_cudnnsettensor4ddescriptor_1_svc(ptr tensorDesc, int format, int dataType, int n, int c, int h, int w, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsettensor4ddescriptor_1_argument);
+    RECORD_NARG(tensorDesc);
+    RECORD_NARG(format);
+    RECORD_NARG(dataType);
+    RECORD_NARG(n);
+    RECORD_NARG(c);
+    RECORD_NARG(h);
+    RECORD_NARG(w);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetTensor4dDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorFormat_t)format,
+        (cudnnDataType_t)dataType,
+        n, c, h, w);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnngettensor4ddescriptor_1_svc(ptr tensorDesc, int9_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    result->err = cudnnGetTensor4dDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnDataType_t*)&result->int9_result_u.data[0],
+        &result->int9_result_u.data[1],
+        &result->int9_result_u.data[2],
+        &result->int9_result_u.data[3],
+        &result->int9_result_u.data[4],
+        &result->int9_result_u.data[5],
+        &result->int9_result_u.data[6],
+        &result->int9_result_u.data[7],
+        &result->int9_result_u.data[8]);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnnsettensornddescriptor_1_svc(ptr tensorDesc, int dataType, int nbDims, mem_data dimA, mem_data strideA, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsettensornddescriptor_1_argument);
+    RECORD_NARG(tensorDesc);
+    RECORD_NARG(dataType);
+    RECORD_NARG(nbDims);
+    RECORD_NARG(dimA);
+    RECORD_NARG(strideA);
+    
+    //TODO: Recording dimA and strideA is not as easy as done here.
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    if (dimA.mem_data_len != nbDims * sizeof(int) || strideA.mem_data_len != nbDims * sizeof(int)) {
+        LOGE(LOG_ERROR, "array dimensions not as expected.");
+        return 0;
+    }
+    GSCHED_RETAIN;
+    *result = cudnnSetTensorNdDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnDataType_t)dataType,
+        nbDims,
+        (const int*)dimA.mem_data_val,
+        (const int*)strideA.mem_data_val);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnsettensornddescriptorex_1_svc(ptr tensorDesc, int format, int dataType, int nbDims, mem_data dimA, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsettensornddescriptorex_1_argument);
+    RECORD_NARG(tensorDesc);
+    RECORD_NARG(format);
+    RECORD_NARG(dataType);
+    RECORD_NARG(nbDims);
+    RECORD_NARG(dimA);
+    
+    //TODO: Recording dimA and strideA is not as easy as done here.
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    if (dimA.mem_data_len != nbDims * sizeof(int)) {
+        LOGE(LOG_ERROR, "array dimensions not as expected.");
+        return 0;
+    }
+    GSCHED_RETAIN;
+    *result = cudnnSetTensorNdDescriptorEx(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorFormat_t)format,   
+        (cudnnDataType_t)dataType,
+        nbDims,
+        (const int*)dimA.mem_data_val);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnngettensornddescriptor_1_svc(ptr tensorDesc, int nbDimsRequested, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    result->mem_result_u.data.mem_data_len = sizeof(cudnnDataType_t) + sizeof(int) + nbDimsRequested*sizeof(int)*2;
+    if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+    
+    GSCHED_RETAIN;
+    result->err = cudnnGetTensorNdDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        nbDimsRequested,
+        (cudnnDataType_t*)result->mem_result_u.data.mem_data_val,
+        (int*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)],
+        (int*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)+sizeof(int)],
+        (int*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)+sizeof(int)+nbDimsRequested*sizeof(int)]);
+
+    GSCHED_RELEASE;
+    return 1;
+}
+
 bool_t rpc_cudnncreatefilterdescriptor_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     RECORD_VOID_API;

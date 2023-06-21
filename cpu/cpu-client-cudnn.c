@@ -214,14 +214,221 @@ cudnnStatus_t cudnnCreateTensorDescriptor(cudnnTensorDescriptor_t * tensorDesc)
     return result.err;
 }
 
-DEF_FN(cudnnStatus_t, cudnnSetTensor4dDescriptor, cudnnTensorDescriptor_t, tensorDesc, cudnnTensorFormat_t, format, cudnnDataType_t, dataType, int, n, int, c, int, h, int, w) 
-DEF_FN(cudnnStatus_t, cudnnSetTensor4dDescriptorEx, cudnnTensorDescriptor_t, tensorDesc, cudnnDataType_t, dataType, int, n, int, c, int, h, int, w, int, nStride, int, cStride, int, hStride, int, wStride)
-DEF_FN(cudnnStatus_t, cudnnGetTensor4dDescriptor, const cudnnTensorDescriptor_t, tensorDesc, cudnnDataType_t *, dataType, int*, n, int*, c, int*, h, int*, w, int*, nStride, int*, cStride, int*, hStride, int*, wStride)
-DEF_FN(cudnnStatus_t, cudnnSetTensorNdDescriptor, cudnnTensorDescriptor_t, tensorDesc, cudnnDataType_t, dataType, int, nbDims, const int*, dimA, const int*, strideA)
-DEF_FN(cudnnStatus_t, cudnnSetTensorNdDescriptorEx, cudnnTensorDescriptor_t, tensorDesc, cudnnTensorFormat_t, format, cudnnDataType_t, dataType, int, nbDims, const int*, dimA)
-DEF_FN(cudnnStatus_t, cudnnGetTensorNdDescriptor, const cudnnTensorDescriptor_t, tensorDesc, int, nbDimsRequested, cudnnDataType_t *, dataType, int*, nbDims, int*, dimA, int*, strideA)
-DEF_FN(cudnnStatus_t, cudnnGetTensorSizeInBytes, const cudnnTensorDescriptor_t, tensorDesc, size_t*, size)
-DEF_FN(cudnnStatus_t, cudnnDestroyTensorDescriptor, cudnnTensorDescriptor_t, tensorDesc)
+cudnnStatus_t cudnnSetTensor4dDescriptor(cudnnTensorDescriptor_t tensorDesc, cudnnTensorFormat_t format, cudnnDataType_t dataType, int n, int c, int h, int w) 
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsettensor4ddescriptor_1(
+        (ptr)tensorDesc,
+        (int)format,
+        (int)dataType,
+        n, c, h, w, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnSetTensor4dDescriptorEx(cudnnTensorDescriptor_t tensorDesc, cudnnDataType_t dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsettensor4ddescriptorex_1(
+        (ptr)tensorDesc,
+        (int)dataType,
+        n, c, h, w, nStride, cStride, hStride, wStride, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetTensor4dDescriptor(const cudnnTensorDescriptor_t tensorDesc, cudnnDataType_t *dataType, int* n, int* c, int* h, int* w, int* nStride, int* cStride, int* hStride, int* wStride)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int9_result result;
+    enum clnt_stat retval_1;
+    if (dataType == NULL || n == NULL || c == NULL || h == NULL || w == NULL || nStride == NULL || cStride == NULL || hStride == NULL || wStride == NULL) { 
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngettensor4ddescriptor_1(
+        (ptr)tensorDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } else {
+        *dataType = (cudnnDataType_t)result.int9_result_u.data[0];
+        *n = result.int9_result_u.data[1];
+        *c = result.int9_result_u.data[2];
+        *h = result.int9_result_u.data[3];
+        *w = result.int9_result_u.data[4];
+        *nStride = result.int9_result_u.data[5];
+        *cStride = result.int9_result_u.data[6];
+        *hStride = result.int9_result_u.data[7];
+        *wStride = result.int9_result_u.data[8];
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetTensorNdDescriptor(cudnnTensorDescriptor_t tensorDesc, cudnnDataType_t dataType, int nbDims, const int* dimA, const int* strideA)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data rpc_dimA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)dimA
+    };
+    mem_data rpc_strideA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)strideA
+    };
+    retval_1 = rpc_cudnnsettensornddescriptor_1(
+        (ptr)tensorDesc,
+        (int)dataType,
+        (int)nbDims,
+        rpc_dimA, rpc_strideA, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnSetTensorNdDescriptorEx(cudnnTensorDescriptor_t tensorDesc, cudnnTensorFormat_t format, cudnnDataType_t dataType, int nbDims, const int* dimA)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data rpc_dimA = {
+        .mem_data_len = nbDims * sizeof(int),
+        .mem_data_val = (char*)dimA
+    };
+    retval_1 = rpc_cudnnsettensornddescriptorex_1(
+        (ptr)tensorDesc,
+        (int)format,
+        (int)dataType,
+        (int)nbDims,
+        rpc_dimA, &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetTensorNdDescriptor(const cudnnTensorDescriptor_t tensorDesc, int nbDimsRequested, cudnnDataType_t *dataType, int* nbDims, int* dimA, int* strideA)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    if (dataType == NULL || nbDims == NULL || dimA == NULL || strideA == NULL) { 
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngettensornddescriptor_1(
+        (ptr)tensorDesc,
+        nbDimsRequested,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = nbDimsRequested * sizeof(int) * 2 + sizeof(int) + sizeof(cudnnDataType_t);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        size_t offset = 0;
+        *dataType = (cudnnDataType_t)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(cudnnDataType_t);
+        *nbDims = (int)result.mem_result_u.data.mem_data_val[offset];
+        offset += sizeof(int);
+        memcpy(dimA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+        offset += *nbDims * sizeof(int);
+        memcpy(strideA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnGetTensorSizeInBytes(const cudnnTensorDescriptor_t tensorDesc, size_t* size)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    sz_result result;
+    enum clnt_stat retval_1;
+    if (size == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngettensorsizeinbytes_1(
+        (ptr)tensorDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *size = result.sz_result_u.data;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnDestroyTensorDescriptor(cudnnTensorDescriptor_t tensorDesc)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroytensordescriptor_1(
+        (ptr)tensorDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnInitTransformDest, const cudnnTensorTransformDescriptor_t, transformDesc, const cudnnTensorDescriptor_t, srcDesc, cudnnTensorDescriptor_t, destDesc, size_t*, destSizeInBytes)
 DEF_FN(cudnnStatus_t, cudnnCreateTensorTransformDescriptor, cudnnTensorTransformDescriptor_t *, transformDesc)
 DEF_FN(cudnnStatus_t, cudnnSetTensorTransformDescriptor, cudnnTensorTransformDescriptor_t, transformDesc, const uint32_t, nbDims, const cudnnTensorFormat_t, destFormat, const int32_t*, padBeforeA, const int32_t*, padAfterA, const uint32_t*, foldA, const cudnnFoldingDirection_t,  direction)
