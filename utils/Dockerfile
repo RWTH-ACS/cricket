@@ -26,7 +26,7 @@ RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 
 RUN dnf -y config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
-    dnf --refresh -y install cuda-compiler-12-1 cuda-libraries-devel-12-1 cuda-driver-devel-12-1 cuda-profiler-api-12-1 cuda-nvml-devel-12-1 nvidia-driver-NVML-530.30.02 && \
+    dnf --refresh -y install cuda-compiler-12-1 cuda-libraries-devel-12-1 cuda-driver-devel-12-1 cuda-profiler-api-12-1 cuda-nvml-devel-12-1 nvidia-driver-NVML-530.30.02 libcudnn8-devel && \
     ln -s cuda-12.1 /usr/local/cuda && \
     ln -s libcuda.so /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
