@@ -839,10 +839,102 @@ cudnnStatus_t cudnnDestroyActivationDescriptor(cudnnActivationDescriptor_t activ
 }
 
 DEF_FN(cudnnStatus_t, cudnnActivationForward, cudnnHandle_t, handle, cudnnActivationDescriptor_t, activationDesc, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
-DEF_FN(cudnnStatus_t, cudnnCreateLRNDescriptor, cudnnLRNDescriptor_t *, normDesc)
-DEF_FN(cudnnStatus_t, cudnnSetLRNDescriptor, cudnnLRNDescriptor_t, normDesc, unsigned, lrnN, double, lrnAlpha, double, lrnBeta, double, lrnK)
-DEF_FN(cudnnStatus_t, cudnnGetLRNDescriptor, cudnnLRNDescriptor_t, normDesc, unsigned *, lrnN, double *, lrnAlpha, double *, lrnBeta, double *, lrnK)
-DEF_FN(cudnnStatus_t, cudnnDestroyLRNDescriptor, cudnnLRNDescriptor_t, lrnDesc)
+
+cudnnStatus_t cudnnCreateLRNDescriptor(cudnnLRNDescriptor_t * normDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (normDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreatelrndescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *normDesc = (cudnnLRNDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnSetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetlrndescriptor_1(
+        (ptr)normDesc,
+        (int)lrnN,
+        lrnAlpha,
+        lrnBeta,
+        lrnK,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+cudnnStatus_t cudnnGetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned * lrnN, double * lrnAlpha, double * lrnBeta, double * lrnK)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int1d3_result result;
+    enum clnt_stat retval_1;
+    if (lrnN == NULL || lrnAlpha == NULL || lrnBeta == NULL || lrnK == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetlrndescriptor_1(
+        (ptr)normDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } else {
+        *lrnN = result.int1d3_result_u.data.i;
+        *lrnAlpha = result.int1d3_result_u.data.d[0];
+        *lrnBeta = result.int1d3_result_u.data.d[1];
+        *lrnK = result.int1d3_result_u.data.d[2];
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnDestroyLRNDescriptor(cudnnLRNDescriptor_t lrnDesc)
+{
+#ifdef WITH_API_CNT
+    cudnn_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroylrndescriptor_1(
+        (ptr)lrnDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
 DEF_FN(cudnnStatus_t, cudnnLRNCrossChannelForward, cudnnHandle_t, handle, cudnnLRNDescriptor_t, normDesc, cudnnLRNMode_t, lrnMode, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
 DEF_FN(cudnnStatus_t, cudnnDivisiveNormalizationForward, cudnnHandle_t, handle, cudnnLRNDescriptor_t, normDesc, cudnnDivNormMode_t, mode, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, means, void *, temp, void *, temp2, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
 DEF_FN(cudnnStatus_t, cudnnDeriveBNTensorDescriptor, cudnnTensorDescriptor_t, derivedBnDesc, const cudnnTensorDescriptor_t, xDesc, cudnnBatchNormMode_t, mode)

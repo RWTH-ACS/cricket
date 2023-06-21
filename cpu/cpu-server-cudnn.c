@@ -26,6 +26,7 @@ int server_cudnn_init(int bypass)
     ret &= resource_mg_init(&rm_cudnn_filters, bypass);
     ret &= resource_mg_init(&rm_cudnn_poolings, bypass);
     ret &= resource_mg_init(&rm_cudnn_activations, bypass);
+    ret &= resource_mg_init(&rm_cudnn_lrns, bypass);
     return ret;
 }
 
@@ -36,6 +37,7 @@ int server_cudnn_deinit(void)
     resource_mg_free(&rm_cudnn_filters);
     resource_mg_free(&rm_cudnn_poolings);
     resource_mg_free(&rm_cudnn_activations);
+    resource_mg_free(&rm_cudnn_lrns);
     return 0;
 
 }

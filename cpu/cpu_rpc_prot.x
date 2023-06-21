@@ -45,6 +45,11 @@ struct int2d1 {
     double d;
 };
 
+struct int1d3 {
+    int i;
+    double d[3];
+};
+
 union cudnn_scaling_t switch (int dataType) {
 case 2:
 case 0:
@@ -191,6 +196,13 @@ default:
 union int2d1_result switch (int err) {
 case 0:
     int2d1 data;
+default:
+    void;
+};
+
+union int1d3_result switch (int err) {
+case 0:
+    int1d3 data;
 default:
     void;
 };
@@ -457,7 +469,7 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetStream(ptr handle, ptr streamId) = 5008;
         ptr_result  rpc_cudnnGetStream(ptr handle) = 5009;
         ptr_result  rpc_cudnnCreateTensorDescriptor(void) = 5010;
-        
+        /*
         int         rpc_cudnnSetTensor4dDescriptor(ptr tensorDesc, int format, int dataType, int n, int c, int h, int w) = 5011;
         int         rpc_cudnnSetTensor4dDescriptorEx(ptr tensorDesc, int dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride) = 5012;
         int9_result rpc_cudnnGetTensor4dDescriptor(ptr tensorDesc) = 5013;
@@ -487,7 +499,8 @@ program RPC_CD_PROG {
         sz_result   rpc_cudnnGetReductionWorkspaceSize(ptr handle, ptr reduceTensorDesc, ptr aDesc, ptr cDesc) = 5037;
         mem_result  rpc_cudnnReduceTensor(ptr handle, ptr reduceTensorDesc, ptr indices, size_t indicesSizeInBytes, ptr workspace, size_t workspaceSizeInBytes, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5038;
         int         rpc_cudnnSetTensor(ptr handle, ptr yDesc, ptr y, mem_data valuePtr) = 5039;
-        int         rpc_cudnnScaleTensor(ptr handle, ptr yDesc, ptr y, cudnn_scaling_t alpha) = 5040;
+        int         rpc_cudnnScaleTensor(ptr handle, ptr yDesc, ptr y, cudnn_scaling_t alpha) = 5040; */
+        
         ptr_result  rpc_cudnnCreateFilterDescriptor(void) = 5041;
         int         rpc_cudnnSetFilter4dDescriptor(ptr filterDesc, int dataType, int format, int k, int c, int h, int w) = 5042;
         int6_result rpc_cudnnGetFilter4dDescriptor(ptr filterDesc) = 5043;
@@ -510,5 +523,9 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetActivationDescriptorSwishBeta(ptr activationDesc, double swish_beta) = 5062;
         d_result    rpc_cudnnGetActivationDescriptorSwishBeta(ptr activationDesc) = 5063;
         int         rpc_cudnnDestroyActivationDescriptor(ptr activationDesc) = 5064;
+        ptr_result  rpc_cudnnCreateLRNDescriptor(void) = 5066;
+        int         rpc_cudnnSetLRNDescriptor(ptr normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK) = 5067;
+        int1d3_result rpc_cudnnGetLRNDescriptor(ptr normDesc) = 5068;
+        int         rpc_cudnnDestroyLRNDescriptor(ptr lrnDesc) = 5069;
     } = 1;
 } = 99;
