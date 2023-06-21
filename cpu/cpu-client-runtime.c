@@ -1794,7 +1794,19 @@ cudaError_t cudaMemset2D(void* devPtr, size_t pitch, int value, size_t width, si
     return result;
 }
 
-DEF_FN(cudaError_t, cudaMemset2DAsync, void*, devPtr, size_t, pitch, int,  value, size_t, width, size_t, height, cudaStream_t, stream)
+cudaError_t cudaMemset2DAsync(void* devPtr, size_t pitch, int value, size_t width, size_t height, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_2d_async_1((ptr)devPtr, pitch, value, width, height, (ptr)stream, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct cudaExtent extent)
 {
@@ -1818,8 +1830,42 @@ cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct 
     return result;
 }
 
-DEF_FN(cudaError_t, cudaMemset3DAsync, struct cudaPitchedPtr, pitchedDevPtr, int,  value, struct cudaExtent, extent, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemsetAsync, void*, devPtr, int,  value, size_t, count, cudaStream_t, stream)
+cudaError_t cudaMemset3DAsync(struct cudaPitchedPtr pitchedDevPtr, int  value, struct cudaExtent extent, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_3d_async_1(pitchedDevPtr.pitch,
+                              (ptr)pitchedDevPtr.ptr,
+                              pitchedDevPtr.xsize,
+                              pitchedDevPtr.ysize,
+                              value,
+                              extent.depth,
+                              extent.height,
+                              extent.width, 
+                              (ptr)stream,
+                              &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaMemsetAsync(void* devPtr, int value, size_t count, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_async_1((ptr)devPtr, value, count, (ptr)stream, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 DEF_FN(struct cudaExtent, make_cudaExtent, size_t, w, size_t, h, size_t, d)
 DEF_FN(struct cudaPitchedPtr, make_cudaPitchedPtr, void*, d, size_t, p, size_t, xsz, size_t, ysz)

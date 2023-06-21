@@ -1730,7 +1730,26 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
     return 1;
 }
 
-/* cudaMemset2DAsync ( void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0 ) is not implemented */
+bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t width, size_t height, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_2d_async_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, pitch);
+    RECORD_ARG(3, value);
+    RECORD_ARG(4, height);
+    RECORD_ARG(5, width);
+    RECORD_ARG(6, stream);
+    LOGE(LOG_DEBUG, "cudaMemset2DAsync");
+    *result = cudaMemset2DAsync(
+      resource_mg_get(&rm_memory, (void*)devPtr),
+      pitch,
+      value,
+      width,
+      height,
+      resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 
 bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, int *result, struct svc_req *rqstp)
 {
@@ -1755,8 +1774,49 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     RECORD_RESULT(integer, *result);
     return 1;
 }
-/* cudaMemset3DAsync ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent, cudaStream_t stream = 0 ) is not implemented */
-/* cudaMemsetAsync ( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 ) is not implemented */
+
+bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_3d_async_1_argument);
+    RECORD_ARG(1, pitch);
+    RECORD_ARG(2, devPtr);
+    RECORD_ARG(3, xsize);
+    RECORD_ARG(4, ysize);
+    RECORD_ARG(5, value);
+    RECORD_ARG(6, depth);
+    RECORD_ARG(7, height);
+    RECORD_ARG(8, width);
+    RECORD_ARG(9, stream);
+    LOGE(LOG_DEBUG, "cudaMemset3DAsync");
+    struct cudaPitchedPtr pptr = {.pitch = pitch,
+                                  .ptr = resource_mg_get(&rm_memory, (void*)devPtr),
+                                  .xsize = xsize,
+                                  .ysize = ysize};
+    struct cudaExtent extent = {.depth = depth,
+                                .height = height,
+                                .width = width};
+    *result = cudaMemset3DAsync(pptr, value, extent,
+                resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_memset_asycn_1_svc(ptr devPtr, int value, size_t count, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_async_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, value);
+    RECORD_ARG(3, count);
+    RECORD_ARG(3, stream);
+    LOGE(LOG_DEBUG, "cudaMemsetAsync");
+    *result = cudaMemsetAsync(
+      resource_mg_get(&rm_memory, (void*)devPtr),
+      value,
+      count,
+      resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 /* cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap ) is not implemented */
 /* make_cudaExtent ( size_t w, size_t h, size_t d ) should be implemented on the client side */
 /* make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz ) should be implemented on the client side */

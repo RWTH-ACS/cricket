@@ -346,13 +346,13 @@ program RPC_CD_PROG {
         int          CUDA_MEMCPY_MT_SYNC(int)                                   = 451;
         int          CUDA_MEMSET(ptr, int, size_t)                              = 470;
         int          CUDA_MEMSET_2D(ptr, size_t, int, size_t, size_t)           = 471;
-        /*int        CUDA_MEMSET_2D_ASYNC(ptr, size_t,
-                         int, size_t, size_t, int)                              = 472;*/
+        int          CUDA_MEMSET_2D_ASYNC(ptr, size_t,
+                         int, size_t, size_t, ptr)                              = 472;
         int          CUDA_MEMSET_3D(size_t, ptr, size_t, size_t, int, size_t,
                          size_t, size_t)                                        = 473;
-        /*int        CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
-                         size_t, size_t, size_t, int)                           = 474;*/
-        /*int        CUDA_MEMSET_ASYNC(ptr, int, size_t, int)                   = 475;*/
+        int          CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
+                         size_t, size_t, size_t, ptr)                           = 474;
+        int          CUDA_MEMSET_ASYNC(ptr, int, size_t, ptr)                   = 475;
         /*?          CUDA_MIPMAPPED_ARRAY_GET_SPARSE_PROPERTIES(ptr)            = 476;*/
         /* make_ APIs can be copied on the client side */
 
