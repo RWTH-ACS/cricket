@@ -205,6 +205,32 @@ bool_t rpc_cudnnsettensor4ddescriptor_1_svc(ptr tensorDesc, int format, int data
     return 1;
 }
 
+bool_t rpc_cudnnsettensor4ddescriptorex_1_svc(ptr tensorDesc, int dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsettensor4ddescriptorex_1_argument);
+    RECORD_NARG(tensorDesc);
+    RECORD_NARG(dataType);
+    RECORD_NARG(n);
+    RECORD_NARG(c);
+    RECORD_NARG(h);
+    RECORD_NARG(w);
+    RECORD_NARG(nStride);
+    RECORD_NARG(cStride);
+    RECORD_NARG(hStride);
+    RECORD_NARG(wStride);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetTensor4dDescriptorEx(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnDataType_t)dataType,
+        n, c, h, w, nStride, cStride, hStride, wStride);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
 bool_t rpc_cudnngettensor4ddescriptor_1_svc(ptr tensorDesc, int9_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
@@ -304,6 +330,33 @@ bool_t rpc_cudnngettensornddescriptor_1_svc(ptr tensorDesc, int nbDimsRequested,
     GSCHED_RELEASE;
     return 1;
 }
+
+bool_t rpc_cudnngettensorsizeinbytes_1_svc(ptr tensorDesc, sz_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cudnnGetTensorSizeInBytes(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc),
+        &result->sz_result_u.data);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnndestroytensordescriptor_1_svc(ptr tensorDesc, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(tensorDesc);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnDestroyTensorDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)tensorDesc));
+    // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
 
 bool_t rpc_cudnncreatefilterdescriptor_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
