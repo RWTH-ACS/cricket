@@ -41,7 +41,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 {
     LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
-    CUmodule module;
+    CUmodule module = NULL;
     
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
@@ -66,7 +66,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 // TODO: We should also remove associated function handles
 bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
+    LOGE(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
     CUmodule module = NULL;
     CUresult res;
     
@@ -76,6 +76,8 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
         return 1;
     }
 
+    LOGE(LOG_DEBUG,"module: %p", module);
+
     // if ((res = resource_mg_remove(&rm_modules, (void*)elf_handle)) != CUDA_SUCCESS) {
     //     LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
     //     result->err = res;
@@ -83,12 +85,12 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     // }
 
     if ((res = cuModuleUnload(module)) != CUDA_SUCCESS) {
-        LOG(LOG_ERROR, "cuModuleUnload failed: %d", res);
+        const char *errstr;
+        cuGetErrorString(res, &errstr);
+        LOG(LOG_ERROR, "cuModuleUnload failed: %s (%d)", errstr, res);
         *result = res;
         return 1;
     }
-
-    //TODO: Free memory of module
 
     *result = 0;
     return 1;
