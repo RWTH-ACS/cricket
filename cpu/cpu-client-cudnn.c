@@ -1,4 +1,3 @@
-#include <cuda_runtime.h>
 #include <cudnn.h>
 #include <stdint.h>
 
@@ -25,6 +24,7 @@ size_t cudnnGetVersion(void)
     }
     return result;
 }
+
 size_t cudnnGetMaxDeviceVersion(void)
 {
 #ifdef WITH_API_CNT
@@ -51,12 +51,14 @@ size_t cudnnGetCudartVersion(void)
     }
     return result;
 }
+
 const char *cudnnGetErrorString(cudnnStatus_t status)
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    char *result;
+    static char str[128];
+    char *result = NULL;
     enum clnt_stat retval_1;
     retval_1 = rpc_cudnngeterrorstring_1((int)status, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
@@ -65,7 +67,8 @@ const char *cudnnGetErrorString(cudnnStatus_t status)
     if (result == NULL) {
         LOGE(LOG_ERROR, "%s failed (result is NULL)", __FUNCTION__);
     }
-    return result;
+    strncpy(str, result, 128);
+    return str; 
 }
 
 cudnnStatus_t cudnnQueryRuntimeError(cudnnHandle_t handle, cudnnStatus_t* rstatus, cudnnErrQueryMode_t  mode, cudnnRuntimeTag_t * tag)
@@ -353,7 +356,9 @@ cudnnStatus_t cudnnGetTensorNdDescriptor(const cudnnTensorDescriptor_t tensorDes
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
+    size_t expected_size = nbDimsRequested * sizeof(int) * 2 + sizeof(int) + sizeof(cudnnDataType_t);
     mem_result result;
+    result.mem_result_u.data.mem_data_val = malloc(expected_size);
     enum clnt_stat retval_1;
     if (dataType == NULL || nbDims == NULL || dimA == NULL || strideA == NULL) { 
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
@@ -367,7 +372,6 @@ cudnnStatus_t cudnnGetTensorNdDescriptor(const cudnnTensorDescriptor_t tensorDes
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
-    size_t expected_size = nbDimsRequested * sizeof(int) * 2 + sizeof(int) + sizeof(cudnnDataType_t);
     if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
         LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
     } else {
@@ -380,6 +384,7 @@ cudnnStatus_t cudnnGetTensorNdDescriptor(const cudnnTensorDescriptor_t tensorDes
         offset += *nbDims * sizeof(int);
         memcpy(strideA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
     }
+    free(result.mem_result_u.data.mem_data_val);
     return result.err;
 }
 
@@ -434,9 +439,65 @@ DEF_FN(cudnnStatus_t, cudnnCreateTensorTransformDescriptor, cudnnTensorTransform
 DEF_FN(cudnnStatus_t, cudnnSetTensorTransformDescriptor, cudnnTensorTransformDescriptor_t, transformDesc, const uint32_t, nbDims, const cudnnTensorFormat_t, destFormat, const int32_t*, padBeforeA, const int32_t*, padAfterA, const uint32_t*, foldA, const cudnnFoldingDirection_t,  direction)
 DEF_FN(cudnnStatus_t, cudnnGetTensorTransformDescriptor, cudnnTensorTransformDescriptor_t, transformDesc, uint32_t, nbDimsRequested, cudnnTensorFormat_t *, destFormat, int32_t*, padBeforeA, int32_t*, padAfterA, uint32_t*, foldA, cudnnFoldingDirection_t *, direction)
 DEF_FN(cudnnStatus_t, cudnnDestroyTensorTransformDescriptor, cudnnTensorTransformDescriptor_t, transformDesc)
-DEF_FN(cudnnStatus_t, cudnnTransformTensor, cudnnHandle_t, handle, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
+
+cudnnStatus_t cudnnTransformTensor(cudnnHandle_t handle, const void * alpha, const cudnnTensorDescriptor_t xDesc, const void *x, const void *beta, const cudnnTensorDescriptor_t yDesc, void *y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnntransformtensor_1(
+        (ptr)handle,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnTransformTensorEx, cudnnHandle_t, handle, const cudnnTensorTransformDescriptor_t, transDesc, const void *, alpha, const cudnnTensorDescriptor_t, srcDesc, const void *, srcData, const void *, beta, const cudnnTensorDescriptor_t, destDesc, void *, destData)
-DEF_FN(cudnnStatus_t, cudnnAddTensor, cudnnHandle_t, handle, const void *, alpha, const cudnnTensorDescriptor_t, aDesc, const void *, A, const void *, ,beta, const cudnnTensorDescriptor_t, cDesc, void *, C)
+    
+cudnnStatus_t cudnnAddTensor(cudnnHandle_t handle, const void * alpha, const cudnnTensorDescriptor_t aDesc, const void * A, const void *beta, const cudnnTensorDescriptor_t cDesc, void * C)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnaddtensor_1(
+        (ptr)handle,
+        rpc_alpha,
+        (ptr)aDesc,
+        (ptr)A,
+        rpc_beta,
+        (ptr)cDesc,
+        (ptr)C,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+    
 DEF_FN(cudnnStatus_t, cudnnCreateOpTensorDescriptor, cudnnOpTensorDescriptor_t *, opTensorDesc)
 DEF_FN(cudnnStatus_t, cudnnSetOpTensorDescriptor, cudnnOpTensorDescriptor_t, opTensorDesc, cudnnOpTensorOp_t, opTensorOp, cudnnDataType_t, opTensorCompType, cudnnNanPropagation_t, opTensorNanOpt)
 DEF_FN(cudnnStatus_t, cudnnGetOpTensorDescriptor, const cudnnOpTensorDescriptor_t, opTensorDesc, cudnnOpTensorOp_t *, opTensorOp, cudnnDataType_t *, opTensorCompType, cudnnNanPropagation_t *, opTensorNanOpt)
@@ -560,7 +621,9 @@ cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDes
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
+    size_t expected_size = nbDimsRequested * sizeof(int) + sizeof(int) + sizeof(cudnnDataType_t) + sizeof(cudnnTensorFormat_t);
     mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)malloc(expected_size);
     enum clnt_stat retval_1;
     if (dataType == NULL || format == NULL || nbDims == NULL || filterDimA == NULL) {
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
@@ -574,7 +637,6 @@ cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDes
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
-    size_t expected_size = nbDimsRequested * sizeof(int) + sizeof(int) + sizeof(cudnnDataType_t) + sizeof(cudnnTensorFormat_t);
     if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len < expected_size) {
         LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
     } else {
@@ -587,6 +649,7 @@ cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDes
         offset += sizeof(int);
         memcpy(filterDimA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
     }
+    free(result.mem_result_u.data.mem_data_val);
     return result.err;
 }
 
@@ -666,7 +729,36 @@ cudnnStatus_t cudnnDestroyFilterDescriptor(cudnnFilterDescriptor_t filterDesc)
     return result;
 }
 
-DEF_FN(cudnnStatus_t, cudnnSoftmaxForward, cudnnHandle_t, handle, cudnnSoftmaxAlgorithm_t, algo, cudnnSoftmaxMode_t, mode, const void *,alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
+cudnnStatus_t cudnnSoftmaxForward(cudnnHandle_t handle, cudnnSoftmaxAlgorithm_t algo, cudnnSoftmaxMode_t mode, const void *alpha, const cudnnTensorDescriptor_t xDesc, const void *x, const void *beta, const cudnnTensorDescriptor_t yDesc, void * y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnsoftmaxforward_1(
+        (ptr)handle,
+        (int)algo,
+        (int)mode,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+    
 cudnnStatus_t cudnnCreatePoolingDescriptor(cudnnPoolingDescriptor_t *poolingDesc)
 {
 #ifdef WITH_API_CNT
@@ -794,7 +886,9 @@ cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t pooling
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
+    size_t expected_size = nbDimsRequested * sizeof(int) * 3 + sizeof(int) + sizeof(cudnnPoolingMode_t) + sizeof(cudnnNanPropagation_t);
     mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)malloc(expected_size);
     enum clnt_stat retval_1;
     if (mode == NULL || maxpoolingNanOpt == NULL || nbDims == NULL || windowDimA == NULL || paddingA == NULL || strideA == NULL) {
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
@@ -807,7 +901,6 @@ cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t pooling
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
-    size_t expected_size = nbDimsRequested * sizeof(int) * 3 + sizeof(int) + sizeof(cudnnPoolingMode_t) + sizeof(cudnnNanPropagation_t);
     if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
         LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
     } else {
@@ -824,6 +917,7 @@ cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t pooling
         offset += *nbDims * sizeof(int);
         memcpy(strideA, result.mem_result_u.data.mem_data_val+offset, *nbDims * sizeof(int));
     }
+    free(result.mem_result_u.data.mem_data_val);
     return result.err;
 }
 
@@ -833,6 +927,7 @@ cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t p
     api_call_cnt++;
 #endif //WITH_API_CNT
     mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)outputTensorDimA;
     enum clnt_stat retval_1;
     if (outputTensorDimA == NULL) {
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
@@ -849,8 +944,6 @@ cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t p
     size_t expected_size = nbDims * sizeof(int);
     if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
         LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
-    } else {
-        memcpy(outputTensorDimA, result.mem_result_u.data.mem_data_val, nbDims * sizeof(int));
     }
     return result.err;
 }
@@ -904,7 +997,34 @@ cudnnStatus_t cudnnDestroyPoolingDescriptor(cudnnPoolingDescriptor_t poolingDesc
     return result;
 }
 
-DEF_FN(cudnnStatus_t, cudnnPoolingForward, cudnnHandle_t, handle, const cudnnPoolingDescriptor_t, poolingDesc, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
+cudnnStatus_t cudnnPoolingForward(cudnnHandle_t handle, const cudnnPoolingDescriptor_t poolingDesc, const void * alpha, const cudnnTensorDescriptor_t xDesc, const void * x, const void * beta, const cudnnTensorDescriptor_t yDesc, void * y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnpoolingforward_1(
+        (ptr)handle,
+        (ptr)poolingDesc,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
 
 cudnnStatus_t cudnnCreateActivationDescriptor(cudnnActivationDescriptor_t * activationDesc)
 {
@@ -1047,7 +1167,34 @@ cudnnStatus_t cudnnDestroyActivationDescriptor(cudnnActivationDescriptor_t activ
     return result;
 }
 
-DEF_FN(cudnnStatus_t, cudnnActivationForward, cudnnHandle_t, handle, cudnnActivationDescriptor_t, activationDesc, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
+cudnnStatus_t cudnnActivationForward(cudnnHandle_t handle, cudnnActivationDescriptor_t activationDesc, const void * alpha, const cudnnTensorDescriptor_t xDesc, const void * x, const void * beta, const cudnnTensorDescriptor_t yDesc, void * y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnactivationforward_1(
+        (ptr)handle,
+        (ptr)activationDesc,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
 
 cudnnStatus_t cudnnCreateLRNDescriptor(cudnnLRNDescriptor_t * normDesc)
 {
@@ -1144,7 +1291,37 @@ cudnnStatus_t cudnnDestroyLRNDescriptor(cudnnLRNDescriptor_t lrnDesc)
     }
     return result;
 }
-DEF_FN(cudnnStatus_t, cudnnLRNCrossChannelForward, cudnnHandle_t, handle, cudnnLRNDescriptor_t, normDesc, cudnnLRNMode_t, lrnMode, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
+
+cudnnStatus_t cudnnLRNCrossChannelForward(cudnnHandle_t handle, cudnnLRNDescriptor_t normDesc, cudnnLRNMode_t lrnMode, const void * alpha, const cudnnTensorDescriptor_t xDesc, const void * x, const void * beta, const cudnnTensorDescriptor_t yDesc, void * y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnlrncrosschannelforward_1(
+        (ptr)handle,
+        (ptr)normDesc,
+        (int)lrnMode,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
 DEF_FN(cudnnStatus_t, cudnnDivisiveNormalizationForward, cudnnHandle_t, handle, cudnnLRNDescriptor_t, normDesc, cudnnDivNormMode_t, mode, const void *, alpha, const cudnnTensorDescriptor_t, xDesc, const void *, x, const void *, means, void *, temp, void *, temp2, const void *, beta, const cudnnTensorDescriptor_t, yDesc, void *, y)
 DEF_FN(cudnnStatus_t, cudnnDeriveBNTensorDescriptor, cudnnTensorDescriptor_t, derivedBnDesc, const cudnnTensorDescriptor_t, xDesc, cudnnBatchNormMode_t, mode)
 DEF_FN(cudnnStatus_t, cudnnBatchNormalizationForwardInference, cudnnHandle_t, handle, cudnnBatchNormMode_t, mode, const void *, alpha, const void *, beta, const cudnnTensorDescriptor_t, xDesc, const void *, x, const cudnnTensorDescriptor_t, yDesc, void *, y, const cudnnTensorDescriptor_t,  bnScaleBiasMeanVarDesc, const void *, bnScale, const void *, bnBias, const void *, estimatedMean, const void *, estimatedVariance, double, epsilon)
@@ -1178,3 +1355,282 @@ DEF_FN(cudnnStatus_t, cudnnRestoreAlgorithm, cudnnHandle_t, handle, void *, algo
 DEF_FN(cudnnStatus_t, cudnnSetCallback, unsigned, mask, void *, udata, cudnnCallback_t, fptr)
 DEF_FN(cudnnStatus_t, cudnnGetCallback, unsigned *, mask, void **, udata, cudnnCallback_t *, fptr)
 DEF_FN(cudnnStatus_t, cudnnOpsInferVersionCheck)
+
+
+/***************** cudnn_cnn_infer *******************/
+
+cudnnStatus_t cudnnCreateConvolutionDescriptor(cudnnConvolutionDescriptor_t* convDesc)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    if (convDesc == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnncreateconvolutiondescriptor_1(&result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *convDesc = (cudnnConvolutionDescriptor_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+    
+cudnnStatus_t cudnnDestroyConvolutionDescriptor(cudnnConvolutionDescriptor_t convDesc)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnndestroyconvolutiondescriptor_1(
+        (ptr)convDesc,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+DEF_FN(cudnnStatus_t, cudnnSetConvolutionMathType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnMathType_t, mathType)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionMathType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnMathType_t*, mathType)
+DEF_FN(cudnnStatus_t, cudnnSetConvolutionGroupCount,  cudnnConvolutionDescriptor_t, convDesc,  int, groupCount)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionGroupCount,  cudnnConvolutionDescriptor_t, convDesc,  int*, groupCount)
+DEF_FN(cudnnStatus_t, cudnnSetConvolutionReorderType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnReorderType_t, reorderType)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionReorderType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnReorderType_t*, reorderType)
+DEF_FN(cudnnStatus_t, cudnnSetConvolution2dDescriptor,  cudnnConvolutionDescriptor_t, convDesc,  int, pad_h,  int, pad_w,  int, u, int, v, int, dilation_h,  int, dilation_w,  cudnnConvolutionMode_t, mode,  cudnnDataType_t, computeType)
+DEF_FN(cudnnStatus_t, cudnnGetConvolution2dDescriptor,  const cudnnConvolutionDescriptor_t, convDesc,  int*, pad_h,  int*, pad_w,  int*, u,  int*, v,  int*, dilation_h,  int*, dilation_w,  cudnnConvolutionMode_t*, mode,  cudnnDataType_t*, computeType)
+    
+cudnnStatus_t cudnnSetConvolutionNdDescriptor(cudnnConvolutionDescriptor_t convDesc,  int arrayLength,  const int* padA,  const int* filterStrideA,  const int* dilationA,  cudnnConvolutionMode_t mode,  cudnnDataType_t computeType)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    mem_data rpc_windowDimA = {
+        .mem_data_len = arrayLength * sizeof(int),
+        .mem_data_val = (char*)padA
+    };
+    mem_data rpc_paddingA = {
+        .mem_data_len = arrayLength * sizeof(int),
+        .mem_data_val = (char*)filterStrideA
+    };
+    mem_data rpc_strideA = {
+        .mem_data_len = arrayLength * sizeof(int),
+        .mem_data_val = (char*)dilationA
+    };
+    retval_1 = rpc_cudnnsetconvolutionnddescriptor_1(
+        (ptr)convDesc,
+        arrayLength,
+        rpc_windowDimA,
+        rpc_paddingA,
+        rpc_strideA,
+        mode,
+        computeType,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    } 
+    return result;
+}
+
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionNdDescriptor,  const cudnnConvolutionDescriptor_t, convDesc,  int, arrayLengthRequested,  int*, arrayLength,  int*, padA,  int*, strideA,  int*, dilationA,  cudnnConvolutionMode_t*, mode,  cudnnDataType_t*, computeType)
+DEF_FN(cudnnStatus_t, cudnnGetConvolution2dForwardOutputDim,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, inputTensorDesc,  const cudnnFilterDescriptor_t, filterDesc,  int*, n,  int*, c,  int*, h,  int*, w)
+
+cudnnStatus_t cudnnGetConvolutionNdForwardOutputDim(const cudnnConvolutionDescriptor_t convDesc,  const cudnnTensorDescriptor_t inputTensorDesc,  const cudnnFilterDescriptor_t filterDesc,  int nbDims,  int* tensorOutputDimA)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)tensorOutputDimA;
+    enum clnt_stat retval_1;
+    if (tensorOutputDimA == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetconvolutionndforwardoutputdim_1(
+        (ptr)convDesc,
+        (ptr)inputTensorDesc,
+        (ptr)filterDesc,
+        nbDims,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = nbDims * sizeof(int);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    }
+    return result.err;
+}
+
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionForwardAlgorithmMaxCount,  cudnnHandle_t, handle,  int*, count)
+
+cudnnStatus_t cudnnGetConvolutionForwardAlgorithm_v7(cudnnHandle_t handle,  const cudnnTensorDescriptor_t srcDesc,  const cudnnFilterDescriptor_t filterDesc,  const cudnnConvolutionDescriptor_t convDesc,  const cudnnTensorDescriptor_t destDesc,  const int requestedAlgoCount,  int* returnedAlgoCount,  cudnnConvolutionFwdAlgoPerf_t* perfResults)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)malloc(requestedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t) + sizeof(int));
+    enum clnt_stat retval_1;
+    if (returnedAlgoCount == NULL || perfResults == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetconvolutionforwardalgorithm_v7_1(
+        (ptr)handle,
+        (ptr)srcDesc,
+        (ptr)filterDesc,
+        (ptr)convDesc,
+        (ptr)destDesc,
+        requestedAlgoCount,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = requestedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t) + sizeof(int);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *returnedAlgoCount = *(int*)result.mem_result_u.data.mem_data_val;
+        if (*returnedAlgoCount > requestedAlgoCount) {
+            LOGE(LOG_ERROR, "%s failed (returnedAlgoCount is %d, requestedAlgoCount is %d)", __FUNCTION__, *returnedAlgoCount, requestedAlgoCount);
+            return CUDNN_STATUS_INTERNAL_ERROR;
+        }
+        memcpy(perfResults, result.mem_result_u.data.mem_data_val + sizeof(int), *returnedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t));
+    }
+    free(result.mem_result_u.data.mem_data_val);
+    return result.err;
+}
+
+cudnnStatus_t cudnnFindConvolutionForwardAlgorithm( cudnnHandle_t handle,  const cudnnTensorDescriptor_t xDesc,  const cudnnFilterDescriptor_t wDesc,  const cudnnConvolutionDescriptor_t convDesc,  const cudnnTensorDescriptor_t yDesc,  const int requestedAlgoCount,  int* returnedAlgoCount,  cudnnConvolutionFwdAlgoPerf_t* perfResults)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    result.mem_result_u.data.mem_data_val = (char*)malloc(requestedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t) + sizeof(int));
+    enum clnt_stat retval_1;
+    if (returnedAlgoCount == NULL || perfResults == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnnfindconvolutionforwardalgorithm_1(
+        (ptr)handle,
+        (ptr)xDesc,
+        (ptr)wDesc,
+        (ptr)convDesc,
+        (ptr)yDesc,
+        requestedAlgoCount,
+        &result, clnt); 
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    size_t expected_size = requestedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t) + sizeof(int);
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *returnedAlgoCount = *(int*)result.mem_result_u.data.mem_data_val;
+        if (*returnedAlgoCount > requestedAlgoCount) {
+            LOGE(LOG_ERROR, "%s failed (returnedAlgoCount is %d, requestedAlgoCount is %d)", __FUNCTION__, *returnedAlgoCount, requestedAlgoCount);
+            return CUDNN_STATUS_INTERNAL_ERROR;
+        }
+        memcpy(perfResults, result.mem_result_u.data.mem_data_val + sizeof(int), *returnedAlgoCount * sizeof(cudnnConvolutionFwdAlgoPerf_t));
+    }
+    free(result.mem_result_u.data.mem_data_val);
+    return result.err;
+}
+    
+DEF_FN(cudnnStatus_t, cudnnFindConvolutionForwardAlgorithmEx,  cudnnHandle_t, handle,  const cudnnTensorDescriptor_t, xDesc,  const void*, x,  const cudnnFilterDescriptor_t, wDesc,  const void*, w,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, yDesc,  void*, y,  const int, requestedAlgoCount,  int*, returnedAlgoCount,  cudnnConvolutionFwdAlgoPerf_t*, perfResults,  void*, workSpace,  size_t, workSpaceSizeInBytes)
+DEF_FN(cudnnStatus_t, cudnnIm2Col,  cudnnHandle_t, handle,  const cudnnTensorDescriptor_t, xDesc,  const void*, x,  const cudnnFilterDescriptor_t, wDesc,  const cudnnConvolutionDescriptor_t, convDesc,  void*, colBuffer)
+DEF_FN(cudnnStatus_t, cudnnReorderFilterAndBias,  cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, filterDesc,  cudnnReorderType_t, reorderType,  const void*, filterData,  void*, reorderedFilterData,  int, reorderBias,  const void*, biasData,  void*, reorderedBiasData)
+
+cudnnStatus_t cudnnGetConvolutionForwardWorkspaceSize( cudnnHandle_t handle,  const cudnnTensorDescriptor_t xDesc,  const cudnnFilterDescriptor_t wDesc,  const cudnnConvolutionDescriptor_t convDesc,  const cudnnTensorDescriptor_t yDesc,  cudnnConvolutionFwdAlgo_t algo,  size_t* sizeInBytes)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    sz_result result;
+    enum clnt_stat retval_1;
+    if (sizeInBytes == NULL) {
+        LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnngetconvolutionforwardworkspacesize_1(
+        (ptr)handle,
+        (ptr)xDesc,
+        (ptr)wDesc,
+        (ptr)convDesc,
+        (ptr)yDesc,
+        algo,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *sizeInBytes = result.sz_result_u.data;
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnConvolutionForward(cudnnHandle_t handle,  const void* alpha,  const cudnnTensorDescriptor_t xDesc,  const void* x,  const cudnnFilterDescriptor_t wDesc,  const void* w,  const cudnnConvolutionDescriptor_t convDesc,  cudnnConvolutionFwdAlgo_t algo,  void* workSpace,  size_t workSpaceSizeInBytes,  const void* beta,  const cudnnTensorDescriptor_t yDesc,  void* y)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    //TODO: Check if we have a float instead of always sending doubles
+    cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
+    cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
+    retval_1 = rpc_cudnnconvolutionforward_1(
+        (ptr)handle,
+        rpc_alpha,
+        (ptr)xDesc,
+        (ptr)x,
+        (ptr)wDesc,
+        (ptr)w,
+        (ptr)convDesc,
+        algo,
+        (ptr)workSpace,
+        workSpaceSizeInBytes,
+        rpc_beta,
+        (ptr)yDesc,
+        (ptr)y,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+DEF_FN(cudnnStatus_t, cudnnConvolutionBiasActivationForward,  cudnnHandle_t, handle,  const void*, alpha1,  const cudnnTensorDescriptor_t, xDesc,  const void*, x,  const cudnnFilterDescriptor_t, wDesc,  const void*, w,  const cudnnConvolutionDescriptor_t, convDesc,  cudnnConvolutionFwdAlgo_t, algo,  void*, workSpace,  size_t, workSpaceSizeInBytes,  const void*, alpha2,  const cudnnTensorDescriptor_t, zDesc,  const void*, z,  const cudnnTensorDescriptor_t, biasDesc,  const void*, bias,  const cudnnActivationDescriptor_t, activationDesc,  const cudnnTensorDescriptor_t, yDesc,  void*, y)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionBackwardDataAlgorithmMaxCount,  cudnnHandle_t, handle,  int*, count)
+DEF_FN(cudnnStatus_t, cudnnFindConvolutionBackwardDataAlgorithm,  cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, wDesc,  const cudnnTensorDescriptor_t, dyDesc,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, dxDesc,  const int, requestedAlgoCount,  int*, returnedAlgoCount,  cudnnConvolutionBwdDataAlgoPerf_t*, perfResults)
+DEF_FN(cudnnStatus_t, cudnnFindConvolutionBackwardDataAlgorithmEx,  cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, wDesc,  const void*, w,  const cudnnTensorDescriptor_t, dyDesc,  const void*, dy,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, dxDesc,  void*, dx,  const int, requestedAlgoCount,  int*, returnedAlgoCount,  cudnnConvolutionBwdDataAlgoPerf_t*, perfResults,  void*, workSpace,  size_t, workSpaceSizeInBytes)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionBackwardDataAlgorithm_v7,  cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, filterDesc,  const cudnnTensorDescriptor_t, diffDesc,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, gradDesc,  const int, requestedAlgoCount,  int*, returnedAlgoCount,  cudnnConvolutionBwdDataAlgoPerf_t*, perfResults)
+DEF_FN(cudnnStatus_t, cudnnGetConvolutionBackwardDataWorkspaceSize,  cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, wDesc,  const cudnnTensorDescriptor_t, dyDesc,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, dxDesc,  cudnnConvolutionBwdDataAlgo_t, algo,  size_t*, sizeInBytes)
+DEF_FN(cudnnStatus_t, cudnnConvolutionBackwardData,  cudnnHandle_t, handle,  const void*, alpha,  const cudnnFilterDescriptor_t, wDesc,  const void*, w,  const cudnnTensorDescriptor_t, dyDesc,  const void*, dy,  const cudnnConvolutionDescriptor_t, convDesc,  cudnnConvolutionBwdDataAlgo_t, algo,  void*, workSpace,  size_t, workSpaceSizeInBytes,  const void*, beta,  const cudnnTensorDescriptor_t, dxDesc,  void*, dx)
+DEF_FN(cudnnStatus_t, cudnnGetFoldedConvBackwardDataDescriptors,  const cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, filterDesc,  const cudnnTensorDescriptor_t, diffDesc,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, gradDesc,  const cudnnTensorFormat_t, transformFormat,  cudnnFilterDescriptor_t, foldedFilterDesc,  cudnnTensorDescriptor_t, paddedDiffDesc,  cudnnConvolutionDescriptor_t, foldedConvDesc,  cudnnTensorDescriptor_t, foldedGradDesc,  cudnnTensorTransformDescriptor_t, filterFoldTransDesc,  cudnnTensorTransformDescriptor_t, diffPadTransDesc,  cudnnTensorTransformDescriptor_t, gradFoldTransDesc,  cudnnTensorTransformDescriptor_t, gradUnfoldTransDesc)
+DEF_FN(cudnnStatus_t, cudnnCnnInferVersionCheck)

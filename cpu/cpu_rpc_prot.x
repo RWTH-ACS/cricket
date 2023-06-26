@@ -456,6 +456,8 @@ program RPC_CD_PROG {
                          ptr, int, ptr, int, float, ptr, int)                 = 3005;
         int          rpc_cublasDgemv(ptr, int, int, int, double,
                          ptr, int, ptr, int, double, ptr, int)                 = 3006;
+        int          rpc_cublasSgemmEx(ptr, int, int, int, int, int, float,
+                         ptr, int, int, ptr, int, int, float, ptr, int, int)                 = 3007;
 
         /* NVML */
         int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;
@@ -489,9 +491,13 @@ program RPC_CD_PROG {
         int         rpc_cudnnSetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDims, int destFormat, mem_data padBeforeA, mem_data padAfterA, mem_data foldA, int direction) = 5021;
         mem_result  rpc_cudnnGetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDimsRequested) = 5022;
         int         rpc_cudnnDestroyTensorTransformDescriptor(ptr transformDesc) = 5023;
-        ptr_result  rpc_cudnnTransformTensor(ptr handle, cudnn_scaling_t alpha, ptr xDesc, cudnn_scaling_t x, cudnn_scaling_t beta, ptr yDesc) = 5024;
+        */
+        int         rpc_cudnnTransformTensor(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5024;
+        /*
         ptr_result  rpc_cudnnTransformTensorEx(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, cudnn_scaling_t srcData, cudnn_scaling_t beta, ptr destDesc) = 5025;
-        ptr_result  rpc_cudnnAddTensor(ptr handle, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5026;
+        */
+        int  rpc_cudnnAddTensor(ptr handle, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5026;
+        /*
         ptr_result  rpc_cudnnCreateOpTensorDescriptor(void) = 5027;
         int         rpc_cudnnSetOpTensorDescriptor(ptr opTensorDesc, int opTensorOp, int opTensorCompType, int opTensorNanOpt) = 5028;
         int3_result rpc_cudnnGetOpTensorDescriptor(ptr opTensorDesc) = 5029;
@@ -515,6 +521,7 @@ program RPC_CD_PROG {
         sz_result   rpc_cudnnGetFilterSizeInBytes(ptr filterDesc) = 5046;
         int         rpc_cudnnTransformFilter(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, ptr srcData, cudnn_scaling_t beta, ptr destDesc, ptr destData) = 5047;
         int         rpc_cudnnDestroyFilterDescriptor(ptr filterDesc) = 5048;
+        int         rpc_cudnnSoftmaxForward(ptr handle, int algo, int mode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5049;
         ptr_result  rpc_cudnnCreatePoolingDescriptor(void) = 5050;
         int         rpc_cudnnSetPooling2dDescriptor(ptr poolingDesc, int mode, int maxpoolingNanOpt, int windowHeight, int windowWidth, int verticalPadding, int horizontalPadding, int verticalStride, int horizontalStride) = 5051;
         int8_result rpc_cudnnGetPooling2dDescriptor(ptr poolingDesc) = 5052;
@@ -523,15 +530,27 @@ program RPC_CD_PROG {
         mem_result  rpc_cudnnGetPoolingNdForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc, int nbDims) = 5055;
         int4_result rpc_cudnnGetPooling2dForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc) = 5056;
         int         rpc_cudnnDestroyPoolingDescriptor(ptr poolingDesc) = 5057;
+        int         rpc_cudnnPoolingForward(ptr handle, ptr poolingDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5058;
         ptr_result  rpc_cudnnCreateActivationDescriptor(void) = 5059;
         int         rpc_cudnnSetActivationDescriptor(ptr activationDesc, int mode, int reluNanOpt, double coef) = 5060;
         int2d1_result rpc_cudnnGetActivationDescriptor(ptr activationDesc) = 5061;
         int         rpc_cudnnSetActivationDescriptorSwishBeta(ptr activationDesc, double swish_beta) = 5062;
         d_result    rpc_cudnnGetActivationDescriptorSwishBeta(ptr activationDesc) = 5063;
         int         rpc_cudnnDestroyActivationDescriptor(ptr activationDesc) = 5064;
+        int         rpc_cudnnActivationForward(ptr handle, ptr activationDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5065;
         ptr_result  rpc_cudnnCreateLRNDescriptor(void) = 5066;
         int         rpc_cudnnSetLRNDescriptor(ptr normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK) = 5067;
         int1d3_result rpc_cudnnGetLRNDescriptor(ptr normDesc) = 5068;
         int         rpc_cudnnDestroyLRNDescriptor(ptr lrnDesc) = 5069;
+        int         rpc_cudnnLRNCrossChannelForward(ptr handle, ptr normDesc, int lrnMode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5070;
+        /* cudnn cnn inference */
+        ptr_result  rpc_cudnnCreateConvolutionDescriptor(void) = 5301;
+        int         rpc_cudnnDestroyConvolutionDescriptor(ptr convDesc) = 5302;
+        mem_result  rpc_cudnnGetConvolutionNdForwardOutputDim(ptr convDesc, ptr inputTensorDesc, ptr filterDesc, int nbDims) = 5303;
+        int         rpc_cudnnSetConvolutionNdDescriptor(ptr convDesc, int arrayLength, mem_data padA,  mem_data filterStrideA, mem_data dilationA,  int mode,  int computeType) = 5304;
+        mem_result rpc_cudnnGetConvolutionForwardAlgorithm_v7(ptr handle, ptr srcDesc, ptr filterDesc, ptr convDesc, ptr destDesc, int requestedAlgoCount) = 5305;
+        mem_result rpc_cudnnFindConvolutionForwardAlgorithm(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int requestedAlgoCount) = 5306;
+        sz_result rpc_cudnnGetConvolutionForwardWorkspaceSize(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int algo) = 5307;
+        int rpc_cudnnConvolutionForward(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, ptr wDesc, ptr w, ptr convDesc, int algo, ptr workSpace, size_t workSpaceSizeInBytes, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5308;
     } = 1;
 } = 99;

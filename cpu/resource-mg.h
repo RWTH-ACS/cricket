@@ -47,6 +47,7 @@ resource_mg rm_cudnn_tensortransform;
 resource_mg rm_cudnn_poolings;
 resource_mg rm_cudnn_activations;
 resource_mg rm_cudnn_lrns;
+resource_mg rm_cudnn_convs;
 
 
 /** initializes the resource manager

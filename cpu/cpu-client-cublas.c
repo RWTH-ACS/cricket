@@ -112,6 +112,37 @@ cublasStatus_t cublasSgemm(cublasHandle_t handle,
     return result;
 }
 
+cublasStatus_t cublasSgemmEx(cublasHandle_t handle,
+                           cublasOperation_t transa, cublasOperation_t transb,
+                           int m, int n, int k,
+                           const float *alpha,
+                           const void *A, cudaDataType_t Atype, int lda,
+                           const void *B, cudaDataType_t Btype, int ldb,
+                           const float *beta,
+                           void *C, cudaDataType_t Ctype, int ldc)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cublassgemmex_1(
+        (ptr)handle,
+        (int)transa,
+        (int)transb,
+        m, n, k,
+        *alpha,
+        (ptr)A, (int)Atype, lda,
+        (ptr)B, (int)Btype, ldb,
+        *beta,
+        (ptr)C, (int)Ctype, ldc,
+         &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 cublasStatus_t cublasDgemv(cublasHandle_t handle,
                            cublasOperation_t trans,
                            int m, int n,

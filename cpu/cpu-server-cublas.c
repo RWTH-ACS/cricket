@@ -204,3 +204,42 @@ bool_t rpc_cublasdgemv_1_svc(ptr handle, int trans, int m,
     RECORD_RESULT(integer, *result);
     return 1;
 }
+
+bool_t rpc_cublassgemmex_1_svc(ptr handle, int transa, int transb, int m, int n, int k, float alpha,
+            ptr A, int Atype, int lda,
+            ptr B, int Btype, int ldb, float beta,
+            ptr C, int Ctype, int ldc,
+            int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cublassgemmex_1_argument);
+    RECORD_ARG(1, handle);
+    RECORD_ARG(2, transa);
+    RECORD_ARG(3, transb);
+    RECORD_ARG(4, m);
+    RECORD_ARG(5, n);
+    RECORD_ARG(6, k);
+    RECORD_ARG(7, alpha);
+    RECORD_ARG(8, A);
+    RECORD_ARG(9, Atype);
+    RECORD_ARG(10, lda);
+    RECORD_ARG(11, B);
+    RECORD_ARG(12, Btype);
+    RECORD_ARG(13, ldb);
+    RECORD_ARG(14, beta);
+    RECORD_ARG(15, C);
+    RECORD_ARG(16, Ctype);
+    RECORD_ARG(17, ldc);
+    LOGE(LOG_DEBUG, "cublasSgemmEx");
+    GSCHED_RETAIN;
+    *result = cublasSgemmEx(resource_mg_get(&rm_cublas, (void*)handle),
+                    (cublasOperation_t) transa,
+                    (cublasOperation_t) transb,
+                    m, n, k, &alpha,
+                    resource_mg_get(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda,
+                    resource_mg_get(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, &beta,
+                    resource_mg_get(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc
+    );
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}

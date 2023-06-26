@@ -1,7 +1,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <cuda.h>
 #include <cudnn.h>
 
 #include "cpu_rpc_prot.h"
@@ -27,6 +26,7 @@ int server_cudnn_init(int bypass)
     ret &= resource_mg_init(&rm_cudnn_poolings, bypass);
     ret &= resource_mg_init(&rm_cudnn_activations, bypass);
     ret &= resource_mg_init(&rm_cudnn_lrns, bypass);
+    ret &= resource_mg_init(&rm_cudnn_convs, bypass);
     return ret;
 }
 
@@ -38,6 +38,7 @@ int server_cudnn_deinit(void)
     resource_mg_free(&rm_cudnn_poolings);
     resource_mg_free(&rm_cudnn_activations);
     resource_mg_free(&rm_cudnn_lrns);
+    resource_mg_free(&rm_cudnn_convs);
     return 0;
 
 }
@@ -664,7 +665,7 @@ bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTen
         (cudnnPoolingDescriptor_t)resource_mg_get(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)inputTensorDesc),
         nbDims,
-        (int*)&result->mem_result_u.data);
+        (int*)result->mem_result_u.data.mem_data_val);
     GSCHED_RELEASE;
     return 1;
 }
@@ -856,6 +857,356 @@ bool_t rpc_cudnndestroylrndescriptor_1_svc(ptr lrnDesc, int *result, struct svc_
     *result = cudnnDestroyLRNDescriptor(
         (cudnnLRNDescriptor_t)resource_mg_get(&rm_cudnn_lrns, (void*)lrnDesc));
     // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc,           cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnpoolingforward_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(poolingDesc);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnPoolingForward(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnPoolingDescriptor_t)resource_mg_get(&rm_cudnn_poolings, (void*)poolingDesc),
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnactivationforward_1_svc(ptr handle, ptr activationDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnactivationforward_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(activationDesc);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnActivationForward(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnActivationDescriptor_t)resource_mg_get(&rm_cudnn_activations, (void*)activationDesc),
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnlrncrosschannelforward_1_svc(ptr handle, ptr normDesc, int lrnMode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnlrncrosschannelforward_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(normDesc);
+    RECORD_NARG(lrnMode);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnLRNCrossChannelForward(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnLRNDescriptor_t)resource_mg_get(&rm_cudnn_lrns, (void*)normDesc),
+        (cudnnLRNMode_t)lrnMode,
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsoftmaxforward_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(algo);
+    RECORD_NARG(mode);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnSoftmaxForward(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnSoftmaxAlgorithm_t)algo,
+        (cudnnSoftmaxMode_t)mode,
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+/* cudnn cnn inference */
+bool_t rpc_cudnngetconvolutionndforwardoutputdim_1_svc(ptr convDesc, ptr inputTensorDesc, ptr filterDesc, int nbDims, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->mem_result_u.data.mem_data_len = sizeof(int) * nbDims;
+    if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+    result->err = cudnnGetConvolutionNdForwardOutputDim(
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)inputTensorDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)filterDesc),
+        nbDims,
+        (int*)result->mem_result_u.data.mem_data_val);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnncreateconvolutiondescriptor_1_svc(ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    result->err = cudnnCreateConvolutionDescriptor((cudnnConvolutionDescriptor_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cudnn_convs, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    GSCHED_RELEASE;
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t rpc_cudnndestroyconvolutiondescriptor_1_svc(ptr convDesc, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(convDesc);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnDestroyConvolutionDescriptor(
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc));
+    // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, mem_data padA, mem_data filterStrideA, mem_data dilationA, int mode, int computeType, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetconvolutionnddescriptor_1_argument);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(arrayLength);
+    RECORD_NARG(padA);
+    RECORD_NARG(filterStrideA);
+    RECORD_NARG(dilationA);
+    RECORD_NARG(mode);
+    RECORD_NARG(computeType);
+    //TODO: Recording mem_data is not as easy as done here.
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    if (padA.mem_data_len != arrayLength * sizeof(int) ||
+        filterStrideA.mem_data_len != arrayLength * sizeof(int) ||
+        dilationA.mem_data_len != arrayLength * sizeof(int)) {
+        LOGE(LOG_ERROR, "array dimensions not as expected.");
+        return 0;
+    }
+    GSCHED_RETAIN;
+    *result = cudnnSetConvolutionNdDescriptor(
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        arrayLength,
+        (const int*)padA.mem_data_val,
+        (const int*)filterStrideA.mem_data_val,
+        (const int*)dilationA.mem_data_val,
+        (cudnnConvolutionMode_t)mode,
+        (cudnnDataType_t)computeType);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnngetconvolutionforwardalgorithm_v7_1_svc(ptr handle, ptr srcDesc, ptr filterDesc, ptr convDesc, ptr destDesc, int requestedAlgoCount, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->mem_result_u.data.mem_data_len = sizeof(int) + sizeof(cudnnConvolutionFwdAlgoPerf_t) * requestedAlgoCount;
+    if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+    result->err = cudnnGetConvolutionForwardAlgorithm_v7(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)srcDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)filterDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)destDesc),
+        requestedAlgoCount,
+        (int*)result->mem_result_u.data.mem_data_val,
+        (cudnnConvolutionFwdAlgoPerf_t*)(result->mem_result_u.data.mem_data_val + sizeof(int)));
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnnfindconvolutionforwardalgorithm_1_svc(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int requestedAlgoCount, mem_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->mem_result_u.data.mem_data_len = sizeof(int) + sizeof(cudnnConvolutionFwdAlgoPerf_t) * requestedAlgoCount;
+    if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+    result->err = cudnnFindConvolutionForwardAlgorithm(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)wDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        requestedAlgoCount,
+        (int*)result->mem_result_u.data.mem_data_val,
+        (cudnnConvolutionFwdAlgoPerf_t*)(result->mem_result_u.data.mem_data_val + sizeof(int)));
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnngetconvolutionforwardworkspacesize_1_svc(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int algo, sz_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cudnnGetConvolutionForwardWorkspaceSize(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)wDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (cudnnConvolutionFwdAlgo_t)algo,
+        (size_t*)&result->sz_result_u.data);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cudnnconvolutionforward_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, ptr wDesc, ptr w, ptr convDesc, int algo, ptr workSpace, size_t workSpaceSizeInBytes, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnconvolutionforward_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(wDesc);
+    RECORD_NARG(w);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(algo);
+    RECORD_NARG(workSpace);
+    RECORD_NARG(workSpaceSizeInBytes);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnConvolutionForward(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)wDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)w),
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        algo,
+        (void*)resource_mg_get(&rm_memory, (void*)workSpace),
+        workSpaceSizeInBytes,
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnaddtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnaddtensor_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(alpha);
+    RECORD_NARG(aDesc);
+    RECORD_NARG(A);
+    RECORD_NARG(beta);
+    RECORD_NARG(cDesc);
+    RECORD_NARG(C);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnAddTensor(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)aDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)A),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)cDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)C));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnntransformtensor_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(alpha);
+    RECORD_NARG(xDesc);
+    RECORD_NARG(x);
+    RECORD_NARG(beta);
+    RECORD_NARG(yDesc);
+    RECORD_NARG(y);
+    
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cudnnTransformTensor(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
+        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
+        (void*)resource_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
