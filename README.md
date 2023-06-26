@@ -1,18 +1,17 @@
 # cricket
 
-[![pipeline status](https://git.rwth-aachen.de/niklas.eiling/cricket/badges/master/pipeline.svg)](https://git.rwth-aachen.de/niklas.eiling/cricket/commits/master)
+[![pipeline status](https://git.rwth-aachen.de/acs/public/virtualization/cricket/badges/master/pipeline.svg)](https://git.rwth-aachen.de/acs/public/virtualization/cricket/commits/master)
 
 Cricket consists of two parts: A virtualization layer for CUDA applications that allows the isolation of CPU and CPU parts by using Remote Procedure Calls and a checkpoint/restart tool for GPU kernels.
 
 # Dependencies
-Cricket requires 
-- CUDA Toolkit (E.g. CUDA 11.1)
+Cricket requires
+- CUDA Toolkit (E.g. CUDA 12.1)
 - `rpcbind`
 - `libcrypto`
-- `libgdb` (only for in-kernel C/R)
 - `libtirpc`
 
-Libgdb and libtirpc built as part of the main Makefile.
+libtirpc built as part of the main Makefile.
 
 On the system where the Cricket server should be executed, the appropriate NVIDIA drivers should be installed.
 
@@ -36,16 +35,16 @@ To support Cricket, the CUDA libraries must be linked dynamically to the CUDA ap
 The Cricket library has to be preloaded to the CUDA Application.
 For starting the server:
 ```
-LD_PRELOAD=<path-to-cricket>/bin/cricket-server.so <cuda-binary>
+<path-to-cricket>/bin/cricket-rpc-server [optional rpc id]
 ```
 The client can be started like this:
 ```
-REMOTE_GPU_ADDRESS=<address-of-server> LD_PRELOAD=<path-to-cricket>/bin/cricket-client.so <cuda-binary>
+CRICKET_RPCID=[optional rpc id] REMOTE_GPU_ADDRESS=<address-of-server> LD_PRELOAD=<path-to-cricket>/bin/cricket-client.so <cuda-binary>
 ```
 
 ### Example: Running a test application locally
 ```
-LD_PRELOAD=/opt/cricket/bin/cricket-server.so /opt/cricket/tests/test_kernel
+/opt/cricket/bin/cricket-rpc-server
 ```
 ```
 REMOTE_GPU_ADDRESS=127.0.0.1 LD_PRELOAD=/opt/cricket/bin/cricket-client.so /opt/cricket/tests/test_kernel
@@ -59,7 +58,7 @@ make NVCCFLAGS="-m64 -cudart shared" GENCODE_FLAGS="-arch=sm_61"
 ```
 Start the Cricket server
 ```
-LD_PRELOAD=/nfs_share/cricket/bin/cricket-server.so /nfs_share/cuda/samples/5_Simulations/nbody/nbody
+/opt/cricket/bin/cricket-rpc-server
 ```
 Run the application
 ```
