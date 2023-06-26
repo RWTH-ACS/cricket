@@ -248,10 +248,9 @@ void *dlopen(const char *filename, int flag)
 
     if (filename != NULL && 
         (strcmp(filename, "libcuda.so.1") == 0 ||
-        strcmp(filename, "libcuda.so") == 0) ||
-        strcmp(filename, "libnvidia-ml.so.1") == 0) {
-        LOG(LOG_DEBUG, "replacing dlopen call to cuda library with "
-                       "cricket-client.so");
+        strcmp(filename, "libcuda.so") == 0 ||
+        strcmp(filename, "libnvidia-ml.so.1")) == 0) {
+        LOG(LOG_DEBUG, "replacing dlopen call to %s with cricket-client.so", filename);
         dl_handle = dlopen_orig("cricket-client.so", flag);
         if (clnt == NULL) {
             LOGE(LOG_ERROR, "rpc seems to be uninitialized");
@@ -401,10 +400,10 @@ void __cudaUnregisterFatBinary(void **fatCubinHandle)
         return;
     }
 
-    retval_1 = rpc_elf_unload_1((ptr)fatCubinHandle, &result, clnt);
-    if (retval_1 != RPC_SUCCESS || result != 0) {
-        LOGE(LOG_ERROR, "call failed.");
-    }
+    // retval_1 = rpc_elf_unload_1((ptr)fatCubinHandle, &result, clnt);
+    // if (retval_1 != RPC_SUCCESS || result != 0) {
+    //     LOGE(LOG_ERROR, "call failed.");
+    // }
 }
 
 // void __cudaRegisterFatBinaryEnd(void **fatCubinHandle)
