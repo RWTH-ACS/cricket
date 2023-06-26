@@ -59,7 +59,12 @@ void now_time(char* buf)
 
 const char* to_string(log_level level)
 {
+#ifdef NOCOLORS
 	static const char* const buffer[] = {"ERROR", "WARNING", "INFO", "DEBUG"};
+#else
+	static const char* const buffer[] = {"\033[1m\033[31mERROR\033[0m", "\033[33mWARNING\033[0m", "\033[34mINFO\033[0m", "\033[32mDEBUG\033[0m"};
+#endif //NOCOLORS
+
 	if(level > LOG_DEBUG){
 		return buffer[LOG_DEBUG];
 	}
@@ -90,5 +95,10 @@ void loggfe(log_level level, int line, const char* file, const char* formatstr, 
 	char stripped[64];
 	strcpy(stripped, file);
 	str_strip(stripped, get_log_data()->project_offset);
-	printf("\tin %s(%d)\n", stripped, line);
+#ifdef NOCOLORS
+	printf("\tin %s:%d\n", stripped, line);
+#else
+	printf("\tin \033[4m%s:%d\033[0m\n", stripped, line);
+#endif //NOCOLORS
+
 }

@@ -754,7 +754,6 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
         break;
     case CUDA_LAUNCH_KERNEL:
     case CUDA_LAUNCH_COOPERATIVE_KERNEL:
-    case CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE:
         break;
     case rpc_cusolverDnCreate:
         if (cr_restore_cusolver(record, rm_cusolver) != 0) {
@@ -819,9 +818,6 @@ int cr_launch_kernel(void)
             ret = 0;
             goto cleanup;
         } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL) {
-            LOGE(LOG_ERROR, "not yet supported");
-            goto cleanup;
-        } else if (record->function == CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE) {
             LOGE(LOG_ERROR, "not yet supported");
             goto cleanup;
         }

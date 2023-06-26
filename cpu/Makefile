@@ -7,6 +7,7 @@ CLIENT = cricket-client.so
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
+SUBMODULE_LIBS = ../submodules/lib
 
 CC = gcc
 LD = gcc
@@ -31,15 +32,17 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-driver-hidden.c \
 			 log.c                      \
 			 cpu-libwrap.c              \
-			 cpu-server-cusolver.c 		\
-			 cpu-server-cublas.c 		\
+			 cpu-server-cusolver.c 	    \
+			 cpu-server-cublas.c 	    \
 			 list.c                     \
-			 api-recorder.c 			\
-			 resource-mg.c 			    \
-			 cr.c 					    \
-			 gsched_none.c 			    \
-			 oob.c 					    \
-			 mt-memcpy.c
+			 api-recorder.c	            \
+			 resource-mg.c 		    \
+			 cr.c 			    \
+			 gsched_none.c 		    \
+			 oob.c 			    \
+			 mt-memcpy.c		    \
+			 cpu-elf2.c                 \
+                         gpu/ckp-kernel.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -55,7 +58,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
-			 mt-memcpy.c
+			 mt-memcpy.c				\
+			 cpu-elf2.c
 
 # 			 cpu-client-driver-hidden.c \
 
@@ -72,11 +76,12 @@ RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 
-LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
+LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
+LIB_FLAGS += -L$(CUDA_SRC)/lib64
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
+LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf 
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
@@ -90,13 +95,18 @@ endif
 ifdef LOG
 CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
 endif
+
+ifdef LOGN
+CC_FLAGS += -DLOG_LEVEL=$(LOGN)
+endif
+
 ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lbfd -lrt -lpthread
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
-CLIENT_LD_FLAGS = $(LD_FLAGS) -lbfd
+CLIENT_LD_FLAGS = $(LD_FLAGS)
 
 # Targets
 .PHONY: all clean
@@ -113,19 +123,19 @@ $(SERVER_BIN) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
 
 $(RPC_CLIENT) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
 
 $(RPC_SERVER) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
 
 $(RPC_SERVER_MOD) : $(RPC_SERVER)
 	./generate_dispatch.sh
 
 $(RPC_XDR) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 

@@ -20,6 +20,8 @@
 #include <stdarg.h>
 #include <string.h>
 
+static struct timeval start_time = {0};
+
 struct log_data* get_log_data() {
 	static struct log_data log_data;
 	return &log_data;
@@ -46,6 +48,7 @@ void init_log(char log_level, const char* proj_root)
 {
 	get_log_data()->curr_level=log_level;
 	get_log_data()->project_offset = str_find_last_of(proj_root, '/');
+	gettimeofday(&start_time, 0);
 }
 
 void now_time(char* buf)
@@ -57,9 +60,23 @@ void now_time(char* buf)
 	sprintf(buf, "%s.%06ld", buffer, (long)tv.tv_usec);
 }
 
+void delta_time(char* buf)
+{
+	struct timeval tv;
+	gettimeofday(&tv, 0);
+	timersub(&tv, &start_time, &tv);
+	char buffer[100];
+	strftime(buffer, sizeof(buffer), "%X", localtime(&tv.tv_sec));
+	sprintf(buf, "+%s.%06ld", buffer, (long)tv.tv_usec);
+}
+
 const char* to_string(log_level level)
 {
+#ifdef NOCOLORS
 	static const char* const buffer[] = {"ERROR", "WARNING", "INFO", "DEBUG"};
+#else
+	static const char* const buffer[] = {"\033[1m\033[31mERROR\033[0m", "\033[33mWARNING\033[0m", "\033[34mINFO\033[0m", "\033[32mDEBUG\033[0m"};
+#endif //NOCOLORS
 	if(level > LOG_DEBUG){
 		return buffer[LOG_DEBUG];
 	}
@@ -71,9 +88,13 @@ void loggf(log_level level, const char* formatstr, ... )
 	va_list vararg;
 	va_start(vararg, formatstr);
 	
-	char time[100];
+	char time[64];
+#ifdef DELTA_TIME
+	delta_time(time);
+#else
 	now_time(time);
-	printf("%s (%s):\t", time, to_string(level));
+#endif //DELTA_TIME
+	printf("%s %s:\t", time, to_string(level));
 	vprintf(formatstr, vararg);
 	printf("\n");
 }
@@ -84,11 +105,19 @@ void loggfe(log_level level, int line, const char* file, const char* formatstr, 
 	va_start(vararg, formatstr);
 	
 	char time[64];
+#ifdef DELTA_TIME
+	delta_time(time);
+#else
 	now_time(time);
+#endif //DELTA_TIME
 	printf("%s %7s: ", time, to_string(level));
 	vprintf(formatstr, vararg);
 	char stripped[64];
 	strcpy(stripped, file);
 	str_strip(stripped, get_log_data()->project_offset);
-	printf("\tin %s(%d)\n", stripped, line);
+#ifdef NOCOLORS
+	printf("\tin %s:%d\n", stripped, line);
+#else
+	printf("\tin \033[4m%s:%d\033[0m\n", stripped, line);
+#endif //NOCOLORS
 }

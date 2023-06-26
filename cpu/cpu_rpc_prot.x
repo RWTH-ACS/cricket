@@ -120,7 +120,10 @@ program RPC_CD_PROG {
         int          rpc_checkpoint(void)                                         = 0;
         int          rpc_deinit(void)                                             = 1;
         int          rpc_printmessage(string)                                     = 2;
-        int          CUDA_REGISTER_FUNCTION(ptr, ptr, string, string, int)       = 50;
+        int          rpc_dlopen(string)                                           = 3;
+        ptr_result   rpc_register_function(ptr, ptr, string, string, int)        = 50;
+        int          rpc_elf_load(mem_data, ptr)                                 = 51;
+        int          rpc_elf_unload(ptr)                                         = 52;
 
         /* RUNTIME API */
         /* ### Device Management ### */
@@ -201,8 +204,6 @@ program RPC_CD_PROG {
         int          CUDA_FUNC_SET_SHARED_MEM_CONFIG(ptr, int)                  = 313;
         int          CUDA_LAUNCH_COOPERATIVE_KERNEL(ptr, rpc_dim3, 
                           rpc_dim3, mem_data, size_t, ptr)                      = 314;
-        int          CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE(ptr,
-                          rpc_dim3, rpc_dim3, mem_data, size_t, ptr, int, int)  = 315;
         /*int        CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)                  = 316;*/
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
                           mem_data, size_t, ptr)                                = 317;
@@ -298,6 +299,8 @@ program RPC_CD_PROG {
         /* NOT IMPLEMENTED */
 
         /* ### Profiler Control ### */
+        int          CUDA_PROFILER_START(void)                                  = 701;
+        int          CUDA_PROFILER_STOP(void)                                   = 702;
         /* NOT IMPLEMENTED */
 
         /* DRIVER API */

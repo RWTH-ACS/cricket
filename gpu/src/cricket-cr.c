@@ -1113,6 +1113,7 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
                 cudbgGetErrorString(res));
         goto cleanup;
     }
+    /*
     for (int i = 0; i != elf_info->param_num; ++i) {
         if (elf_info->params[i].size != 8)
             continue;
@@ -1150,6 +1151,7 @@ bool cricket_cr_rst_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
         free(param_data);
         param_data = NULL;
     }
+    */
     ret = true;
 cleanup:
     free(param_mem);
@@ -1170,6 +1172,8 @@ bool cricket_cr_ckp_params(CUDBGAPI cudbgAPI, const char *ckp_dir,
     /* Parameters are the same for all warps so just use warp 0
      * TODO: use first valid warp, because warp 0 may not be in use (is that
      * possible?)
+     *
+     * This seems to cause issues right now. Needs a solution.
      */
     if ((param_mem = (uint8_t*)malloc(elf_info->param_size)) == NULL)
         return false;
@@ -1482,6 +1486,7 @@ bool cricket_cr_ckp_globals(CUDBGAPI cudbgAPI, const char *ckp_dir)
         if (res != CUDBG_SUCCESS) {
             LOGE(LOG_ERROR, "cuda error: %s",
                     cudbgGetErrorString(res));
+	    LOGE(LOG_DEBUG, "encountered in iteration %d of %d\n", i, globals_num); 
             goto cleanup;
         }
         offset += globals[i].size;

@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -8,20 +9,12 @@
 #include <openssl/md5.h>
 #include <linux/limits.h>
 #include "rpc/types.h"
-
-#include <bfd.h>
+#include <sys/stat.h>
 
 #include "cpu-utils.h"
 #include "cpu-common.h"
 #include "log.h"
 
-#define CRICKET_ELF_NV_INFO_PREFIX ".nv.info"
-#define CRICKET_ELF_NV_SHARED_PREFIX ".nv.shared."
-#define CRICKET_ELF_NV_TEXT_PREFIX ".nv.text."
-#define CRICKET_ELF_TEXT_PREFIX ".text."
-
-#define CRICKET_ELF_FATBIN ".nv_fatbin"
-#define CRICKET_ELF_REGFUN "_ZL24__sti____cudaRegisterAllv"
 
 int cpu_utils_command(char **command)
 {
@@ -80,82 +73,7 @@ int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
     return 0;
 }
 
-void* cricketd_utils_symbol_address(char *symbol)
-{
-    bfd *hostbfd = NULL;
-    asection *section;
-    FILE *hostbfd_fd = NULL;
-    void *ret = NULL;
-    size_t symtab_size, symtab_length;
-    asymbol **symtab = NULL;
-    char path[256];
-    size_t length;
 
-
-    bfd_init();
-
-    length = readlink("/proc/self/exe", path, sizeof(path));
-
-    /* Catch some errors: */
-    if (length < 0) {
-        LOGE(LOG_WARNING, "error resolving symlink /proc/self/exe.");
-    } else if (length >= 256) {
-        LOGE(LOG_WARNING, "path was too long and was truncated.");
-    } else {
-        path[length] = '\0';
-        LOG(LOG_DEBUG, "opening '%s'", path);
-    }
-
-    if ((hostbfd_fd = fopen("/proc/self/exe", "rb")) == NULL) {
-        LOGE(LOG_ERROR, "fopen failed");
-        return NULL;
-    }
-
-    if ((hostbfd = bfd_openstreamr("/proc/self/exe", NULL, hostbfd_fd)) == NULL) {
-        LOGE(LOG_ERROR, "bfd_openr failed on %s",
-             "/proc/self/exe");
-        fclose(hostbfd_fd);
-        goto cleanup;
-    }
-
-    if (!bfd_check_format(hostbfd, bfd_object)) {
-        LOGE(LOG_ERROR, "%s has wrong bfd format",
-             "/proc/self/exe");
-        goto cleanup;
-    }
-
-    if ((symtab_size = bfd_get_symtab_upper_bound(hostbfd)) == -1) {
-        LOGE(LOG_ERROR, "bfd_get_symtab_upper_bound failed");
-        return NULL;
-    }
-
-    if ((symtab = (asymbol **)malloc(symtab_size)) == NULL) {
-        LOGE(LOG_ERROR, "malloc symtab failed");
-        return NULL;
-    }
-
-    if ((symtab_length = bfd_canonicalize_symtab(hostbfd, symtab)) == 0) {
-        LOG(LOG_WARNING, "symtab is empty...");
-    } else {
-        //printf("%lu symtab entries\n", symtab_length);
-    }
-
-    for (int i = 0; i < symtab_length; ++i) {
-        if (strcmp(bfd_asymbol_name(symtab[i]), CRICKET_ELF_REGFUN) == 0) {
-            ret = (void*)bfd_asymbol_value(symtab[i]);
-            break;
-        }
-        //printf("%d: %s: %lx\n", i, bfd_asymbol_name(symtab[i]),
-        //       bfd_asymbol_value(symtab[i]));
-    }
-
-
- cleanup:
-    free(symtab);
-    if (hostbfd != NULL)
-        bfd_close(hostbfd);
-    return ret;
-}
 
 int cpu_utils_launch_child(const char *file, char **args)
 {
@@ -173,6 +91,7 @@ int cpu_utils_launch_child(const char *file, char **args)
         return -1;
     } else if (pid == 0) {
         while ((dup2(filedes[1], STDOUT_FILENO) == -1) && (errno == EINTR)) {}
+        while ((dup2(filedes[1], STDERR_FILENO) == -1) && (errno == EINTR)) {}
         close(filedes[1]);
         close(filedes[0]);
         char *env[] = {NULL};
@@ -183,14 +102,14 @@ int cpu_utils_launch_child(const char *file, char **args)
     return filedes[0];
 }
 
-kernel_info_t* cricketd_utils_search_info(list *kernel_infos, char *kernelname)
+kernel_info_t* utils_search_info(list *kernel_infos, const char *kernelname)
 {
     kernel_info_t *info = NULL;
     if (kernel_infos == NULL) {
         LOGE(LOG_ERROR, "list is NULL.");
         return NULL;
     }
-    LOGE(LOG_DEBUG, "searching for %s in %d entries", kernelname, kernel_infos->length);
+    LOGE(LOG_DBG(1), "searching for %s in %d entries", kernelname, kernel_infos->length);
     for (int i=0; i < kernel_infos->length; ++i) {
         if (list_at(kernel_infos, i, (void**)&info) != 0) {
             LOGE(LOG_ERROR, "no element at index %d", i);
@@ -364,6 +283,7 @@ int cpu_utils_contains_kernel(const char *path)
             // Line does not start with .nv.info. so continue searching.
             continue;
         }*/
+        line[strlen(line)-1] = '\0';
         LOGE(LOG_DEBUG, "output: \"%s\"", line);
     }
     ret = 0;
@@ -371,10 +291,10 @@ int cpu_utils_contains_kernel(const char *path)
  cleanup:
     close(output);
     wait(&child_exit);
-    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
+    LOG(LOG_DBG(1), "child exit code: %d", child_exit);
  out:
     free(line);
-    return (ret != 0 ? ret : child_exit);
+    return ret == 0 && child_exit == 0;
 }
 
 int cpu_utils_parameter_info(list *kernel_infos, char *path)
@@ -391,6 +311,11 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
     kernel_info_t *buf = NULL;
     char *kernelname;
     struct stat filestat = {0};
+
+    if (path == NULL) {
+        LOGE(LOG_ERROR, "path is NULL.");
+        goto out;
+    }
 
     if (kernel_infos == NULL) {
         LOGE(LOG_ERROR, "list is NULL.");
@@ -441,13 +366,14 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
             goto cleanup2;
         }
 
-        if ((buf->name = malloc(strlen(kernelname))) == NULL) {
+        size_t buflen = strlen(kernelname);
+        if ((buf->name = malloc(buflen)) == NULL) {
             LOGE(LOG_ERROR, "malloc failed");
             goto cleanup2;
         }
         //copy string and remove trailing \n
-        strncpy(buf->name, kernelname, strlen(kernelname)-1);
-        buf->name[strlen(kernelname)-1] = '\0';
+        strncpy(buf->name, kernelname, buflen-1);
+        buf->name[buflen-1] = '\0';
 
         if (cpu_utils_read_pars(buf, fdesc) != 0) {
             LOGE(LOG_ERROR, "reading paramter infos failed.\n");
@@ -470,10 +396,10 @@ int cpu_utils_parameter_info(list *kernel_infos, char *path)
  cleanup1:
     close(output);
     wait(&child_exit);
-    LOG(LOG_DEBUG, "child exit code: %d", child_exit);
+    LOG(LOG_DBG(1), "child exit code: %d", child_exit);
  out:
     free(line);
-    return (ret != 0 ? ret : child_exit);
+    return ret == 0 && child_exit == 0;
 }
 
 void kernel_infos_free(kernel_info_t *infos, size_t kernelnum)
@@ -482,5 +408,37 @@ void kernel_infos_free(kernel_info_t *infos, size_t kernelnum)
         free(infos[i].name);
         free(infos[i].param_offsets);
         free(infos[i].param_sizes);
+    }
+}
+
+void hexdump(const uint8_t* data, size_t size)
+{
+    size_t pos = 0;
+    while (pos < size) {
+        printf("%#05zx: ", pos);
+        for (int i = 0; i < 16; i++) {
+            if (pos + i < size) {
+                printf("%02x", data[pos + i]);
+            } else {
+                printf("  ");
+            }
+            if (i % 4 == 3) {
+                printf(" ");
+            }
+        }
+        printf(" | ");
+        for (int i = 0; i < 16; i++) {
+            if (pos + i < size) {
+                if (data[pos + i] >= 0x20 && data[pos + i] <= 0x7e) {
+                    printf("%c", data[pos + i]);
+                } else {
+                    printf(".");
+                }
+            } else {
+                printf(" ");
+            }
+        }
+        printf("\n");
+        pos += 16;
     }
 }

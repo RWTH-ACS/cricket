@@ -4,6 +4,7 @@ build/
 .clangd
 .project
 .cproject
+*.code-workspace
 .settings/
 .vscode/
 .directory
@@ -39,3 +40,6 @@ core.*
 compile_commands.json
 tags
 .gdb_history
+
+# perf data
+perf.data

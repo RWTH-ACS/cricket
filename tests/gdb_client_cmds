@@ -1,0 +1,3 @@
+python gdb.execute("set environment CRICKET_NOHASH=yes")
+python gdb.execute("set environment REMOTE_GPU_ADDRESS=localhost")
+python gdb.execute("set environment LD_PRELOAD=../../cpu/cricket-client.so")

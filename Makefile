@@ -11,6 +11,9 @@ clean:
 	$(MAKE) -C cpu clean
 	@echo -e "\033[31m----> Cleaning up test kernels\033[0m"
 	$(MAKE) -C tests clean
+	@echo -e "\033[31m----> Removing bin...\033[0m"
+	rm -rf bin
+	@echo -e "\033[31m All done!\033[0m"
 
 cuda-gdb:
 	@echo -e "\033[36m----> Building submodules\033[0m"
@@ -19,7 +22,7 @@ cuda-gdb:
 
 libtirpc:
 	@echo -e "\033[36m----> Building libtirpc\033[0m"
-	$(MAKE) -C submodules libtirpc
+	$(MAKE) -C submodules libtirpc/install
 
 gpu: cuda-gdb
 	@echo -e "\033[36m----> Building gpu\033[0m"
@@ -43,8 +46,9 @@ bin:
 	mkdir bin
 
 bin/tests: bin tests
+ifneq (, $(test -f "bin/tests"))
 	ln -s ../tests/bin bin/tests
-
+endif
 bin/cricket-client.so: bin
 	$(MAKE) -C cpu cricket-client.so
 	cp cpu/cricket-client.so bin

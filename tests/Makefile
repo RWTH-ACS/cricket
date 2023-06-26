@@ -26,7 +26,9 @@ bin: cpu samples test_apps
 	cp test_apps/*.testapp bin
 	cp samples/matrixMul/matrixMul bin
 	cp samples/bandwidthTest/bandwidthTest bin
+ifneq (,$(test -f "samples/nbody/nbody"))
 	cp samples/nbody/nbody bin
+endif
 
 clean:
 	@echo -e "\033[31m----> Cleaning up tests/test_apps\033[0m"

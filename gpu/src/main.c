@@ -31,7 +31,7 @@
 #include "gdb.h"
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL LOG_INFO
+#define LOG_LEVEL LOG_DEBUG
 #endif
 
 #define CRICKET_PROFILE 1
@@ -124,7 +124,7 @@ cuda_error:
 int cricket_analyze(int argc, char *argv[])
 {
     if (argc != 3) {
-        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s analyze <executable>", argv[0]);
         return -1;
     }
     LOG(LOG_INFO, "Analyzing \"%s\"", argv[2]);
@@ -155,7 +155,7 @@ int cricket_restore(int argc, char *argv[])
     double bt, ct, dt, et, ft, gt, comt;
 #endif
     if (argc != 3) {
-        LOG(LOG_ERROR, "wrong number of arguments, use: %s <executable>", argv[0]);
+        LOG(LOG_ERROR, "wrong number of arguments, use: %s restore <executable>", argv[0]);
         return -1;
     }
 
@@ -827,14 +827,15 @@ int cricket_checkpoint(int argc, char *argv[])
 #endif
 
     if (argc != 3) {
-        printf("wrong number of arguments, use: %s <pid>\n", argv[0]);
+        printf("wrong number of arguments, use: %s checkpoint <pid>\n", argv[0]);
         return -1;
     }
 
+    printf("Initializing GDB!\n\n");
     gdb_init(argc, argv, NULL, argv[2]);
 
     /* attach to process (both CPU and GPU) */
-   // printf("attaching...\n");
+    printf("attaching...\n");
    // attach_command(argv[2], !batch_flag);
 
     if (cuda_api_get_state() != CUDA_API_STATE_INITIALIZED) {
@@ -849,6 +850,9 @@ int cricket_checkpoint(int argc, char *argv[])
 #ifdef CRICKET_PROFILE
     gettimeofday(&b, NULL);
 #endif
+    
+    printf("attached!\n\n");
+    printf("trying to get CUDA debugger API\n");
 
     /* get CUDA debugger API */
     res = cudbgGetAPI(CUDBG_API_VERSION_MAJOR, CUDBG_API_VERSION_MINOR,
@@ -858,7 +862,7 @@ int cricket_checkpoint(int argc, char *argv[])
         goto cuda_error;
     }
     printf("got API\n");
-
+    printf("enumerating devices...\n");
 
     if (!cricket_device_get_num(cudbgAPI, &numDev)) {
         printf("error getting device num\n");
@@ -1042,11 +1046,14 @@ int cricket_checkpoint(int argc, char *argv[])
     //cricket_focus_kernel(!batch_flag);
 
 
+    /// TODO: There is a loop to determine the first warp, however
+    /// cricket_cr_ckp_params still causes errors over invalid warps...
     if (!cricket_cr_ckp_params(cudbgAPI, ckp_dir, &elf_info, 0, 0,
                                first_warp)) {
         printf("cricket_cr_ckp_params unsuccessful\n");
     }
 
+    /// TODO: work out globals
     if (!cricket_cr_ckp_globals(cudbgAPI, ckp_dir)) {
         printf("cricket_cr_ckp_globals unsuccessful\n");
     }
@@ -1092,6 +1099,8 @@ detach:
 
 int cricket_start(int argc, char *argv[])
 {
+    char* cricket_path;
+    char cmd_str[1024];
     struct cmd_list_element *alias = NULL;
     struct cmd_list_element *prefix_cmd = NULL;
     struct cmd_list_element *cmd = NULL;
@@ -1101,12 +1110,19 @@ int cricket_start(int argc, char *argv[])
         return -1;
     }
 
+    cricket_path = getenv("CRICKET_PATH");
+    if (cricket_path == NULL) {
+	    LOG(LOG_DEBUG, "no cricket path specified. assuming /usr/local/cricket\n");
+	    cricket_path = "/usr/local/cricket";
+    }
+
     gdb_init(argc, argv, argv[2], NULL);
 
     /* load files */
     //exec_file_attach(argv[2], !batch_flag);
     //
-    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
+    snprintf(cmd_str, 1024, "set exec-wrapper env 'LD_PRELOAD=%s/bin/libtirpc.so.3:%s/cpu/cricket-server.so'", cricket_path, cricket_path);
+    execute_command(cmd_str, !batch_flag);
     //execute_command("break main", !batch_flag);
     execute_command("starti", !batch_flag);
     //execute_command("unset exec-wrapper", !batch_flag);

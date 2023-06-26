@@ -373,7 +373,7 @@ CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
         return CUDA_ERROR_UNKNOWN;
 	}
     *hfun = (CUfunction)result.ptr_result_u.ptr;
-    if ((info = cricketd_utils_search_info(&kernel_infos, (char*)name)) == NULL) {
+    if ((info = utils_search_info(&kernel_infos, (char*)name)) == NULL) {
         LOGE(LOG_ERROR, "cannot find kernel %s kernel_info_t");
         return CUDA_ERROR_UNKNOWN;
     }
@@ -697,7 +697,7 @@ DEF_FN(CUresult, cuGraphNodeGetDependencies, CUgraphNode, hNode, CUgraphNode*, d
 DEF_FN(CUresult, cuGraphNodeGetDependentNodes, CUgraphNode, hNode, CUgraphNode*, dependentNodes, size_t*, numDependentNodes)
 DEF_FN(CUresult, cuGraphAddDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
 DEF_FN(CUresult, cuGraphRemoveDependencies, CUgraph, hGraph, const CUgraphNode*, from, const CUgraphNode*, to, size_t, numDependencies)
-DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, CUgraphNode*, phErrorNode, char*, logBuffer, size_t, bufferSize)
+DEF_FN(CUresult, cuGraphInstantiate, CUgraphExec*, phGraphExec, CUgraph, hGraph, unsigned long long, flags)
 DEF_FN(CUresult, cuGraphLaunch, CUgraphExec, hGraphExec, CUstream, hStream)
 DEF_FN(CUresult, cuGraphLaunch_ptsz, CUgraphExec, hGraphExec, CUstream, hStream)
 DEF_FN(CUresult, cuGraphExecDestroy, CUgraphExec, hGraphExec)
@@ -714,6 +714,6 @@ DEF_FN(CUresult, cuStreamEndCapture_ptsz, CUstream, hStream, CUgraph*, phGraph)
 DEF_FN(CUresult, cuStreamIsCapturing, CUstream, hStream, CUstreamCaptureStatus*, captureStatus)
 DEF_FN(CUresult, cuStreamIsCapturing_ptsz, CUstream, hStream, CUstreamCaptureStatus*, captureStatus)
 DEF_FN(CUresult, cuThreadExchangeStreamCaptureMode, CUstreamCaptureMode*, mode)
-DEF_FN(CUresult, cuStreamGetCaptureInfo, CUstream, hStream, CUstreamCaptureStatus*, captureStatus, cuuint64_t*, id)
+DEF_FN(CUresult, cuStreamGetCaptureInfo, CUstream, hStream, CUstreamCaptureStatus*, captureStatus_out, cuuint64_t*, id_out, CUgraph*. graph_out, const CUgraphNode**, dependencies_out, size_t*, numDependencies_out)
 DEF_FN(CUresult, cuStreamGetCaptureInfo_ptsz, CUstream, hStream, CUstreamCaptureStatus*, captureStatus, cuuint64_t*, id)
 DEF_FN(CUresult, cuGraphExecKernelNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)
