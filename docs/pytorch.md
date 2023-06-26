@@ -112,6 +112,11 @@ EXTRA_DOCKER_BUILD_FLAGS='--storage-opt "overlay.mount_program=/usr/bin/fuse-ove
 make -f docker.Makefile
 ```
 
+launch cricket server (outside of docker container)
+```
+<path to cricket>/bin/cricket-rpc-server
+```
+
 launch docker container, torch
 ```
 sudo docker run --gpus all --rm -it -v <patch-to-cricket>/cricket:/cricket --ipc=host pytorch:latest
