@@ -246,30 +246,33 @@ void *dlopen(const char *filename, int flag)
         }
     }
 
-    if (filename != NULL && 
-        (strcmp(filename, "libcuda.so.1") == 0 ||
-        strcmp(filename, "libcuda.so") == 0 ||
-        strcmp(filename, "libnvidia-ml.so.1")) == 0) {
-        LOG(LOG_DEBUG, "replacing dlopen call to %s with cricket-client.so", filename);
-        dl_handle = dlopen_orig("cricket-client.so", flag);
-        if (clnt == NULL) {
-            LOGE(LOG_ERROR, "rpc seems to be uninitialized");
+    static const char *replace_libs[] = {
+        "libcuda.so.1",
+        "libcuda.so",
+        "libnvidia-ml.so.1",
+        "libcudnn_cnn_infer.so.8"
+    };
+    static const size_t replace_libs_sz = sizeof(replace_libs) / sizeof(char *);
+    if (filename != NULL) {
+        for (size_t i=0; i != replace_libs_sz; ++i) {
+            if (strcmp(filename, replace_libs[i]) == 0) {
+                LOG(LOG_DEBUG, "replacing dlopen call to %s with cricket-client.so", filename);
+                dl_handle = dlopen_orig("cricket-client.so", flag);
+                if (clnt == NULL) {
+                    LOGE(LOG_ERROR, "rpc seems to be uninitialized");
+                }
+                return dl_handle;
+            }
         }
-        return dl_handle;
-    } else {
-        // if ((has_kernel = cpu_utils_parameter_info(&kernel_infos, (char *)filename)) == 0) {
-        //     LOGE(LOG_DBG(1), "dlopen file \"%s\", but does not contain a kernel", filename);
-        // } else {
-        //     LOGE(LOG_DEBUG, "dlopen file \"%s\", contains a kernel", filename);
-        // }
-        if ((ret = dlopen_orig(filename, flag)) == NULL) {
-            LOGE(LOG_ERROR, "dlopen failed");
-        } else if (has_kernel) {
-            dlinfo(ret, RTLD_DI_LINKMAP, &map);
-            LOGE(LOG_DEBUG, "dlopen to  %p", map->l_addr);
-        }
-        return ret;
     }
+    /* filename is NULL or not in replace_libs list */
+    if ((ret = dlopen_orig(filename, flag)) == NULL) {
+        LOGE(LOG_ERROR, "dlopen failed: ", dlerror());
+    } else if (has_kernel) {
+        dlinfo(ret, RTLD_DI_LINKMAP, &map);
+        LOGE(LOG_DEBUG, "dlopen to  %p", map->l_addr);
+    }
+    return ret;
 }
 
 int dlclose(void *handle)

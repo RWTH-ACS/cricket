@@ -439,7 +439,7 @@ CUresult cuModuleLoad(CUmodule* module, const char* fname)
     return result.err;
 }
 DEF_FN(CUresult, cuModuleLoadData, CUmodule*, module, const void*, image)
-//DEF_FN(CUresult, cuModuleLoadDataEx, CUmodule*, module, const void*, image, unsigned int, numOptions, CUjit_option*, options, void**, optionValues)
+DEF_FN(CUresult, cuModuleLoadDataEx, CUmodule*, module, const void*, image, unsigned int, numOptions, CUjit_option*, options, void**, optionValues)
 DEF_FN(CUresult, cuModuleLoadFatBinary, CUmodule*, module, const void*, fatCubin)
 CUresult cuModuleUnload(CUmodule hmod)
 {
@@ -454,7 +454,6 @@ CUresult cuModuleUnload(CUmodule hmod)
 	}
     return result;
 }
-//DEF_FN(CUresult, cuModuleGetFunction, CUfunction*, hfunc, CUmodule, hmod, const char*, name)
 CUresult cuModuleGetFunction(CUfunction* hfun, CUmodule hmod, const char* name)
 {
 	enum clnt_stat retval;
@@ -866,3 +865,5 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
     return cudaSuccess;
 }
 #endif
+
+

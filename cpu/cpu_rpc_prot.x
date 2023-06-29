@@ -458,6 +458,9 @@ program RPC_CD_PROG {
                          ptr, int, ptr, int, double, ptr, int)                 = 3006;
         int          rpc_cublasSgemmEx(ptr, int, int, int, int, int, float,
                          ptr, int, int, ptr, int, int, float, ptr, int, int)                 = 3007;
+        int          rpc_cublasSetStream(ptr handle, ptr streamId)                             = 3008;
+        int          rpc_cublasSetWorkspace(ptr handle, ptr workspace, size_t workspaceSizeInBytes) = 3009;
+        int          rpc_cublasSetMathMode(ptr handle, int mode) = 3010;
 
         /* NVML */
         int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;
@@ -552,5 +555,19 @@ program RPC_CD_PROG {
         mem_result rpc_cudnnFindConvolutionForwardAlgorithm(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int requestedAlgoCount) = 5306;
         sz_result rpc_cudnnGetConvolutionForwardWorkspaceSize(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int algo) = 5307;
         int rpc_cudnnConvolutionForward(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, ptr wDesc, ptr w, ptr convDesc, int algo, ptr workSpace, size_t workSpaceSizeInBytes, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5308;
+        ptr_result rpc_cudnnBackendCreateDescriptor(int descriptorType) = 5309;
+        int rpc_cudnnBackendDestroyDescriptor(ptr descriptor) = 5310;
+        int rpc_cudnnBackendInitialize(ptr descriptor) = 5311;
+        int rpc_cudnnBackendFinalize(ptr descriptor) = 5312;
+        int rpc_cudnnBackendSetAttribute(ptr descriptor,
+                         int attributeName,
+                         int attributeType,
+                         int64_t elementCount,
+                         mem_data arrayOfElements) = 5313;
+        mem_result rpc_cudnnBackendGetAttribute(ptr descriptor,
+                            int attributeName,
+                            int attributeType,
+                            int64_t requestedElementCount) = 5314;
+        int rpc_cudnnBackendExecute(ptr handle, ptr executionPlan, ptr variantPack) = 5315;
     } = 1;
 } = 99;

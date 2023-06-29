@@ -101,6 +101,53 @@ bool_t rpc_cublasdestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
     return 1;
 }
 
+bool_t rpc_cublassetworkspace_1_svc(ptr handle, ptr workspace, size_t workspaceSizeInBytes, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cublassetworkspace_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(workspace);
+    RECORD_NARG(workspaceSizeInBytes);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cublasSetWorkspace(
+        resource_mg_get(&rm_cublas, (void*)handle),
+        resource_mg_get(&rm_memory, (void*)workspace),
+        workspaceSizeInBytes);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cublassetstream_1_svc(ptr handle, ptr streamId, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cublassetstream_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(streamId);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cublasSetStream(
+        resource_mg_get(&rm_cublas, (void*)handle),
+        resource_mg_get(&rm_streams, (void*)streamId));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cublassetmathmode_1_svc(ptr handle, int mode, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cublassetmathmode_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(mode);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cublasSetMathMode(
+        resource_mg_get(&rm_cublas, (void*)handle),
+        (cublasMath_t)mode);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
 bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, int k, float alpha,
             ptr A, int lda,
             ptr B, int ldb, float beta,

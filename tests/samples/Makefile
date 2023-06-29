@@ -34,9 +34,10 @@ samples-bin/mnistCUDNN.sample : cudnn-samples samples-bin
 	make -C cudnn-samples/mnistCUDNN \
 		clean
 	make -C cudnn-samples/mnistCUDNN \
-		NVCCFLAGS="-cudart shared --no-compress -g -G" \
+		NVCCFLAGS="-cudart shared --no-compress -G" \
 		SMS="${SMS}" \
-		CUDA_PATH=${CUDA_PATH}
+		CUDA_PATH=${CUDA_PATH} \
+		DEBUG=1
 	cp cudnn-samples/mnistCUDNN/mnistCUDNN $@
 
 samples-bin/nbody.uncompressed.sample : samples samples-bin

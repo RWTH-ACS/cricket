@@ -1,5 +1,6 @@
 #include <cudnn.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
@@ -1634,3 +1635,220 @@ DEF_FN(cudnnStatus_t, cudnnGetConvolutionBackwardDataWorkspaceSize,  cudnnHandle
 DEF_FN(cudnnStatus_t, cudnnConvolutionBackwardData,  cudnnHandle_t, handle,  const void*, alpha,  const cudnnFilterDescriptor_t, wDesc,  const void*, w,  const cudnnTensorDescriptor_t, dyDesc,  const void*, dy,  const cudnnConvolutionDescriptor_t, convDesc,  cudnnConvolutionBwdDataAlgo_t, algo,  void*, workSpace,  size_t, workSpaceSizeInBytes,  const void*, beta,  const cudnnTensorDescriptor_t, dxDesc,  void*, dx)
 DEF_FN(cudnnStatus_t, cudnnGetFoldedConvBackwardDataDescriptors,  const cudnnHandle_t, handle,  const cudnnFilterDescriptor_t, filterDesc,  const cudnnTensorDescriptor_t, diffDesc,  const cudnnConvolutionDescriptor_t, convDesc,  const cudnnTensorDescriptor_t, gradDesc,  const cudnnTensorFormat_t, transformFormat,  cudnnFilterDescriptor_t, foldedFilterDesc,  cudnnTensorDescriptor_t, paddedDiffDesc,  cudnnConvolutionDescriptor_t, foldedConvDesc,  cudnnTensorDescriptor_t, foldedGradDesc,  cudnnTensorTransformDescriptor_t, filterFoldTransDesc,  cudnnTensorTransformDescriptor_t, diffPadTransDesc,  cudnnTensorTransformDescriptor_t, gradFoldTransDesc,  cudnnTensorTransformDescriptor_t, gradUnfoldTransDesc)
 DEF_FN(cudnnStatus_t, cudnnCnnInferVersionCheck)
+
+/********************** CUDNN BACKEND API ********************************/
+cudnnStatus_t cudnnBackendCreateDescriptor(cudnnBackendDescriptorType_t descriptorType, cudnnBackendDescriptor_t *descriptor)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%d)", __FUNCTION__, descriptorType);
+    if (descriptor == NULL) {
+        LOGE(LOG_ERROR, "%s failed (descriptor is NULL)", __FUNCTION__);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    retval_1 = rpc_cudnnbackendcreatedescriptor_1(
+        (int)descriptorType,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result.err);
+    } else {
+        *descriptor = (void*)result.ptr_result_u.ptr;
+        LOGE(LOG_DEBUG, "-> %p", *descriptor);
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnBackendDestroyDescriptor(cudnnBackendDescriptor_t descriptor)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
+    retval_1 = rpc_cudnnbackenddestroydescriptor_1((ptr)descriptor, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnBackendInitialize(cudnnBackendDescriptor_t descriptor)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
+    retval_1 = rpc_cudnnbackendinitialize_1((ptr)descriptor, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnBackendFinalize(cudnnBackendDescriptor_t descriptor)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
+    retval_1 = rpc_cudnnbackendfinalize_1((ptr)descriptor, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+static const size_t backendAttributeSizes[] = {
+    [CUDNN_TYPE_HANDLE] = sizeof(cudnnHandle_t),
+    [CUDNN_TYPE_DATA_TYPE] = sizeof(cudnnDataType_t),
+    [CUDNN_TYPE_BOOLEAN] = sizeof(bool),
+    [CUDNN_TYPE_INT64] = sizeof(int64_t),
+    [CUDNN_TYPE_FLOAT] = sizeof(float),
+    [CUDNN_TYPE_DOUBLE] = sizeof(double),
+    [CUDNN_TYPE_VOID_PTR] = sizeof(void *),
+    [CUDNN_TYPE_CONVOLUTION_MODE] = sizeof(cudnnConvolutionMode_t),
+    [CUDNN_TYPE_HEUR_MODE] = sizeof(cudnnBackendHeurMode_t),
+    [CUDNN_TYPE_KNOB_TYPE] = sizeof(cudnnBackendKnobType_t),
+    [CUDNN_TYPE_NAN_PROPOGATION] = sizeof(cudnnNanPropagation_t),
+    [CUDNN_TYPE_NUMERICAL_NOTE] = sizeof(cudnnBackendNumericalNote_t),
+    [CUDNN_TYPE_LAYOUT_TYPE] = sizeof(cudnnBackendLayoutType_t),
+    [CUDNN_TYPE_ATTRIB_NAME] = sizeof(cudnnBackendAttributeName_t),
+    [CUDNN_TYPE_POINTWISE_MODE] = sizeof(cudnnPointwiseMode_t),
+    [CUDNN_TYPE_BACKEND_DESCRIPTOR] = sizeof(cudnnBackendDescriptor_t),
+    [CUDNN_TYPE_GENSTATS_MODE] = sizeof(cudnnGenStatsMode_t),
+    [CUDNN_TYPE_BN_FINALIZE_STATS_MODE] = sizeof(cudnnBnFinalizeStatsMode_t),
+    [CUDNN_TYPE_REDUCTION_OPERATOR_TYPE] = sizeof(cudnnReduceTensorOp_t),
+    [CUDNN_TYPE_BEHAVIOR_NOTE] = sizeof(cudnnBackendBehaviorNote_t),
+    [CUDNN_TYPE_TENSOR_REORDERING_MODE] = sizeof(cudnnBackendTensorReordering_t),
+    [CUDNN_TYPE_RESAMPLE_MODE] = sizeof(cudnnResampleMode_t),
+    [CUDNN_TYPE_PADDING_MODE] = sizeof(cudnnPaddingMode_t),
+    [CUDNN_TYPE_INT32] = sizeof(int32_t),
+    [CUDNN_TYPE_CHAR] = sizeof(char),
+    [CUDNN_TYPE_SIGNAL_MODE] = sizeof(cudnnSignalMode_t),
+    [CUDNN_TYPE_FRACTION] = sizeof(cudnnFraction_t),
+    [CUDNN_TYPE_NORM_MODE] = sizeof(cudnnBackendNormMode_t),
+    [CUDNN_TYPE_NORM_FWD_PHASE] = sizeof(cudnnBackendNormFwdPhase_t),
+    [CUDNN_TYPE_RNG_DISTRIBUTION] = sizeof(cudnnRngDistribution_t),
+};
+cudnnStatus_t cudnnBackendSetAttribute(cudnnBackendDescriptor_t descriptor,
+                         cudnnBackendAttributeName_t attributeName,
+                         cudnnBackendAttributeType_t attributeType,
+                         int64_t elementCount,
+                         const void *arrayOfElements)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    LOGE(LOG_DEBUG, "%s(%p, %d, %d, %ld, %p)", __FUNCTION__, descriptor, attributeName, attributeType, elementCount, arrayOfElements);
+    if (attributeType > CUDNN_TYPE_RNG_DISTRIBUTION) {
+        LOGE(LOG_ERROR, "%s failed (attributeType is too large %d)", __FUNCTION__, attributeType);
+        return CUDNN_STATUS_BAD_PARAM;
+    }
+    mem_data data = {
+        .mem_data_len = elementCount * backendAttributeSizes[attributeType],
+        .mem_data_val = (char *)arrayOfElements
+    };
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnbackendsetattribute_1(
+        (ptr)descriptor,
+        (int)attributeName,
+        (int)attributeType,
+        elementCount,
+        data,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnBackendGetAttribute(cudnnBackendDescriptor_t const descriptor,
+                         cudnnBackendAttributeName_t attributeName,
+                         cudnnBackendAttributeType_t attributeType,
+                         int64_t requestedElementCount,
+                         int64_t *elementCount,
+                         void *arrayOfElements)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%p, %d, %d, %ld, %p, %p)", __FUNCTION__, descriptor, attributeName, attributeType, requestedElementCount, elementCount, arrayOfElements);
+    size_t expected_size = requestedElementCount * backendAttributeSizes[attributeType] + sizeof(int64_t);
+    result.mem_result_u.data.mem_data_val = malloc(expected_size);
+    if (result.mem_result_u.data.mem_data_val == NULL) {
+        LOGE(LOG_ERROR, "%s failed (malloc failed)", __FUNCTION__);
+        return CUDNN_STATUS_ALLOC_FAILED;
+    }
+    retval_1 = rpc_cudnnbackendgetattribute_1(
+        (ptr)descriptor,
+        (int)attributeName,
+        (int)attributeType,
+        requestedElementCount,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result.err != CUDNN_STATUS_SUCCESS || result.mem_result_u.data.mem_data_len != expected_size) {
+        LOGE(LOG_ERROR, "%s failed (result is %d, size is %zd, expected %zd)", __FUNCTION__, result.err, result.mem_result_u.data.mem_data_len, expected_size);
+        if (elementCount != NULL) {
+            *elementCount = 0;
+        }
+    } else {
+        if (elementCount != NULL) {
+            *elementCount = *(int64_t*)result.mem_result_u.data.mem_data_val;
+            LOGE(LOG_DEBUG, "elementCount = %ld", *elementCount);
+        }
+        if (arrayOfElements != NULL) {
+            memcpy(arrayOfElements, result.mem_result_u.data.mem_data_val + sizeof(int64_t), *elementCount * backendAttributeSizes[attributeType]);
+        }
+    }
+    return result.err;
+}
+
+cudnnStatus_t cudnnBackendExecute(cudnnHandle_t handle, cudnnBackendDescriptor_t executionPlan, cudnnBackendDescriptor_t variantPack)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "%s(%p, %p, %p)", __FUNCTION__, handle, executionPlan, variantPack);
+    retval_1 = rpc_cudnnbackendexecute_1(
+        (ptr)handle,
+        (ptr)executionPlan,
+        (ptr)variantPack,
+        &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}

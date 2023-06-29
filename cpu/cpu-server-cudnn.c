@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cudnn.h>
+#include <stdbool.h>
 
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
@@ -27,6 +28,7 @@ int server_cudnn_init(int bypass)
     ret &= resource_mg_init(&rm_cudnn_activations, bypass);
     ret &= resource_mg_init(&rm_cudnn_lrns, bypass);
     ret &= resource_mg_init(&rm_cudnn_convs, bypass);
+    ret &= resource_mg_init(&rm_cudnn_backendds, bypass);
     return ret;
 }
 
@@ -39,6 +41,7 @@ int server_cudnn_deinit(void)
     resource_mg_free(&rm_cudnn_activations);
     resource_mg_free(&rm_cudnn_lrns);
     resource_mg_free(&rm_cudnn_convs);
+    resource_mg_free(&rm_cudnn_backendds);
     return 0;
 
 }
@@ -1207,6 +1210,186 @@ bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDe
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
         (void*)resource_mg_get(&rm_memory, (void*)y));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+static const size_t backendAttributeSizes[] = {
+    [CUDNN_TYPE_HANDLE] = sizeof(cudnnHandle_t),
+    [CUDNN_TYPE_DATA_TYPE] = sizeof(cudnnDataType_t),
+    [CUDNN_TYPE_BOOLEAN] = sizeof(bool),
+    [CUDNN_TYPE_INT64] = sizeof(int64_t),
+    [CUDNN_TYPE_FLOAT] = sizeof(float),
+    [CUDNN_TYPE_DOUBLE] = sizeof(double),
+    [CUDNN_TYPE_VOID_PTR] = sizeof(void *),
+    [CUDNN_TYPE_CONVOLUTION_MODE] = sizeof(cudnnConvolutionMode_t),
+    [CUDNN_TYPE_HEUR_MODE] = sizeof(cudnnBackendHeurMode_t),
+    [CUDNN_TYPE_KNOB_TYPE] = sizeof(cudnnBackendKnobType_t),
+    [CUDNN_TYPE_NAN_PROPOGATION] = sizeof(cudnnNanPropagation_t),
+    [CUDNN_TYPE_NUMERICAL_NOTE] = sizeof(cudnnBackendNumericalNote_t),
+    [CUDNN_TYPE_LAYOUT_TYPE] = sizeof(cudnnBackendLayoutType_t),
+    [CUDNN_TYPE_ATTRIB_NAME] = sizeof(cudnnBackendAttributeName_t),
+    [CUDNN_TYPE_POINTWISE_MODE] = sizeof(cudnnPointwiseMode_t),
+    [CUDNN_TYPE_BACKEND_DESCRIPTOR] = sizeof(cudnnBackendDescriptor_t),
+    [CUDNN_TYPE_GENSTATS_MODE] = sizeof(cudnnGenStatsMode_t),
+    [CUDNN_TYPE_BN_FINALIZE_STATS_MODE] = sizeof(cudnnBnFinalizeStatsMode_t),
+    [CUDNN_TYPE_REDUCTION_OPERATOR_TYPE] = sizeof(cudnnReduceTensorOp_t),
+    [CUDNN_TYPE_BEHAVIOR_NOTE] = sizeof(cudnnBackendBehaviorNote_t),
+    [CUDNN_TYPE_TENSOR_REORDERING_MODE] = sizeof(cudnnBackendTensorReordering_t),
+    [CUDNN_TYPE_RESAMPLE_MODE] = sizeof(cudnnResampleMode_t),
+    [CUDNN_TYPE_PADDING_MODE] = sizeof(cudnnPaddingMode_t),
+    [CUDNN_TYPE_INT32] = sizeof(int32_t),
+    [CUDNN_TYPE_CHAR] = sizeof(char),
+    [CUDNN_TYPE_SIGNAL_MODE] = sizeof(cudnnSignalMode_t),
+    [CUDNN_TYPE_FRACTION] = sizeof(cudnnFraction_t),
+    [CUDNN_TYPE_NORM_MODE] = sizeof(cudnnBackendNormMode_t),
+    [CUDNN_TYPE_NORM_FWD_PHASE] = sizeof(cudnnBackendNormFwdPhase_t),
+    [CUDNN_TYPE_RNG_DISTRIBUTION] = sizeof(cudnnRngDistribution_t),
+};
+
+bool_t rpc_cudnnbackendcreatedescriptor_1_svc(int descriptorType, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(descriptorType);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    result->err = cudnnBackendCreateDescriptor(
+        (cudnnBackendDescriptorType_t)descriptorType,
+        (cudnnBackendDescriptor_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cudnn_backendds, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    GSCHED_RELEASE;
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnbackenddestroydescriptor_1_svc(ptr descriptor, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(descriptor);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnBackendDestroyDescriptor(
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)descriptor));
+    // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnbackendinitialize_1_svc(ptr descriptor, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(descriptor);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnBackendInitialize(
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)descriptor));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnbackendfinalize_1_svc(ptr descriptor, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(descriptor);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnBackendFinalize(
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)descriptor));
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+bool_t rpc_cudnnbackendsetattribute_1_svc(
+                         ptr descriptor,
+                         int attributeName,
+                         int attributeType,
+                         int64_t elementCount,
+                         mem_data arrayOfElements,
+                         int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnbackendsetattribute_1_argument);
+    RECORD_NARG(descriptor);
+    RECORD_NARG(attributeName);
+    RECORD_NARG(attributeType);
+    RECORD_NARG(elementCount);
+    RECORD_NARG(arrayOfElements);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    
+    if (attributeType < 0 || attributeType >= CUDNN_TYPE_RNG_DISTRIBUTION) {
+        LOGE(LOG_ERROR, "attributeType out of range.");
+        return 0;
+    }
+
+    if (arrayOfElements.mem_data_len != elementCount * backendAttributeSizes[attributeType]) {
+        LOGE(LOG_ERROR, "array dimensions not as expected.");
+        return 0;
+    }
+    GSCHED_RETAIN;
+    *result = cudnnBackendSetAttribute(
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)descriptor),
+        (cudnnBackendAttributeName_t)attributeName,
+        (cudnnBackendAttributeType_t)attributeType,
+        elementCount,
+        arrayOfElements.mem_data_val);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnbackendgetattribute_1_svc(ptr descriptor, int attributeName, int attributeType, int64_t requestedElementCount, mem_result *result, struct svc_req *rqstp)
+{
+    void *arrayOfElements = NULL;
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    if (attributeType < 0 || attributeType >= CUDNN_TYPE_RNG_DISTRIBUTION) {
+        LOGE(LOG_ERROR, "attributeType out of range.");
+        return 0;
+    }
+    result->mem_result_u.data.mem_data_len = sizeof(int64_t) + requestedElementCount*sizeof(backendAttributeSizes[attributeType]);
+    if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed");
+        return 0;
+    }
+    if (requestedElementCount > 0) {
+        void *data = result->mem_result_u.data.mem_data_val + sizeof(int64_t);
+    }
+    
+    GSCHED_RETAIN;
+    result->err = cudnnBackendGetAttribute(
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)descriptor),
+        (cudnnBackendAttributeName_t)attributeName,
+        (cudnnBackendAttributeType_t)attributeType,
+        requestedElementCount,
+        (int64_t*)result->mem_result_u.data.mem_data_val,
+        arrayOfElements);
+    
+    LOGE(LOG_DEBUG, "desc: %p, name: %d, type: %d, requestedElementCount: %zd, elementCount: %zd, arrayOfElements: %p -> %d", descriptor, attributeName, attributeType, requestedElementCount, *result->mem_result_u.data.mem_data_val, arrayOfElements, result->err);
+
+    GSCHED_RELEASE;
+    return 1;
+}
+bool_t rpc_cudnnbackendexecute_1_svc(ptr handle, ptr executionPlan, ptr variantPack, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnbackendexecute_1_argument);
+    RECORD_NARG(handle);
+    RECORD_NARG(executionPlan);
+    RECORD_NARG(variantPack);
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnBackendExecute(
+        (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)executionPlan),
+        (cudnnBackendDescriptor_t)resource_mg_get(&rm_cudnn_backendds, (void*)variantPack));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
