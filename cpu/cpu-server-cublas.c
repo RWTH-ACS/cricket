@@ -109,10 +109,15 @@ bool_t rpc_cublassetworkspace_1_svc(ptr handle, ptr workspace, size_t workspaceS
     RECORD_NARG(workspaceSizeInBytes);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
+#if CUBLAS_VERSION >= 11000
     *result = cublasSetWorkspace(
         resource_mg_get(&rm_cublas, (void*)handle),
         resource_mg_get(&rm_memory, (void*)workspace),
         workspaceSizeInBytes);
+#else
+    LOGE(LOG_ERROR, "cublassetworkspace not supported in this version");
+    *result = -1;
+#endif
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -171,6 +176,7 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     RECORD_ARG(14, ldc);
     LOGE(LOG_DEBUG, "cublasSgemm");
     GSCHED_RETAIN;
+#if CUBLAS_VERSION >= 11000
     *result = cublasSgemm(resource_mg_get(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
                     (cublasOperation_t) transb,
@@ -179,6 +185,10 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
                     resource_mg_get(&rm_memory, (void*)B), ldb, &beta,
                     resource_mg_get(&rm_memory, (void*)C), ldc
     );
+#else
+    LOGE(LOG_ERROR, "cublassetworkspace not supported in this version");
+    *result = -1;
+#endif
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
