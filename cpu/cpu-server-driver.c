@@ -299,6 +299,26 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
     return 1;
 }
 
+bool_t rpc_cumoduleloaddata_1_svc(mem_data mem, ptr_result *result,
+                                     struct svc_req *rqstp)
+{
+    RECORD_API(mem_data);
+    RECORD_SINGLE_ARG(mem);
+    LOG(LOG_DEBUG, "%s(%p, %#0zx)", __FUNCTION__, mem.mem_data_val, mem.mem_data_len);
+    GSCHED_RETAIN;
+    result->err = cuModuleLoadData((CUmodule*)&result->ptr_result_u.ptr, mem.mem_data_val);
+    GSCHED_RELEASE;
+    if (resource_mg_create(&rm_modules, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+    if (result->err != 0) {
+        char *err_str = NULL;
+        cuGetErrorName(result->err, &err_str);
+        LOGE(LOG_DEBUG, "cuModuleLoadData result: %s", err_str);
+    }
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
 bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
                                      struct svc_req *rqstp)
 {
@@ -311,9 +331,11 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
     if (resource_mg_create(&rm_modules, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
-    char *err_str = NULL;
-    cuGetErrorName(result->err, &err_str);
-    LOGE(LOG_DEBUG, "cuModuleLoad result: %s", err_str);
+    if (result->err != 0) {
+        char *err_str = NULL;
+        cuGetErrorName(result->err, &err_str);
+        LOGE(LOG_DEBUG, "cuModuleLoad result: %s", err_str);
+    }
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }

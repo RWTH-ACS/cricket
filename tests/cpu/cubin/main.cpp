@@ -3,6 +3,9 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 
 #define printCudaErrors(err) __printCudaErrors (err, __FILE__, __LINE__)
@@ -76,6 +79,32 @@ int getModuleFromCubin(CUmodule *module, const char *cubin)
     return 0;
 }
 
+int getModuleFromCubinInMemory(CUmodule *module, const char *cubin)
+{
+    int fd = open(cubin, O_RDONLY);
+    if (fd < 0) {
+        printf("error\n");
+        return 1;
+    }
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        printf("error\n");
+        return 1;
+    }
+    printf("size: %#0zx\n", (int)st.st_size);
+    void *buf = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (buf == MAP_FAILED) {
+        printf("error\n");
+        return 1;
+    }
+    CUresult err;
+    if ((err = cuModuleLoadData(module, buf)) != CUDA_SUCCESS) {
+        printCudaErrors(err);
+        return 1;
+    }
+    return 0;
+}
+
 int getModuleFromShared(CUmodule **module, const char *cubin)
 {
     return 0;
@@ -97,10 +126,14 @@ int main(int argc, char** argv)
     CUmodule module;
     CUfunction func;
     printf("testing cubin...\n");
-    if (getModuleFromCubin(&module, "kernel.cubin") != 0) {
+    if (getModuleFromCubinInMemory(&module, "kernel.cubin") != 0) {
         printf("error\n");
         return 1;
     }
+    // if (getModuleFromCubin(&module, "kernel.cubin") != 0) {
+    //     printf("error\n");
+    //     return 1;
+    // }
     // if ((err = getModuleFromShared(&module, "kernel.so")) != 0) {
     //     printf("error\n");
     //     return 1;

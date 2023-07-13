@@ -6,6 +6,7 @@
 #include <cudaEGL.h>
 #include <vdpau/vdpau.h>
 #include <cudaVDPAU.h>
+#include <elf.h>
 
 #include <driver_types.h>
 #include <string.h>
@@ -438,7 +439,50 @@ CUresult cuModuleLoad(CUmodule* module, const char* fname)
     }
     return result.err;
 }
-DEF_FN(CUresult, cuModuleLoadData, CUmodule*, module, const void*, image)
+
+
+CUresult cuModuleLoadData(CUmodule* module, const void* image)
+{
+	enum clnt_stat retval;
+    ptr_result result;
+    mem_data mem;
+
+    if (image == NULL) {
+        LOGE(LOG_ERROR, "image is NULL!");
+        return CUDA_ERROR_INVALID_IMAGE;
+    }
+    Elf64_Ehdr *ehdr = (Elf64_Ehdr*)image;
+
+    if (ehdr->e_ident[EI_MAG0] != ELFMAG0 ||
+        ehdr->e_ident[EI_MAG1] != ELFMAG1 ||
+        ehdr->e_ident[EI_MAG2] != ELFMAG2 ||
+        ehdr->e_ident[EI_MAG3] != ELFMAG3) {
+        LOGE(LOG_ERROR, "image is not an ELF!");
+        return CUDA_ERROR_INVALID_IMAGE;
+    }
+
+    mem.mem_data_len = ehdr->e_shoff + ehdr->e_shnum * ehdr->e_shentsize;
+    mem.mem_data_val = (uint8_t*)image;
+
+    LOGE(LOG_DEBUG, "image_size = %#0zx", mem.mem_data_len);
+    
+    if (elf2_parameter_info(&kernel_infos, mem.mem_data_val, mem.mem_data_len) != 0) {
+        LOGE(LOG_ERROR, "could not get kernel infos from memory");
+        return CUDA_ERROR_INVALID_IMAGE;
+    }
+
+    retval = rpc_cumoduleloaddata_1(mem, &result, clnt);
+    printf("[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, image, result.err, (void*)result.ptr_result_u.ptr);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    if (module != NULL) {
+       *module = (CUmodule)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 DEF_FN(CUresult, cuModuleLoadDataEx, CUmodule*, module, const void*, image, unsigned int, numOptions, CUjit_option*, options, void**, optionValues)
 DEF_FN(CUresult, cuModuleLoadFatBinary, CUmodule*, module, const void*, fatCubin)
 CUresult cuModuleUnload(CUmodule hmod)

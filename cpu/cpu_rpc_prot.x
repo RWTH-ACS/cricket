@@ -424,6 +424,7 @@ program RPC_CD_PROG {
         mem_result   rpc_cuDeviceGetProperties(int)                            = 1023;
         dint_result  rpc_cuDeviceComputeCapability(int)                        = 1024;
         int_result   rpc_cuDeviceGetP2PAttribute(int, ptr, ptr)                = 1025; 
+        ptr_result   rpc_cuModuleLoadData(mem_data mem)                        = 1026;
 
         /* HIDDEN DRIVER API */
 /*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;
@@ -562,12 +563,12 @@ program RPC_CD_PROG {
         int rpc_cudnnBackendSetAttribute(ptr descriptor,
                          int attributeName,
                          int attributeType,
-                         int64_t elementCount,
+                         hyper elementCount,
                          mem_data arrayOfElements) = 5313;
         mem_result rpc_cudnnBackendGetAttribute(ptr descriptor,
                             int attributeName,
                             int attributeType,
-                            int64_t requestedElementCount) = 5314;
+                            hyper requestedElementCount) = 5314;
         int rpc_cudnnBackendExecute(ptr handle, ptr executionPlan, ptr variantPack) = 5315;
     } = 1;
 } = 99;
