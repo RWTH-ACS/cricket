@@ -311,6 +311,9 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
     if (resource_mg_create(&rm_modules, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
+    char *err_str = NULL;
+    cuGetErrorName(result->err, &err_str);
+    LOGE(LOG_DEBUG, "cuModuleLoad result: %s", err_str);
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
