@@ -172,9 +172,10 @@ void cricket_main(size_t prog_num, size_t vers_num)
     struct sigaction act;
     char *command = NULL;
     act.sa_handler = int_handler;
-    sigaction(SIGINT, &act, NULL);
-    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    printf("welcome to cricket!\n");
     init_log(LOG_LEVEL, __FILE__);
+    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    sigaction(SIGINT, &act, NULL);
 
     #ifdef WITH_IB
     char client[256];
@@ -316,6 +317,9 @@ void cricket_main(size_t prog_num, size_t vers_num)
     }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
+
+    // make sure that our output is flushed even for non line-buffered shells
+    fflush(stdout);
 
     svc_run();
 
