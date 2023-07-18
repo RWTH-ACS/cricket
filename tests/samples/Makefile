@@ -5,7 +5,8 @@ SAMPLES = samples-bin/matrixMul.compressed.sample \
 		  samples-bin/matrixMul.uncompressed.sample \
 		  samples-bin/nbody.uncompressed.sample \
 		  samples-bin/nbody.compressed.sample \
-		  samples-bin/bandwidthTest.sample
+		  samples-bin/bandwidthTest.sample \
+		  samples-bin/mnistCUDNN.sample
 
 CUDA_PATH = /usr/local/cuda
 SMS = 75 60
@@ -30,7 +31,10 @@ cudnn-samples:
 samples-bin:
 	mkdir -p $@
 
-samples-bin/mnistCUDNN.sample : cudnn-samples samples-bin
+samples-bin/data:
+	cp -R cudnn-samples/mnistCUDNN/data $@
+
+samples-bin/mnistCUDNN.sample : cudnn-samples samples-bin samples-bin/data
 	make -C cudnn-samples/mnistCUDNN \
 		clean
 	make -C cudnn-samples/mnistCUDNN \

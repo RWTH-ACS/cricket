@@ -41,16 +41,6 @@ prepare:centos8:cuda11:
   tags:
     - docker
 
-prepare:centos8:cuda10:
-  stage: prepare
-  script:
-    - docker build
-        --file utils/Dockerfile.cuda10
-        --tag ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
-        --tag ${DOCKER_IMAGE_DEV}_cuda10:latest .
-  tags:
-    - docker
-
 # check if styleguide is fulfilled
 #style_check:
 #  stage: build
@@ -78,6 +68,7 @@ build:
     paths:
       - bin
       - tests/bin
+      - tests/samples/samples-bin
   image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
   cache:
     paths:
@@ -144,32 +135,6 @@ build:cuda11:
   tags:
     - docker
 
-build:cuda10:
-  stage: build
-  needs: ["prepare:centos8:cuda10"]
-  script:
-   - make -j 32 libtirpc
-   - make -j 32 cuda-gdb
-   - make -j 1 LOG=INFO NOSAMPLES=yes
-  artifacts:
-    expire_in: 1 week
-    paths:
-      - bin
-      - tests/bin
-  image: ${DOCKER_IMAGE_DEV}_cuda10:${DOCKER_TAG}
-  cache:
-    paths:
-      - gpu/build
-      - cpu/*.o
-      - tests/cpu/*.o
-      - tests/test_apps/*.o
-      - submodules/libtirpc
-      - submodules/cuda-gdb
-      - submodules/cuda-gdb-src.rpm
-    key: build_cuda10
-  tags:
-    - docker
-
 build:debug:
   stage: build
   needs: ["prepare:rocky9:docker-dev"]
@@ -206,6 +171,7 @@ build:debug:
     LDIR: '$CI_BUILDS_DIR/$CI_PROJECT_PATH/bin'
     SAMPLES_PATH: '/usr/local/cuda/samples'
     PARAMETER: ''
+    CHDIR: 'tests'
   script:
     - mkdir ~/.ssh &&
       echo "-----BEGIN OPENSSH PRIVATE KEY-----" > ~/.ssh/id_rsa &&
@@ -217,7 +183,8 @@ build:debug:
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
     - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3 $RDIR/cricket-rpc-server 255" &
     - sleep 2
-    - CRICKET_RPCID=255 REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so $LDIR/$TEST_BINARY $PARAMETER
+    - cd $LDIR/$CHDIR
+    - CRICKET_RPCID=255 REMOTE_GPU_ADDRESS="ghost.acs-lab.eonerc.rwth-aachen.de" PATH=$LDIR:$PATH LD_PRELOAD=$LDIR/libtirpc.so.3:$LDIR/cricket-client.so ./$TEST_BINARY $PARAMETER
   after_script:
     - ssh $GPU_TARGET rm -rf $RDIR
     - ssh $GPU_TARGET pkill -fe -2 $RDIR/test_kernel
@@ -252,21 +219,27 @@ test:test_programs(2/2):
 test:test_kernel:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/kernel.testapp'
+      TEST_BINARY: 'kernel.testapp'
 
 test:samples:matrixMul:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/matrixMul.compressed.sample'
+      TEST_BINARY: 'matrixMul.compressed.sample'
 
 test:samples:bandwidthTest:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/bandwidthTest.sample'
+      TEST_BINARY: 'bandwidthTest.sample'
 
 test:samples:nbody:
     extends: .remote-gpu
     variables:
-      TEST_BINARY: 'tests/nbody.uncompressed.sample'
+      TEST_BINARY: 'nbody.uncompressed.sample'
       PARAMETER: '-benchmark'
+
+test:samples:mnistCUDNN:
+    extends: .remote-gpu
+    variables:
+      CHDIR: '../tests/samples/samples-bin'
+      TEST_BINARY: 'mnistCUDNN.sample'
 
