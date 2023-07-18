@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <openssl/md5.h>
 #include <linux/limits.h>
 #include "rpc/types.h"
 #include <sys/stat.h>
@@ -45,34 +44,6 @@ int cpu_utils_command(char **command)
     return ret;
 
 }
-
-int cpu_utils_md5hash(char *filename, unsigned long *high, unsigned long *low)
-{
-    unsigned char c[MD5_DIGEST_LENGTH];
-    FILE *fd;
-    MD5_CTX mdContext;
-    int bytes;
-    unsigned char data[1024];
-
-    if (filename == NULL || high == NULL || low == NULL) {
-        return -1;
-    }
-
-    if ((fd = fopen(filename, "rb")) == NULL) {
-        LOGE(LOG_ERROR, "%s can't be opened.", filename);
-        return -1;
-    }
-
-    MD5_Init (&mdContext);
-    while ((bytes = fread(data, 1, 1024, fd)) != 0)
-        MD5_Update(&mdContext, data, bytes);
-    MD5_Final(c, &mdContext);
-    fclose (fd);
-    *high = *((unsigned long*)c);
-    *low  = *((unsigned long*)(c+8));
-    return 0;
-}
-
 
 
 int cpu_utils_launch_child(const char *file, char **args)
