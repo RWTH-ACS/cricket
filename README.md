@@ -1,6 +1,6 @@
 # cricket
 
-[![pipeline status](https://git.rwth-aachen.de/acs/public/virtualization/cricket/badges/master/pipeline.svg)](https://git.rwth-aachen.de/acs/public/virtualization/cricket/commits/master)
+[![pipeline status](https://git.rwth-aachen.de/acs/public/virtualization/cricket-ci/badges/master/pipeline.svg)](https://git.rwth-aachen.de/acs/public/virtualization/cricket-ci/-/commits/master)
 
 Cricket consists of two parts: A virtualization layer for CUDA applications that allows the isolation of CPU and CPU parts by using Remote Procedure Calls and a checkpoint/restart tool for GPU kernels.
 
