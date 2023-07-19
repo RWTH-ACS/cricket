@@ -1,3 +1,6 @@
-python gdb.execute("set environment CRICKET_NOHASH=yes")
+python gdb.execute("set environment CRICKET_RPCID=3")
 python gdb.execute("set environment REMOTE_GPU_ADDRESS=localhost")
 python gdb.execute("set environment LD_PRELOAD=../../cpu/cricket-client.so")
+#python gdb.execute('set environment LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.5:/cricket/cpu/cricket-client.so')
+#python gdb.execute("set environment ASAN_OPTIONS=protect_shadow_gap=0)
+#python gdb.execute("set environment LSAN_OPTIONS=fast_unwind_on_malloc=0")

@@ -6,11 +6,11 @@ HOST_CFLAGS = -Wall -std=gnu99
 
 CC = nvcc -ccbin g++
 ARCH = sm_61
-CFLAGS = -arch=$(ARCH) -cudart shared
+DEBUG_FLAGS = -g -G
+CFLAGS = -arch=$(ARCH) -cudart shared $(DEBUG_FLAGS)
 #CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
-LDFLAGS = -arch=$(ARCH) -cudart shared
-DEBUG_FLAGS = #-g -G
+LDFLAGS = -arch=$(ARCH) -cudart shared $(DEBUG_FLAGS)
 #LDFLAGS = -lcuda -arch=$(ARCH)
 TEST_CPU_BIN = cpu.testapp
 TEST_CPU_O = test_cpu.o
@@ -19,6 +19,9 @@ TEST_API_O = test_api.o
 TEST_KERNEL_BIN = kernel.testapp
 TEST_KERNEL_O = test_kernel.o
 BINARY = cricket.testapp
+
+TEST_CUDNN_BACKEND_BIN = cudnn-backend.testapp
+TEST_CUDNN_BACKEND_O = cudnn-backend-test.o
 
 TEST_KERNEL_LIB_O = test_kernel_lib.o
 TEST_KERNEL_LIB = test_kernel.so
@@ -57,6 +60,9 @@ $(TEST_KERNEL_BIN) : $(TEST_KERNEL_O)
 
 $(BINARY) : $(FILES)
 	$(LD) $(LDFLAGS) -o $@ $^
+	
+$(TEST_CUDNN_BACKEND_BIN) : $(TEST_CUDNN_BACKEND_O)
+	$(LD) $(LDFLAGS) -o $@ $^ -lcudnn
 
 $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
 	$(HOST_CC) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
@@ -78,6 +84,6 @@ $(LIBCUDA_WRAPPER) : $(LIBCUDA_OBJ)
 
 
 clean :
-	rm -f *.elf *.hex *.o *.d .depend *~ $(BINARY) $(LIBCUDA_WRAPPER) $(TEST_CPU_BIN) $(TEST_API_BIN) $(TEST_KERNEL_BIN) $(TEST_KERNEL_LIB) $(TEST_KERNEL_LIB_CALL) 
+	rm -f *.elf *.hex *.o *.d .depend *~ $(BINARY) $(LIBCUDA_WRAPPER) $(TEST_CPU_BIN) $(TEST_API_BIN) $(TEST_KERNEL_BIN) $(TEST_KERNEL_LIB) $(TEST_KERNEL_LIB_CALL) $(TEST_CUDNN_BACKEND_BIN)
 
 
