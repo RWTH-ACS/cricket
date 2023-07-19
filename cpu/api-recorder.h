@@ -35,6 +35,8 @@
     *arguments = ARG
 #define RECORD_ARG(NUM, ARG) \
     arguments->arg##NUM = ARG
+#define RECORD_NARG(ARG) \
+    arguments->ARG = ARG
 #define RECORD_DATA(SIZE, PTR) \
     record->data_size = SIZE; \
     record->data = malloc(SIZE); \
@@ -58,6 +60,7 @@ typedef struct api_record {
         void* ptr;
         int integer;
         ptr_result ptr_result_u;
+        sz_result sz_result_u;
     } result;
     void *data;
     size_t data_size;
@@ -65,7 +68,7 @@ typedef struct api_record {
 extern list api_records;
 
 
-void api_records_free_args(void);
+void api_records_free(void);
 void api_records_print(void);
 void api_records_print_records(api_record_t *record);
 

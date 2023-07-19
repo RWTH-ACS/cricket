@@ -23,7 +23,7 @@ int gsched_none_init(void)
     pthread_mutex_init(&mutex_device, NULL);
     pthread_mutex_init(&mutex_ids, NULL);
     if ((res = cudaGetDeviceCount(&cuda_max_devices)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaGetDeviceCount failed: %s", cudaGetErrorString(res));
+        LOGE(LOG_ERROR, "cudaGetDeviceCount failed: %s (%d)", cudaGetErrorString(res), res);
         return 1;
     }
     return 0;

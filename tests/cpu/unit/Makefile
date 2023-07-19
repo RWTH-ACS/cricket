@@ -16,7 +16,7 @@ INC_FLAGS += -I../../../cpu/
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
-LIB_FLAGS += -L../../../cpu/
+LIB_FLAGS += -L../../../bin/
 CC_FLAGS += -std=gnu99 $(INC_FLAGS) -g -ggdb -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 LD_FLAGS = $(LIB_FLAGS)
 
@@ -32,11 +32,14 @@ CLIENT_LD_FLAGS = $(LD_FLAGS) -l:cricket-client.so
 
 all : $(BIN_CLIENT_TESTS) $(BIN_SERVER_TESTS)
 
-$(BIN_SERVER_TESTS) : %.test:%.o
+../../../bin/cricket-server.so:
+	$(MAKE) -C ../../../ bin/cricket-server.so
+
+$(BIN_SERVER_TESTS) : %.test:%.o ../../../bin/cricket-server.so
 	$(LD) $(CC_FLAGS) -o $@ $< $(SERVER_LD_FLAGS)
 
 $(OBJ_SERVER_TESTS) : %.o:%.c
-	$(CC) $(CC_FLAGS) -c -o $@ $< $(SERVER_LD_FLAGS)
+	$(CC) $(CC_FLAGS) -c -o $@ $<
 
 clean:
 	 rm -f $(OBJ_SERVER_TESTS) $(OBJ_CLIENT_TESTS) $(BIN_SERVER_TESTS) $(BIN_CLIENT_TESTS)

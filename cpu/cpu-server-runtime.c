@@ -2,6 +2,8 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <driver_types.h>
+#include <dlfcn.h>
+#include <cuda_profiler_api.h>
 
 //for strerror
 #include <string.h>
@@ -34,13 +36,13 @@
 #include "mt-memcpy.h"
 
 typedef struct host_alloc_info {
-    int cnt;
+    size_t idx;
     size_t size;
     void *client_ptr;
     void *server_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64];
-static size_t hainfo_cnt = 1;
+static size_t hainfo_cnt = 0;
 list mt_memcpy_list = {0};
 
 static int hainfo_getserverindex(void *server_ptr)
@@ -77,10 +79,21 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
         ret &= resource_mg_init(&rm_memory, 0);
+        ret &= resource_mg_init(&rm_kernels, 0);
         ret &= cusolver_init(0, &rm_streams, &rm_memory);
         ret &= cublas_init(0, &rm_memory);
         ret &= server_runtime_restore("ckp");
     }
+    
+    // Make sure runtime API is initialized
+    // If we don't do this and use the driver API, it might be unintialized
+    cudaError_t cres;
+    if ((cres = cudaSetDevice(0)) != cudaSuccess) {
+        LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
+        ret = 1;
+    }
+    cudaDeviceSynchronize();
+
     return ret;
 }
 
@@ -90,6 +103,7 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
     resource_mg_free(&rm_memory);
+    resource_mg_free(&rm_kernels);
     cusolver_deinit();
     cublas_deinit();
     list_free(&mt_memcpy_list);
@@ -131,6 +145,42 @@ int server_runtime_restore(const char *path)
     LOGE(LOG_INFO, "time: %f", time);
 
     return 0;
+}
+
+
+/** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
+ *
+ */
+bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    
+    void (*serverFun)(void);
+
+    if ( (serverFun = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
+        LOGE(LOG_ERROR, "failed to get dlopen %s", dlerror());
+        *result = 1;
+        return 1;
+    }
+    
+    if (resource_mg_add_sorted(&rm_kernels, (void*)hostFun, serverFun) != 0) {
+        LOGE(LOG_ERROR, "failed to add kernel to resource manager");
+        *result = 1;
+        return 1;
+    }
+    LOGE(LOG_DEBUG, "added kernel %p->%p to resource manager", hostFun, serverFun);
+    // __cudaRegisterFunction(&fatCubinHandle, hostFun, deviceFun,
+    //                         deviceName, thread_limit, &tid, &bid, &bDim, &gDim, &wSize);
+
+    // LOGE(LOG_DEBUG, "-> %p, {%d, %d, %d}, {%d, %d, %d}, {%d, %d, %d}, {%d, %d, %d}, %d)",
+    //                 fatCubinHandle, 
+    //                 tid.x, tid.y, tid.z,
+    //                 bid.x, bid.y, bid.z,
+    //                 bDim.x, bDim.y, bDim.z,
+    //                 gDim.x, gDim.y, gDim.z,
+    //                 wSize);
+    *result = 0;
+    return 1;
 }
 
 /* ############### RUNTIME API ############### */
@@ -310,19 +360,14 @@ bool_t cuda_get_device_flags_1_svc(int_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t cuda_get_device_properties_1_svc(int device, mem_result *result, struct svc_req *rqstp)
+bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaGetDeviceProperties");
-    result->mem_result_u.data.mem_data_val = malloc(sizeof(struct cudaDeviceProp));
-    if (result->mem_result_u.data.mem_data_val == NULL) {
-        LOGE(LOG_ERROR, "malloc failed.");
+    if (sizeof(result->cuda_device_prop_result_u.data) != sizeof(struct cudaDeviceProp)) {
+        LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch");
         return 0;
     }
-    result->mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
-    result->err = cudaGetDeviceProperties((void*)result->mem_result_u.data.mem_data_val, device);
-    if (result->err != 0) {
-        free(result->mem_result_u.data.mem_data_val);
-    }
+    result->err = cudaGetDeviceProperties((void*)result->cuda_device_prop_result_u.data, device);
     return 1;
 }
 
@@ -542,8 +587,14 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
     return 1;
 }
 
-/* Capture API does not make sense without graph API */
-//        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                      = 264;*/
+bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaStreamIsCapturing");
+    result->err = cudaStreamIsCapturing(
+      resource_mg_get(&rm_streams, (void*)stream),
+      (enum cudaStreamCaptureStatus*)&result->int_result_u.data);
+    return 1;
+}
 
 bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
 {
@@ -770,7 +821,7 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
 
     *result = cudaLaunchCooperativeKernel(
-      (void*)func,
+      resource_mg_get(&rm_kernels, (void*)func),
       cuda_gridDim,
       cuda_blockDim,
       cuda_args,
@@ -778,44 +829,6 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
       resource_mg_get(&rm_streams, (void*)stream));
     RECORD_RESULT(integer, *result);
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel result: %d", *result);
-    return 1;
-}
-
-bool_t cuda_launch_cooperative_kernel_multi_device_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim, mem_data args, size_t sharedMem, ptr stream, int numDevices, int flags, int *result, struct svc_req *rqstp)
-{
-    RECORD_API(cuda_launch_cooperative_kernel_multi_device_1_argument);
-    RECORD_ARG(1, func);
-    RECORD_ARG(2, gridDim);
-    RECORD_ARG(3, blockDim);
-    //TODO: Store parameters explicitly
-    //RECORD_ARG(4, args);
-    RECORD_ARG(5, sharedMem);
-    RECORD_ARG(6, stream);
-    RECORD_ARG(7, numDevices);
-    RECORD_ARG(8, flags);
-    dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
-    dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
-    void **cuda_args;
-    uint16_t *arg_offsets;
-    size_t param_num = *((size_t*)args.mem_data_val);
-    struct cudaLaunchParams lp;
-    arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
-    cuda_args = malloc(param_num*sizeof(void*));
-    for (size_t i = 0; i < param_num; ++i) {
-        cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        //LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
-    }
-
-    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernelMultiDevice(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
-    lp.args = cuda_args;
-    lp.blockDim = cuda_blockDim;
-    lp.func = (void*)func;
-    lp.gridDim = cuda_gridDim;
-    lp.sharedMem = sharedMem;
-    lp.stream = resource_mg_get(&rm_streams, (void*)stream);
-    *result = cudaLaunchCooperativeKernelMultiDevice(&lp, numDevices, flags);
-    RECORD_RESULT(integer, *result);
-    LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernelMultiDevice result: %d", *result);
     return 1;
 }
 
@@ -848,15 +861,28 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
+                    resource_mg_get(&rm_functions, (void*)func),
+                    cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z,
+                    cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z,
+                    cuda_args,
+                    sharedMem,
+                    (void*)stream);
 
-    *result = cudaLaunchKernel(
-      (void*)func,
-      cuda_gridDim,
-      cuda_blockDim,
-      cuda_args,
-      sharedMem,
-      resource_mg_get(&rm_streams, (void*)stream));
+    *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
+                            gridDim.x, gridDim.y, gridDim.z,
+                            blockDim.x, blockDim.y, blockDim.z,
+                            sharedMem,
+                            resource_mg_get(&rm_streams, (void*)stream),
+                            cuda_args, NULL);
+
+    // *result = cudaLaunchKernel(
+    //   resource_mg_get(&rm_functions, (void*)func),
+    //   cuda_gridDim,
+    //   cuda_blockDim,
+    //   cuda_args,
+    //   sharedMem,
+    //   resource_mg_get(&rm_streams, (void*)stream));
     free(cuda_args);
     RECORD_RESULT(integer, *result);
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
@@ -1028,8 +1054,8 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
         *result = cudaSuccess;
         return 1;
     }
-    if (hainfo[index].cnt != 0 &&
-        hainfo[index].cnt == index) {
+    if (hainfo[index].idx != 0 &&
+        hainfo[index].idx == index) {
 
         *result = cudaHostUnregister(hainfo[index].server_ptr);
         munmap(hainfo[index].server_ptr, hainfo[index].size);
@@ -1064,31 +1090,39 @@ bool_t cuda_get_symbol_size_1_svc(ptr symbol, u64_result *result, struct svc_req
     return 1;
 }
 
-bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsigned int flags, int *result, struct svc_req *rqstp)
+bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result, struct svc_req *rqstp)
 {
     //TODO: Make checkpointable. Implement reattaching of shm segment.
     int fd_shm;
-    char shm_name[128];
+    char *shm_name = NULL;
     void *shm_addr;
     unsigned int register_flags = 0;
-    *result = cudaErrorMemoryAllocation;
     RECORD_API(cuda_host_alloc_1_argument);
-    RECORD_ARG(1, client_cnt);
-    RECORD_ARG(2, size);
-    RECORD_ARG(3, client_ptr);
-    RECORD_ARG(4, flags);
+    RECORD_ARG(1, size);
+    RECORD_ARG(2, flags);
 
     LOGE(LOG_DEBUG, "cudaHostAlloc");
+    result->err = cudaErrorMemoryAllocation;
 
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
-        snprintf(shm_name, 128, "/crickethostalloc-%d", client_cnt);
-        if ((fd_shm = shm_open(shm_name, O_RDWR, 600)) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_cnt) == -1) {
+            LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
+            goto out;
+        }
+        if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU)) == -1) {
             LOGE(LOG_ERROR, "could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
             goto out;
         }
+        if (ftruncate(fd_shm, size) == -1) {
+            LOGE(LOG_ERROR, "cannot resize shared memory");
+            shm_unlink(shm_name);
+            goto out;
+        }
+        result->sz_result_u.data = hainfo_cnt;
+        LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
         if ((shm_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
             LOGE(LOG_ERROR, "mmap returned unexpected pointer: %p", shm_addr);
-            goto cleanup;
+            goto out;
         }
 
         if (flags & cudaHostAllocPortable) {
@@ -1101,23 +1135,23 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
             register_flags |= cudaHostRegisterMapped;
         }
 
-        if ((*result = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
+        if ((result->err = cudaHostRegister(shm_addr, size, flags)) != cudaSuccess) {
             LOGE(LOG_ERROR, "cudaHostRegister failed.");
             munmap(shm_addr, size);
-            goto cleanup;
+            goto out;
         }
-
-        hainfo[hainfo_cnt].cnt = client_cnt;
+        hainfo[hainfo_cnt].idx = hainfo_cnt;
         hainfo[hainfo_cnt].size = size;
-        hainfo[hainfo_cnt].client_ptr = (void*)client_ptr;
+        hainfo[hainfo_cnt].client_ptr = NULL;
         hainfo[hainfo_cnt].server_ptr = shm_addr;
         hainfo_cnt++;
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
-   
+        LOGE(LOG_ERROR, "infiniband does not yet support cudaHostAlloc.");
+        goto out;
 #else
-                LOGE(LOG_ERROR, "infiniband is disabled.");
-                goto cleanup;
+        LOGE(LOG_ERROR, "infiniband is disabled.");
+        goto out;
 #endif //WITH_IB
 
     } else {
@@ -1125,13 +1159,39 @@ bool_t cuda_host_alloc_1_svc(int client_cnt, size_t size, ptr client_ptr, unsign
         goto out;
     }
 
-    *result = cudaSuccess;
-cleanup:
-    shm_unlink(shm_name);
+    result->err = cudaSuccess;
 out:
+    RECORD_RESULT(sz_result_u, *result);
+    return 1;
+}
+
+bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *result, struct svc_req *rqstp)
+{
+    char *shm_name = NULL;
+    RECORD_API(cuda_host_alloc_regshm_1_argument);
+    RECORD_ARG(1, hainfo_idx);
+    RECORD_ARG(2, client_ptr);
+
+    LOGE(LOG_DEBUG, "cudaHostAllocRegShm");
+    *result = cudaErrorMemoryAllocation;
+
+    if (socktype != UNIX && !(shm_enabled && cpu_utils_is_local_connection(rqstp))) {
+        LOGE(LOG_ERROR, "cudaHostAllocRegShm is only supported for local connections.");
+        goto out;
+    }
+    if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_idx) == -1) {
+        LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
+        goto out;
+    }
+    hainfo[hainfo_idx].client_ptr = (void*)client_ptr;
+    *result = cudaSuccess;
+out:
+    shm_unlink(shm_name);
+    free(shm_name);
     RECORD_RESULT(integer, *result);
     return 1;
 }
+
 
 bool_t cuda_host_get_device_pointer_1_svc(ptr pHost, int flags, ptr_result *result, struct svc_req *rqstp)
 {
@@ -1165,7 +1225,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 #ifdef WITH_IB
         result->err = ib_allocate_memreg((void**)&result->ptr_result_u.ptr, argp, hainfo_cnt, true);
             if (result->err == 0) {
-                hainfo[hainfo_cnt].cnt = hainfo_cnt;
+                hainfo[hainfo_cnt].idx = hainfo_cnt;
                 hainfo[hainfo_cnt].size = argp;
                 hainfo[hainfo_cnt].server_ptr = (void*)result->ptr_result_u.ptr;
 
@@ -1321,7 +1381,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     RECORD_ARG(2, mem);
     RECORD_ARG(3, size);
 
-    LOGE(LOG_DEBUG, "cudaMemcpyHtoD");
+    LOGE(LOG_DEBUG, "cudaMemcpyHtoD(%p, %p, %zu)", (void*)ptr, mem.mem_data_val, size);
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch");
         *result = cudaErrorUnknown;
@@ -1476,8 +1536,8 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     LOGE(LOG_DEBUG, "cudaMemcpyIB");
     *result = cudaErrorInitializationError;
     //anstatt array list (list.c)
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
+    if (hainfo[index].idx == 0 ||
+        hainfo[index].idx != index) {
 
         LOGE(LOG_ERROR, "inconsistent state");
         goto out;
@@ -1529,12 +1589,12 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     RECORD_ARG(2, device_ptr);
     RECORD_ARG(3, size);
     RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyShm");
+    LOGE(LOG_DEBUG, "cudaMemcpyShm(index: %d, device_ptr: %p, size: %d, kind: %d)", index, device_ptr, size, kind);
     *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
+    if (index >= hainfo_cnt ||
+        hainfo[index].idx != index) {
 
-        LOGE(LOG_ERROR, "inconsistent state");
+        LOGE(LOG_ERROR, "inconsistent state: index: %d, hainfo[index].idx: %d", index, hainfo[index].idx);
         goto out;
     }
     if (hainfo[index].size < size) {
@@ -1610,63 +1670,27 @@ out:
 /* cudaMemcpyPeer ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count ) not implemented yet. see cudaMemcpyDtoD */
 /* cudaMemcpyPeerAsync ( void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count, cudaStream_t stream = 0 ) */
 
-bool_t cuda_memcpy_to_symbol_1_svc(uint64_t ptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_to_symbol_1_svc(uint64_t symbolptr, mem_data mem, size_t size, size_t offset, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_to_symbol_1_argument);
-    RECORD_ARG(1, ptr);
-    RECORD_ARG(2, mem);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol");
-    if (size != mem.mem_data_len) {
-        LOGE(LOG_ERROR, "data size mismatch");
-        *result = cudaErrorUnknown;
+    LOGE(LOG_DEBUG, "cudaMemcpyToSymbol(%p, %p, %zu, %zu)", symbolptr, mem.mem_data_val, size, offset);
+    void *symbol_addr = resource_mg_get(&rm_globals, (void*)symbolptr);
+    if (symbol_addr == NULL) {
+        LOGE(LOG_ERROR, "cudaMemcpyToSymbol: symbol not found");
+        *result = cudaErrorInvalidSymbol;
         return 1;
     }
-#ifdef WITH_MEMCPY_REGISTER
-    if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
-        LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
-        return 1;
-    }
-#endif
-    *result = cudaMemcpyToSymbol((void*)ptr, mem.mem_data_val, size, offset, cudaMemcpyHostToDevice);
-#ifdef WITH_MEMCPY_REGISTER
-    cudaHostUnregister(mem.mem_data_val);
-#endif
-    RECORD_RESULT(integer, *result);
-    return 1;
+    return cuda_memcpy_htod_1_svc((ptr)(symbol_addr+offset), mem, size, result, rqstp);
 }
 
 bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_memcpy_to_symbol_shm_1_argument);
-    RECORD_ARG(1, index);
-    RECORD_ARG(2, device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, offset);
-    RECORD_ARG(5, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyToSymbolShm");
-    *result = cudaErrorInitializationError;
-    if (hainfo[index].cnt == 0 ||
-        hainfo[index].cnt != index) {
-
-        LOGE(LOG_ERROR, "inconsistent state");
-        goto out;
+    void *symbol_addr = resource_mg_get(&rm_globals, (void*)device_ptr);
+    if (symbol_addr == NULL) {
+        LOGE(LOG_ERROR, "cudaMemcpyToSymbol: symbol not found");
+        *result = cudaErrorInvalidSymbol;
+        return 1;
     }
-    if (hainfo[index].size < size) {
-        LOGE(LOG_ERROR, "requested size is smaller than shared memory segment");
-        goto out;
-    }
-
-    if (kind == cudaMemcpyHostToDevice) {
-        *result = cudaMemcpyToSymbol((void*)device_ptr, hainfo[index].server_ptr, size, offset, kind);
-    } else {
-        LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
-    }
-out:
-    RECORD_RESULT(integer, *result);
-    return 1;
+    return cuda_memcpy_shm_1_svc(index, (ptr)(symbol_addr+offset), size, kind, result, rqstp);
 }
 
 /* cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
@@ -1706,7 +1730,26 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
     return 1;
 }
 
-/* cudaMemset2DAsync ( void* devPtr, size_t pitch, int  value, size_t width, size_t height, cudaStream_t stream = 0 ) is not implemented */
+bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t width, size_t height, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_2d_async_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, pitch);
+    RECORD_ARG(3, value);
+    RECORD_ARG(4, height);
+    RECORD_ARG(5, width);
+    RECORD_ARG(6, stream);
+    LOGE(LOG_DEBUG, "cudaMemset2DAsync");
+    *result = cudaMemset2DAsync(
+      resource_mg_get(&rm_memory, (void*)devPtr),
+      pitch,
+      value,
+      width,
+      height,
+      resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 
 bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, int *result, struct svc_req *rqstp)
 {
@@ -1731,8 +1774,49 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     RECORD_RESULT(integer, *result);
     return 1;
 }
-/* cudaMemset3DAsync ( cudaPitchedPtr pitchedDevPtr, int  value, cudaExtent extent, cudaStream_t stream = 0 ) is not implemented */
-/* cudaMemsetAsync ( void* devPtr, int  value, size_t count, cudaStream_t stream = 0 ) is not implemented */
+
+bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_3d_async_1_argument);
+    RECORD_ARG(1, pitch);
+    RECORD_ARG(2, devPtr);
+    RECORD_ARG(3, xsize);
+    RECORD_ARG(4, ysize);
+    RECORD_ARG(5, value);
+    RECORD_ARG(6, depth);
+    RECORD_ARG(7, height);
+    RECORD_ARG(8, width);
+    RECORD_ARG(9, stream);
+    LOGE(LOG_DEBUG, "cudaMemset3DAsync");
+    struct cudaPitchedPtr pptr = {.pitch = pitch,
+                                  .ptr = resource_mg_get(&rm_memory, (void*)devPtr),
+                                  .xsize = xsize,
+                                  .ysize = ysize};
+    struct cudaExtent extent = {.depth = depth,
+                                .height = height,
+                                .width = width};
+    *result = cudaMemset3DAsync(pptr, value, extent,
+                resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_memset_async_1_argument);
+    RECORD_ARG(1, devPtr);
+    RECORD_ARG(2, value);
+    RECORD_ARG(3, count);
+    RECORD_ARG(3, stream);
+    LOGE(LOG_DEBUG, "cudaMemsetAsync");
+    *result = cudaMemsetAsync(
+      resource_mg_get(&rm_memory, (void*)devPtr),
+      value,
+      count,
+      resource_mg_get(&rm_streams, (void*)stream));
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
 /* cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap ) is not implemented */
 /* make_cudaExtent ( size_t w, size_t h, size_t d ) should be implemented on the client side */
 /* make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz ) should be implemented on the client side */
@@ -1826,3 +1910,21 @@ bool_t cuda_register_fat_binary_end_1_svc(ptr cubinHandle, int *result, struct s
     *result = 0;
     return 1;
 }*/
+
+bool_t cuda_profiler_start_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaProfilerStart");
+    *result = cudaProfilerStart();
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t cuda_profiler_stop_1_svc(int *result, struct svc_req *rqstp)
+{
+    RECORD_VOID_API;
+    LOGE(LOG_DEBUG, "cudaProfilerStop");
+    *result = cudaProfilerStop();
+    RECORD_RESULT(integer, *result);
+    return 1;
+}

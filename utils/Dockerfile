@@ -1,4 +1,4 @@
-FROM centos:8
+FROM rockylinux:8
 
 LABEL \
 	org.label-schema.schema-version = "1.0" \
@@ -9,25 +9,25 @@ LABEL \
 	org.label-schema.author.email = "niklas.eiling@eonerc.rwth-aachen.de" \
 	org.label-schema.vcs-url = "https://git.rwth-aachen.de/niklas.eiling/cricket"
 
-RUN cd /etc/yum.repos.d/ && sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-* && sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-* && yum update -y
-
 RUN dnf -y update && \
-    dnf install -y epel-release dnf-plugins-core && \
-    dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm && \
-    dnf config-manager --set-enabled powertools && \
-    dnf config-manager --set-enabled remi
+	dnf install -y epel-release dnf-plugins-core && \
+	dnf install -y https://rpms.remirepo.net/enterprise/remi-release-8.rpm && \
+	dnf config-manager --set-enabled powertools && \
+	dnf config-manager --set-enabled remi
 
 RUN dnf install -y make bash git gcc autoconf libtool automake rpcgen \
                    ncurses-devel zlib-devel binutils-devel mesa-libGL-devel \
                    libvdpau-devel mesa-libEGL-devel openssl-devel rpcbind \
                    texinfo bison flex python3 which libibverbs libibverbs-devel \
-                   libasan cppcheck wget expat-devel xz-devel mesa-libGLU-devel freeglut-devel
+                   libasan cppcheck wget expat-devel xz-devel mesa-libGLU-devel freeglut-devel \
+                   elfutils-libelf-devel cpio openssl-devel openssl-libs \
+				   freeimage freeimage-devel
 
 ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
 
 RUN dnf -y config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
-    dnf --refresh -y install cuda-compiler-11-1 cuda-libraries-devel-11-1 cuda-samples-11-1 cuda-driver-devel-11-1 && \
-    ln -s cuda-11.1 /usr/local/cuda && \
+    dnf --refresh -y install cuda-compiler-12-1 cuda-libraries-devel-12-1 cuda-driver-devel-12-1 cuda-profiler-api-12-1 cuda-nvml-devel-12-1 nvidia-driver-NVML-530.30.02 libcudnn8-devel && \
+    ln -s cuda-12.1 /usr/local/cuda && \
     ln -s libcuda.so /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
 ENV PATH="/usr/local/cuda/bin:${PATH}"

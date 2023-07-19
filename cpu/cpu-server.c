@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -5,6 +6,8 @@
 #include <signal.h> //sigaction
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dlfcn.h>
+#include <link.h>
 
 #include "cpu-server.h"
 #include "cpu_rpc_prot.h"
@@ -15,12 +18,15 @@
 #include "cpu-server-driver.h"
 #include "rpc/xdr.h"
 #include "cr.h"
+#include "cpu-elf2.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "gsched.h"
+#include "cpu-server-nvml.h"
+#include "cpu-server-cudnn.h"
 
 INIT_SOCKTYPE
 
@@ -109,27 +115,54 @@ bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
     return ret == 0;
 }
 
-/** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
- *
- */
-bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
+/* Call CUDA initialization function (usually called by __libc_init_main())
+* Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
+*/
+void cricket_so_register(void* dlhandle, char *path)
 {
-    LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    // struct link_map *map;
+    // dlinfo(dlhandle, RTLD_DI_LINKMAP, &map);
+
+    // // add load location of library to offset in symbol table
+    // void (*cudaRegisterAllv)(void) = 
+    //     (void(*)(void)) elf_symbol_address(path, "_ZL24__sti____cudaRegisterAllv");
+    
+    // LOG(LOG_INFO, "found CUDA initialization function at %p + %p = %p", 
+    //     map->l_addr, cudaRegisterAllv, map->l_addr + cudaRegisterAllv);
+
+    // cudaRegisterAllv += map->l_addr;
+    
+    // if (cudaRegisterAllv == NULL) {
+    //     LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+    // } else {
+    //     cudaRegisterAllv();
+    // }
+}
+
+bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
+{
+    void *dlhandle;
+
+    if (path == NULL) {
+        LOGE(LOG_ERROR, "path is NULL");
+        *result = 1;
+        return 1;
+    }
+    if ((dlhandle = dlopen(path, RTLD_LAZY)) == NULL) {
+        LOGE(LOG_ERROR, "error opening \"%s\": %s. Make sure libraries are present.", path, dlerror());
+        *result = 1;
+        return 1;
+    } else {
+        LOG(LOG_INFO, "dlopened \"%s\"", path);
+
+       //cricket_so_register(dlhandle, path);
+
+    }
     *result = 0;
     return 1;
 }
 
-void cricket_main_hash(char* app_command)
-{
-    cricket_main(app_command, 0, 0);
-}
-
-void cricket_main_static(size_t prog_num, size_t vers_num)
-{
-    cricket_main("", prog_num, vers_num);
-}
-
-void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
+void cricket_main(size_t prog_num, size_t vers_num)
 {
     int ret = 1;
     register SVCXPRT *transp;
@@ -139,9 +172,10 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     struct sigaction act;
     char *command = NULL;
     act.sa_handler = int_handler;
-    sigaction(SIGINT, &act, NULL);
-
+    printf("welcome to cricket!\n");
     init_log(LOG_LEVEL, __FILE__);
+    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    sigaction(SIGINT, &act, NULL);
 
     #ifdef WITH_IB
     char client[256];
@@ -174,36 +208,16 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
             restore = 1;
     }
 
-    if (cpu_utils_command(&command) != 0) {
-        LOG(LOG_WARNING, "could not retrieve command name. This might prevent starting CUDA applications");
-    } else {
-        LOG(LOG_DEBUG, "the command is '%s'", command);
-        //This is a workaround to make LD_PRELOAD work under GDB supervision
-        const char *cmp = "cudbgprocess";
-        if (strncmp(command, cmp, strlen(cmp)) == 0) {
-            LOG(LOG_DEBUG, "skipping RPC server");
-            return;
-        }
-    }
-
     if (restore == 1) {
         if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
             LOGE(LOG_ERROR, "error while restoring rpc id");
         }
     } else {
-        if (prog_num == 0) {
-            if (cpu_utils_md5hash(app_command, &prog, &vers) != 0) {
-                LOGE(LOG_ERROR, "error while creating binary checksum");
-                exit(0);
-            }
-        }
-        else {
-            prog = prog_num;
-            vers = vers_num;
-        }
+        prog = prog_num;
+        vers = vers_num;
     }
 
-    LOGE(LOG_DEBUG, "using prog=%d, vers=%d, derived from \"%s\"", prog, vers, app_command);
+    LOGE(LOG_DEBUG, "using prog=%d, vers=%d", prog, vers);
 
 
     switch (socktype) {
@@ -247,16 +261,16 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
-    void (*cudaRegisterAllv)(void) =
-        (void(*)(void)) cricketd_utils_symbol_address("_ZL24__sti____cudaRegisterAllv");
-    LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
-    if (cudaRegisterAllv == NULL) {
-        LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
-    } else {
-        cudaRegisterAllv();
-    }
+    // void (*cudaRegisterAllv)(void) =
+    //     (void(*)(void)) elf_symbol_address(NULL, "_ZL24__sti____cudaRegisterAllv");
+    // LOG(LOG_INFO, "found CUDA initialization function at %p", cudaRegisterAllv);
+    // if (cudaRegisterAllv == NULL) {
+    //     LOGE(LOG_WARNING, "could not find cudaRegisterAllv initialization function in cubin. Kernels cannot be launched without it!");
+    // } else {
+    //     cudaRegisterAllv();
+    // }
 
-    sched = &sched_none; 
+    sched = &sched_none;
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;
@@ -276,6 +290,16 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;        
     }
+    
+    if (server_nvml_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_nvml failed.");
+        goto cleanup1;
+    }
+
+    if (server_cudnn_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_nvml failed.");
+        goto cleanup0;
+    }
 
 #ifdef WITH_IB
 
@@ -289,23 +313,29 @@ void cricket_main(char* app_command, size_t prog_num, size_t vers_num)
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-        goto cleanup1;
+        goto cleanup00;
     }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
+
+    // make sure that our output is flushed even for non line-buffered shells
+    fflush(stdout);
 
     svc_run();
 
     LOG(LOG_DEBUG, "svc_run returned. Cleaning up.");
     ret = 0;
     //api_records_print();
- cleanup1:
+ cleanup00:
+    server_cudnn_deinit();
+ cleanup0:
     server_driver_deinit();
+ cleanup1:
+    server_nvml_deinit();
  cleanup2:
     server_runtime_deinit();
  cleanup3:
-    api_records_free_args();
-    list_free(&api_records);
+    api_records_free();
  cleanup4:
     pmap_unset(prog, vers);
     svc_destroy(transp);

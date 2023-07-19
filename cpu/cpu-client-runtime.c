@@ -1,4 +1,3 @@
-#include "mt-memcpy.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +23,7 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "oob.h"
+#include "mt-memcpy.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -269,12 +269,12 @@ cudaError_t cudaDeviceSynchronize(void)
 #endif //WITH_API_CNT
     int result = -1;
     enum clnt_stat retval_1;
-    for (int i=0; result != 0 && i < 10; ++i) {
-        retval_1 = cuda_device_synchronize_1(&result, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-    }
+
+    struct timeval timeout = {.tv_sec = -1, .tv_usec = 0};
+
+    return (clnt_call (clnt, CUDA_DEVICE_SYNCHRONIZE, (xdrproc_t) xdr_void, (caddr_t) NULL,
+		    (xdrproc_t) xdr_int, (caddr_t) &result,
+		    timeout));
     return result;
 }
 
@@ -329,15 +329,18 @@ cudaError_t cudaGetDeviceFlags(unsigned int* flags)
     return result.err;
 }
 
+#undef cudaGetDeviceProperties
 cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    mem_result result;
-    result.mem_result_u.data.mem_data_len = sizeof(struct cudaDeviceProp);
-    result.mem_result_u.data.mem_data_val = (char*)prop;
+    cuda_device_prop_result result;
     enum clnt_stat retval;
+    if (prop == NULL) {
+        LOGE(LOG_ERROR, "error: prop == NULL");
+        return cudaErrorInvalidValue;
+    }
     retval = cuda_get_device_properties_1(device, &result, clnt);
     if (retval != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -345,12 +348,20 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     if (result.err != 0) {
         return result.err;
     }
-    if (result.mem_result_u.data.mem_data_len != sizeof(struct cudaDeviceProp)) {
-        LOGE(LOG_ERROR, "error: expected size != retrieved size\n");
+    // if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+    //FIXME: Don't know why, but pytorch expects a different definition of cudaDeviceProp, which is only 728 bytes long
+    if (memcpy(prop, result.cuda_device_prop_result_u.data, 728) == NULL) {
+        LOGE(LOG_ERROR, "error: memcpy failed");
         return result.err;
     }
     return result.err;
 }
+
+cudaError_t cudaGetDeviceProperties_v2(struct cudaDeviceProp* prop, int device)
+{
+    return cudaGetDeviceProperties(prop, device);
+}
+
 
 DEF_FN(cudaError_t, cudaIpcCloseMemHandle, void*, devPtr)
 DEF_FN(cudaError_t, cudaIpcGetEventHandle, cudaIpcEventHandle_t*, handle, cudaEvent_t, event)
@@ -572,7 +583,25 @@ cudaError_t cudaStreamGetPriority(cudaStream_t hStream, int* priority)
     return result.err;
 }
 
-DEF_FN(cudaError_t, cudaStreamIsCapturing, cudaStream_t, stream, enum cudaStreamCaptureStatus*, pCaptureStatus)
+cudaError_t cudaStreamIsCapturing(cudaStream_t stream, enum cudaStreamCaptureStatus* pCaptureStatus)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int_result result;
+    enum clnt_stat retval_1;
+    if (pCaptureStatus == NULL) {
+        return cudaErrorInvalidValue;
+    }
+    retval_1 = cuda_stream_is_capturing_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pCaptureStatus = (enum cudaStreamCaptureStatus)result.int_result_u.data;
+    }
+    return result.err;
+}
 
 cudaError_t cudaStreamQuery(cudaStream_t stream)
 {
@@ -752,7 +781,9 @@ DEF_FN(cudaError_t, cudaExternalMemoryGetMappedBuffer, void**, devPtr, cudaExter
 DEF_FN(cudaError_t, cudaExternalMemoryGetMappedMipmappedArray, cudaMipmappedArray_t*, mipmap, cudaExternalMemory_t, extMem, const struct cudaExternalMemoryMipmappedArrayDesc*, mipmapDesc)
 DEF_FN(cudaError_t, cudaImportExternalMemory, cudaExternalMemory_t*, extMem_out, const struct cudaExternalMemoryHandleDesc*, memHandleDesc)
 DEF_FN(cudaError_t, cudaImportExternalSemaphore, cudaExternalSemaphore_t*, extSem_out, const struct cudaExternalSemaphoreHandleDesc*, semHandleDesc)
+#undef cudaSignalExternalSemaphoresAsync
 DEF_FN(cudaError_t, cudaSignalExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreSignalParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
+#undef cudaWaitExternalSemaphoresAsync
 DEF_FN(cudaError_t, cudaWaitExternalSemaphoresAsync, const cudaExternalSemaphore_t*, extSemArray, const struct cudaExternalSemaphoreWaitParams*, paramsArray, unsigned int,  numExtSems, cudaStream_t, stream)
 
 cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* func)
@@ -1088,12 +1119,12 @@ cudaError_t cudaFreeArray(cudaArray_t array)
 }
 
 typedef struct host_alloc_info {
-    int cnt;
+    int idx;
     size_t size;
     void *client_ptr;
 } host_alloc_info_t;
 static host_alloc_info_t hainfo[64] = {0};
-static size_t hainfo_cnt = 1;
+static size_t hainfo_cnt = 0;
 static int hainfo_getindex(void *client_ptr)
 {
     int i;
@@ -1195,44 +1226,49 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int ret = cudaErrorMemoryAllocation;
+    sz_result ret = {.err = cudaErrorMemoryAllocation};
+    int reg_ret;
     int fd_shm;
-    char shm_name[128];
+    char *shm_name = NULL;
     enum clnt_stat retval_1;
     
     if (shm_enabled && connection_is_local == 1) { //Use local shared memory
+        retval_1 = cuda_host_alloc_1(size, flags, &ret, clnt);
+        if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
+            goto out;
+        }
 
-        snprintf(shm_name, 128, "/crickethostalloc-%zu", hainfo_cnt);
-        if ((fd_shm = shm_open(shm_name, O_RDWR | O_CREAT, S_IRWXU)) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%zu", ret.sz_result_u.data) == -1) {
+            LOGE(LOG_ERROR, "ERROR: asprintf failed: %s", strerror(errno));
+            ret.err = cudaErrorMemoryAllocation;
+            goto out;
+        }
+        
+        if ((fd_shm = shm_open(shm_name, O_RDWR, S_IREAD | S_IWRITE)) == -1) {
             LOGE(LOG_ERROR, "ERROR: could not open shared memory \"%s\" with size %d: %s", shm_name, size, strerror(errno));
+            ret.err = cudaErrorMemoryAllocation;
             goto out;
         }
-        if (ftruncate(fd_shm, size) == -1) {
-            LOGE(LOG_ERROR, "ERROR: cannot resize shared memory");
-            shm_unlink(shm_name);
-            goto out;
-        }
-        LOGE(LOG_DEBUG, "shm opened with name \"%s\", size: %d", shm_name, size);
+
         if ((*pHost = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_shm, 0)) == MAP_FAILED) {
             LOGE(LOG_ERROR, "ERROR: mmap returned unexpected pointer: %p", *pHost);
             shm_unlink(shm_name);
+            ret.err = cudaErrorMemoryAllocation;
             goto out;
         }
 
-        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].idx = ret.sz_result_u.data;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
+        hainfo_cnt++;
+        
+        retval_1 = cuda_host_alloc_regshm_1(ret.sz_result_u.data, (ptr)*pHost, &reg_ret, clnt);
+        if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
+            goto out;
+        }
 
-        retval_1 = cuda_host_alloc_1(hainfo_cnt, size, (uint64_t)*pHost, flags, &ret, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
-        if (ret == cudaSuccess) {
-            hainfo_cnt++;
-        } else {
-            munmap(*pHost, size);
-            *pHost = NULL;
-        }
         shm_unlink(shm_name);
     } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
@@ -1240,14 +1276,14 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
-        hainfo[hainfo_cnt].cnt = hainfo_cnt;
+        hainfo[hainfo_cnt].idx = hainfo_cnt;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
 
         hainfo_cnt++;
 
         retval_1 = RPC_SUCCESS;
-        ret = cudaSuccess;
+        ret.err = cudaSuccess;
 
 #else
         LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
@@ -1255,7 +1291,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         if (*pHost == NULL) {
             goto out;
         } else {
-            ret = cudaSuccess;
+            ret.err = cudaSuccess;
             goto out;
         }
 #endif //WITH_IB
@@ -1264,7 +1300,8 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         goto out;
     }
 out:
-    return ret;
+    free(shm_name);
+    return ret.err;
 }
 
 cudaError_t cudaHostGetDevicePointer(void** pDevice, void* pHost, unsigned int flags)
@@ -1528,7 +1565,6 @@ extern char server[256];
 #define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
-    
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1536,9 +1572,9 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     int ret = 1;
     enum clnt_stat retval;
     if (kind == cudaMemcpyHostToDevice) {
-//get index of mem reg (src: cpu reg memregion)
+        // get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);
-//         not a cudaHostAlloc'ed memory 
+        // not a cudaHostAlloc'ed memory 
         if (index == -1) {
 #ifdef WITH_MT_MEMCPY
             if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {
@@ -1572,7 +1608,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local == 1) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)dst, count, kind, &ret, clnt);
+                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)dst, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
@@ -1635,7 +1671,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_MT_MEMCPY
         } else {
             if (shm_enabled && connection_is_local) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(index, (ptr)src, count, kind, &ret, clnt);
+                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)src, count, kind, &ret, clnt);
             } else if (socktype == TCP) { //Use infiniband
 #ifdef WITH_IB
                 pthread_t thread = {0};
@@ -1758,7 +1794,19 @@ cudaError_t cudaMemset2D(void* devPtr, size_t pitch, int value, size_t width, si
     return result;
 }
 
-DEF_FN(cudaError_t, cudaMemset2DAsync, void*, devPtr, size_t, pitch, int,  value, size_t, width, size_t, height, cudaStream_t, stream)
+cudaError_t cudaMemset2DAsync(void* devPtr, size_t pitch, int value, size_t width, size_t height, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_2d_async_1((ptr)devPtr, pitch, value, width, height, (ptr)stream, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct cudaExtent extent)
 {
@@ -1782,8 +1830,42 @@ cudaError_t cudaMemset3D(struct cudaPitchedPtr pitchedDevPtr, int value, struct 
     return result;
 }
 
-DEF_FN(cudaError_t, cudaMemset3DAsync, struct cudaPitchedPtr, pitchedDevPtr, int,  value, struct cudaExtent, extent, cudaStream_t, stream)
-DEF_FN(cudaError_t, cudaMemsetAsync, void*, devPtr, int,  value, size_t, count, cudaStream_t, stream)
+cudaError_t cudaMemset3DAsync(struct cudaPitchedPtr pitchedDevPtr, int  value, struct cudaExtent extent, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_3d_async_1(pitchedDevPtr.pitch,
+                              (ptr)pitchedDevPtr.ptr,
+                              pitchedDevPtr.xsize,
+                              pitchedDevPtr.ysize,
+                              value,
+                              extent.depth,
+                              extent.height,
+                              extent.width, 
+                              (ptr)stream,
+                              &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaMemsetAsync(void* devPtr, int value, size_t count, cudaStream_t stream)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_memset_async_1((ptr)devPtr, value, count, (ptr)stream, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 DEF_FN(struct cudaExtent, make_cudaExtent, size_t, w, size_t, h, size_t, d)
 DEF_FN(struct cudaPitchedPtr, make_cudaPitchedPtr, void*, d, size_t, p, size_t, xsz, size_t, ysz)
@@ -1907,7 +1989,11 @@ DEF_FN(cudaError_t, cudaGraphGetNodes, cudaGraph_t, graph, cudaGraphNode_t*, nod
 DEF_FN(cudaError_t, cudaGraphGetRootNodes, cudaGraph_t, graph, cudaGraphNode_t*, pRootNodes, size_t*, pNumRootNodes)
 DEF_FN(cudaError_t, cudaGraphHostNodeGetParams, cudaGraphNode_t, node, struct cudaHostNodeParams*, pNodeParams)
 DEF_FN(cudaError_t, cudaGraphHostNodeSetParams, cudaGraphNode_t, node, const struct cudaHostNodeParams*, pNodeParams)
+#if CUDART_VERSION >= 12000
+DEF_FN(cudaError_t, cudaGraphInstantiate, cudaGraphExec_t*, pGraphExec, cudaGraph_t, graph, unsigned long long, flags)
+#else
 DEF_FN(cudaError_t, cudaGraphInstantiate, cudaGraphExec_t*, pGraphExec, cudaGraph_t, graph, cudaGraphNode_t*, pErrorNode, char*, pLogBuffer, size_t, bufferSize)
+#endif
 DEF_FN(cudaError_t, cudaGraphKernelNodeGetParams, cudaGraphNode_t, node, struct cudaKernelNodeParams*, pNodeParams)
 DEF_FN(cudaError_t, cudaGraphKernelNodeSetParams, cudaGraphNode_t, node, const struct cudaKernelNodeParams*, pNodeParams)
 DEF_FN(cudaError_t, cudaGraphLaunch, cudaGraphExec_t, graphExec, cudaStream_t, stream)
@@ -1920,6 +2006,33 @@ DEF_FN(cudaError_t, cudaGraphNodeGetDependencies, cudaGraphNode_t, node, cudaGra
 DEF_FN(cudaError_t, cudaGraphNodeGetDependentNodes, cudaGraphNode_t, node, cudaGraphNode_t*, pDependentNodes, size_t*, pNumDependentNodes)
 DEF_FN(cudaError_t, cudaGraphNodeGetType, cudaGraphNode_t, node, enum cudaGraphNodeType*, pType)
 DEF_FN(cudaError_t, cudaGraphRemoveDependencies, cudaGraph_t, graph, const cudaGraphNode_t*, from, const cudaGraphNode_t*, to, size_t, numDependencies)
-DEF_FN(cudaError_t, cudaProfilerInitialize, const char*, configFile, const char*, outputFile, cudaOutputMode_t, outputMode)
 DEF_FN(cudaError_t, cudaProfilerStart, void)
 DEF_FN(cudaError_t, cudaProfilerStop, void)
+
+cudaError_t cudaProfilerStart(void)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_profiler_start_1(&result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
+cudaError_t cudaProfilerStop(void)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval;
+    retval = cuda_profiler_stop_1(&result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}

@@ -1,6 +1,8 @@
 typedef opaque mem_data<>;
+
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
+typedef opaque rpc_cuda_device_prop[1032];
 
 struct dint {
     int i1;
@@ -36,6 +38,24 @@ struct rpc_dim3 {
     unsigned int x;
     unsigned int y;
     unsigned int z;
+};
+
+struct int2d1 {
+    int i[2];
+    double d;
+};
+
+struct int1d3 {
+    int i;
+    double d[3];
+};
+
+union cudnn_scaling_t switch (int dataType) {
+case 2:
+case 0:
+    float f;
+case 1:
+    double d;
 };
 
 union int_result switch (int err) {
@@ -80,6 +100,13 @@ default:
     void;
 };
 
+union sz_result switch (int err) {
+case 0:
+    size_t data;
+default:
+    void;
+};
+
 union ptr_result switch (int err) {
 case 0:
     ptr ptr;
@@ -108,9 +135,74 @@ default:
     void;
 };
 
+/* memory allocated for RPC. */
+/* Freed rpc_cd_prog_1_freeresult by after RPC. */
 union mem_result switch (int err) {
 case 0:
     mem_data data;
+default:
+    void;
+};
+
+union cuda_device_prop_result switch (int err) {
+case 0:
+    rpc_cuda_device_prop data;
+default:
+    void;
+};
+
+union int3_result switch (int err) {
+case 0:
+    int data[3];
+default:
+    void;
+};
+
+union int4_result switch (int err) {
+case 0:
+    int data[4];
+default:
+    void;
+};
+
+union int5_result switch (int err) {
+case 0:
+    int data[5];
+default:
+    void;
+};
+
+union int6_result switch (int err) {
+case 0:
+    int data[6];
+default:
+    void;
+};
+
+union int8_result switch (int err) {
+case 0:
+    int data[8];
+default:
+    void;
+};
+
+union int9_result switch (int err) {
+case 0:
+    int data[9];
+default:
+    void;
+};
+
+union int2d1_result switch (int err) {
+case 0:
+    int2d1 data;
+default:
+    void;
+};
+
+union int1d3_result switch (int err) {
+case 0:
+    int1d3 data;
 default:
     void;
 };
@@ -120,7 +212,11 @@ program RPC_CD_PROG {
         int          rpc_checkpoint(void)                                         = 0;
         int          rpc_deinit(void)                                             = 1;
         int          rpc_printmessage(string)                                     = 2;
-        int          CUDA_REGISTER_FUNCTION(ptr, ptr, string, string, int)       = 50;
+        int          rpc_dlopen(string)                                           = 3;
+        ptr_result   rpc_register_function(ptr, ptr, string, string, int)        = 50;
+        int          rpc_elf_load(mem_data, ptr)                                 = 51;
+        int          rpc_elf_unload(ptr)                                         = 52;
+        int          rpc_register_var(ptr, ptr, ptr, string, int, size_t, int, int) = 53;
 
         /* RUNTIME API */
         /* ### Device Management ### */
@@ -143,7 +239,7 @@ program RPC_CD_PROG {
         int_result   CUDA_GET_DEVICE(void)                                      = 117;
         int_result   CUDA_GET_DEVICE_COUNT(void)                                = 118;
         int_result   CUDA_GET_DEVICE_FLAGS(void)                                = 119;
-        mem_result   CUDA_GET_DEVICE_PROPERTIES(int)                            = 120;
+        cuda_device_prop_result CUDA_GET_DEVICE_PROPERTIES(int)                 = 120;
         /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                             = 121;*/
         /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                             = 122;*/
         /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                               = 123;*/
@@ -174,7 +270,7 @@ program RPC_CD_PROG {
         /* ?         CUDA_STREAM_GET_CAPTURE_INFO(ptr)                          = 261;*/
         int_result   CUDA_STREAM_GET_FLAGS(ptr)                                 = 262;
         int_result   CUDA_STREAM_GET_PRIORITY(ptr)                              = 263;
-        /* ?         CUDA_STREAM_IS_CAPTURING(ptr)                              = 264;*/
+        int_result   CUDA_STREAM_IS_CAPTURING(ptr)                              = 264;
         int          CUDA_STREAM_QUERY(ptr)                                     = 265;
         /*int        CUDA_STREAM_SET_ATTRIBUTE(ptr, int, ?)                     = 266;*/
         int          CUDA_STREAM_SYNCHRONIZE(ptr)                               = 267;
@@ -201,8 +297,6 @@ program RPC_CD_PROG {
         int          CUDA_FUNC_SET_SHARED_MEM_CONFIG(ptr, int)                  = 313;
         int          CUDA_LAUNCH_COOPERATIVE_KERNEL(ptr, rpc_dim3, 
                           rpc_dim3, mem_data, size_t, ptr)                      = 314;
-        int          CUDA_LAUNCH_COOPERATIVE_KERNEL_MULTI_DEVICE(ptr,
-                          rpc_dim3, rpc_dim3, mem_data, size_t, ptr, int, int)  = 315;
         /*int        CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)                  = 316;*/
         int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
                           mem_data, size_t, ptr)                                = 317;
@@ -225,7 +319,8 @@ program RPC_CD_PROG {
         /*ptr_result CUDA_GET_MIPMAPPED_ARRAY_LEVEL(ptr, int)                   = 406;*/
         ptr_result   CUDA_GET_SYMBOL_ADDRESS(ptr)                               = 407;
         u64_result   CUDA_GET_SYMBOL_SIZE(ptr)                                  = 408;
-        int          CUDA_HOST_ALLOC(int, size_t, ptr, unsigned int)            = 409;
+        sz_result    CUDA_HOST_ALLOC(size_t, unsigned int)                 = 409;
+        int          CUDA_HOST_ALLOC_REGSHM(size_t, ptr)                        = 477;
         ptr_result   CUDA_HOST_GET_DEVICE_POINTER(ptr, int)                     = 410;
         int_result   CUDA_HOST_GET_FLAGS(ptr)                                   = 411;
         /*int        CUDA_HOST_REGISTER(ptr, size_t, int)                       = 412;*/
@@ -263,13 +358,13 @@ program RPC_CD_PROG {
         int          CUDA_MEMCPY_MT_SYNC(int)                                   = 451;
         int          CUDA_MEMSET(ptr, int, size_t)                              = 470;
         int          CUDA_MEMSET_2D(ptr, size_t, int, size_t, size_t)           = 471;
-        /*int        CUDA_MEMSET_2D_ASYNC(ptr, size_t,
-                         int, size_t, size_t, int)                              = 472;*/
+        int          CUDA_MEMSET_2D_ASYNC(ptr, size_t,
+                         int, size_t, size_t, ptr)                              = 472;
         int          CUDA_MEMSET_3D(size_t, ptr, size_t, size_t, int, size_t,
                          size_t, size_t)                                        = 473;
-        /*int        CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
-                         size_t, size_t, size_t, int)                           = 474;*/
-        /*int        CUDA_MEMSET_ASYNC(ptr, int, size_t, int)                   = 475;*/
+        int          CUDA_MEMSET_3D_ASYNC(size_t, ptr, size_t, size_t, int, 
+                         size_t, size_t, size_t, ptr)                           = 474;
+        int          CUDA_MEMSET_ASYNC(ptr, int, size_t, ptr)                   = 475;
         /*?          CUDA_MIPMAPPED_ARRAY_GET_SPARSE_PROPERTIES(ptr)            = 476;*/
         /* make_ APIs can be copied on the client side */
 
@@ -298,6 +393,8 @@ program RPC_CD_PROG {
         /* NOT IMPLEMENTED */
 
         /* ### Profiler Control ### */
+        int          CUDA_PROFILER_START(void)                                  = 701;
+        int          CUDA_PROFILER_STOP(void)                                   = 702;
         /* NOT IMPLEMENTED */
 
         /* DRIVER API */
@@ -323,6 +420,11 @@ program RPC_CD_PROG {
         ptr_result   rpc_cuModuleLoad(string<>)                                = 1019;
         str_result   rpc_cuGetErrorString(int)                                 = 1020;
         int          rpc_cuModuleUnload(ptr)                                   = 1021;
+        dint_result  rpc_cuDevicePrimaryCtxGetState(int)                       = 1022;
+        mem_result   rpc_cuDeviceGetProperties(int)                            = 1023;
+        dint_result  rpc_cuDeviceComputeCapability(int)                        = 1024;
+        int_result   rpc_cuDeviceGetP2PAttribute(int, ptr, ptr)                = 1025; 
+        ptr_result   rpc_cuModuleLoadData(mem_data mem)                        = 1026;
 
         /* HIDDEN DRIVER API */
 /*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;
@@ -349,5 +451,124 @@ program RPC_CD_PROG {
         int          rpc_cublasDgemm(ptr, int, int, int, int, int, double,
                          ptr, int, ptr, int, double, ptr, int)                 = 3002;
         int          rpc_cublasDestroy(ptr)                                    = 3003;
+        int          rpc_cublasSgemm(ptr, int, int, int, int, int, float,
+                         ptr, int, ptr, int, float, ptr, int)                 = 3004;
+        int          rpc_cublasSgemv(ptr, int, int, int, float,
+                         ptr, int, ptr, int, float, ptr, int)                 = 3005;
+        int          rpc_cublasDgemv(ptr, int, int, int, double,
+                         ptr, int, ptr, int, double, ptr, int)                 = 3006;
+        int          rpc_cublasSgemmEx(ptr, int, int, int, int, int, float,
+                         ptr, int, int, ptr, int, int, float, ptr, int, int)                 = 3007;
+        int          rpc_cublasSetStream(ptr handle, ptr streamId)                             = 3008;
+        int          rpc_cublasSetWorkspace(ptr handle, ptr workspace, size_t workspaceSizeInBytes) = 3009;
+        int          rpc_cublasSetMathMode(ptr handle, int mode) = 3010;
+
+        /* NVML */
+        int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;
+        int          rpc_nvmlInitWithFlags(int)                                = 4001;
+        int          rpc_nvmlInit_v2(void)                                     = 4002;
+        int          rpc_nvmlShutdown(void)                                    = 4003;
+        
+        /* CUDNN */
+        size_t      rpc_cudnnGetVersion(void) = 5000;
+        size_t      rpc_cudnnGetMaxDeviceVersion(void) = 5001;
+        size_t      rpc_cudnnGetCudartVersion(void) = 5002;
+        string      rpc_cudnnGetErrorString (int status) = 5003;
+        int_result  rpc_cudnnQueryRuntimeError(ptr handle, int mode) = 5004;
+        int_result  rpc_cudnnGetProperty(int type) = 5005;
+        ptr_result  rpc_cudnnCreate(void) = 5006;
+        int         rpc_cudnnDestroy(ptr handle) = 5007;
+        int         rpc_cudnnSetStream(ptr handle, ptr streamId) = 5008;
+        ptr_result  rpc_cudnnGetStream(ptr handle) = 5009;
+        ptr_result  rpc_cudnnCreateTensorDescriptor(void) = 5010;
+        int         rpc_cudnnSetTensor4dDescriptor(ptr tensorDesc, int format, int dataType, int n, int c, int h, int w) = 5011;
+        int         rpc_cudnnSetTensor4dDescriptorEx(ptr tensorDesc, int dataType, int n, int c, int h, int w, int nStride, int cStride, int hStride, int wStride) = 5012;
+        int9_result rpc_cudnnGetTensor4dDescriptor(ptr tensorDesc) = 5013;
+        int         rpc_cudnnSetTensorNdDescriptor(ptr tensorDesc, int dataType, int nbDims, mem_data dimA, mem_data strideA) = 5014;
+        int         rpc_cudnnSetTensorNdDescriptorEx(ptr tensorDesc, int format, int dataType, int nbDims, mem_data dimA) = 5015;
+        mem_result  rpc_cudnnGetTensorNdDescriptor(ptr tensorDesc, int nbDimsRequested) = 5016;
+        sz_result   rpc_cudnnGetTensorSizeInBytes(ptr tensorDesc) = 5017;
+        int         rpc_cudnnDestroyTensorDescriptor(ptr tensorDesc) = 5018;
+        /*
+        sz_result   rpc_cudnnInitTransformDest(ptr transformDesc, ptr srcDesc, ptr destDesc) = 5019;
+        ptr_result  rpc_cudnnCreateTensorTransformDescriptor(void) = 5020;
+        int         rpc_cudnnSetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDims, int destFormat, mem_data padBeforeA, mem_data padAfterA, mem_data foldA, int direction) = 5021;
+        mem_result  rpc_cudnnGetTensorTransformDescriptor(ptr transformDesc, uint32_t nbDimsRequested) = 5022;
+        int         rpc_cudnnDestroyTensorTransformDescriptor(ptr transformDesc) = 5023;
+        */
+        int         rpc_cudnnTransformTensor(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5024;
+        /*
+        ptr_result  rpc_cudnnTransformTensorEx(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, cudnn_scaling_t srcData, cudnn_scaling_t beta, ptr destDesc) = 5025;
+        */
+        int  rpc_cudnnAddTensor(ptr handle, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5026;
+        /*
+        ptr_result  rpc_cudnnCreateOpTensorDescriptor(void) = 5027;
+        int         rpc_cudnnSetOpTensorDescriptor(ptr opTensorDesc, int opTensorOp, int opTensorCompType, int opTensorNanOpt) = 5028;
+        int3_result rpc_cudnnGetOpTensorDescriptor(ptr opTensorDesc) = 5029;
+        int         rpc_cudnnDestroyOpTensorDescriptor(ptr opTensorDesc) = 5030;
+        mem_result  rpc_cudnnOpTensor(ptr handle, ptr opTensorDesc, cudnn_scaling_t alpha1, ptr aDesc, mem_data A, cudnn_scaling_t alpha2, ptr bDesc, mem_data B, cudnn_scaling_t beta, ptr  cDesc) = 5031;
+        ptr_result  rpc_cudnnCreateReduceTensorDescriptor(void) = 5032;
+        int         rpc_cudnnSetReduceTensorDescriptor(ptr reduceTensorDesc, int reduceTensorOp, int reduceTensorCompType, int reduceTensorNanOpt, int reduceTensorIndices, int reduceTensorIndicesType) = 5033;
+        int5_result rpc_cudnnGetReduceTensorDescriptor(ptr reduceTensorDesc) = 5034;
+        int         rpc_cudnnDestroyReduceTensorDescriptor(ptr reduceTensorDesc) = 5035;
+        sz_result   rpc_cudnnGetReductionIndicesSize(ptr handle, ptr reduceTensorDesc, ptr aDesc, ptr cDesc) = 5036;
+        sz_result   rpc_cudnnGetReductionWorkspaceSize(ptr handle, ptr reduceTensorDesc, ptr aDesc, ptr cDesc) = 5037;
+        mem_result  rpc_cudnnReduceTensor(ptr handle, ptr reduceTensorDesc, ptr indices, size_t indicesSizeInBytes, ptr workspace, size_t workspaceSizeInBytes, cudnn_scaling_t alpha, ptr aDesc, ptr A, cudnn_scaling_t beta, ptr cDesc, ptr C) = 5038;
+        int         rpc_cudnnSetTensor(ptr handle, ptr yDesc, ptr y, mem_data valuePtr) = 5039;
+        int         rpc_cudnnScaleTensor(ptr handle, ptr yDesc, ptr y, cudnn_scaling_t alpha) = 5040; */
+        
+        ptr_result  rpc_cudnnCreateFilterDescriptor(void) = 5041;
+        int         rpc_cudnnSetFilter4dDescriptor(ptr filterDesc, int dataType, int format, int k, int c, int h, int w) = 5042;
+        int6_result rpc_cudnnGetFilter4dDescriptor(ptr filterDesc) = 5043;
+        int         rpc_cudnnSetFilterNdDescriptor(ptr filterDesc, int dataType, int format, int nbDims, mem_data filterDimA) = 5044;
+        mem_result  rpc_cudnnGetFilterNdDescriptor(ptr filterDesc, int nbDimsRequested) = 5045;
+        sz_result   rpc_cudnnGetFilterSizeInBytes(ptr filterDesc) = 5046;
+        int         rpc_cudnnTransformFilter(ptr handle, ptr transDesc, cudnn_scaling_t alpha, ptr srcDesc, ptr srcData, cudnn_scaling_t beta, ptr destDesc, ptr destData) = 5047;
+        int         rpc_cudnnDestroyFilterDescriptor(ptr filterDesc) = 5048;
+        int         rpc_cudnnSoftmaxForward(ptr handle, int algo, int mode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5049;
+        ptr_result  rpc_cudnnCreatePoolingDescriptor(void) = 5050;
+        int         rpc_cudnnSetPooling2dDescriptor(ptr poolingDesc, int mode, int maxpoolingNanOpt, int windowHeight, int windowWidth, int verticalPadding, int horizontalPadding, int verticalStride, int horizontalStride) = 5051;
+        int8_result rpc_cudnnGetPooling2dDescriptor(ptr poolingDesc) = 5052;
+        int         rpc_cudnnSetPoolingNdDescriptor(ptr poolingDesc, int mode, int maxpoolingNanOpt, int nbDims, mem_data windowDimA, mem_data paddingA, mem_data strideA) = 5053;
+        mem_result  rpc_cudnnGetPoolingNdDescriptor(ptr poolingDesc, int nbDimsRequested) = 5054;
+        mem_result  rpc_cudnnGetPoolingNdForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc, int nbDims) = 5055;
+        int4_result rpc_cudnnGetPooling2dForwardOutputDim(ptr poolingDesc, ptr inputTensorDesc) = 5056;
+        int         rpc_cudnnDestroyPoolingDescriptor(ptr poolingDesc) = 5057;
+        int         rpc_cudnnPoolingForward(ptr handle, ptr poolingDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5058;
+        ptr_result  rpc_cudnnCreateActivationDescriptor(void) = 5059;
+        int         rpc_cudnnSetActivationDescriptor(ptr activationDesc, int mode, int reluNanOpt, double coef) = 5060;
+        int2d1_result rpc_cudnnGetActivationDescriptor(ptr activationDesc) = 5061;
+        int         rpc_cudnnSetActivationDescriptorSwishBeta(ptr activationDesc, double swish_beta) = 5062;
+        d_result    rpc_cudnnGetActivationDescriptorSwishBeta(ptr activationDesc) = 5063;
+        int         rpc_cudnnDestroyActivationDescriptor(ptr activationDesc) = 5064;
+        int         rpc_cudnnActivationForward(ptr handle, ptr activationDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5065;
+        ptr_result  rpc_cudnnCreateLRNDescriptor(void) = 5066;
+        int         rpc_cudnnSetLRNDescriptor(ptr normDesc, unsigned lrnN, double lrnAlpha, double lrnBeta, double lrnK) = 5067;
+        int1d3_result rpc_cudnnGetLRNDescriptor(ptr normDesc) = 5068;
+        int         rpc_cudnnDestroyLRNDescriptor(ptr lrnDesc) = 5069;
+        int         rpc_cudnnLRNCrossChannelForward(ptr handle, ptr normDesc, int lrnMode, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5070;
+        /* cudnn cnn inference */
+        ptr_result  rpc_cudnnCreateConvolutionDescriptor(void) = 5301;
+        int         rpc_cudnnDestroyConvolutionDescriptor(ptr convDesc) = 5302;
+        mem_result  rpc_cudnnGetConvolutionNdForwardOutputDim(ptr convDesc, ptr inputTensorDesc, ptr filterDesc, int nbDims) = 5303;
+        int         rpc_cudnnSetConvolutionNdDescriptor(ptr convDesc, int arrayLength, mem_data padA,  mem_data filterStrideA, mem_data dilationA,  int mode,  int computeType) = 5304;
+        mem_result rpc_cudnnGetConvolutionForwardAlgorithm_v7(ptr handle, ptr srcDesc, ptr filterDesc, ptr convDesc, ptr destDesc, int requestedAlgoCount) = 5305;
+        mem_result rpc_cudnnFindConvolutionForwardAlgorithm(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int requestedAlgoCount) = 5306;
+        sz_result rpc_cudnnGetConvolutionForwardWorkspaceSize(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int algo) = 5307;
+        int rpc_cudnnConvolutionForward(ptr handle, cudnn_scaling_t alpha, ptr xDesc, ptr x, ptr wDesc, ptr w, ptr convDesc, int algo, ptr workSpace, size_t workSpaceSizeInBytes, cudnn_scaling_t beta, ptr yDesc, ptr y) = 5308;
+        ptr_result rpc_cudnnBackendCreateDescriptor(int descriptorType) = 5309;
+        int rpc_cudnnBackendDestroyDescriptor(ptr descriptor) = 5310;
+        int rpc_cudnnBackendInitialize(ptr descriptor) = 5311;
+        int rpc_cudnnBackendFinalize(ptr descriptor) = 5312;
+        int rpc_cudnnBackendSetAttribute(ptr descriptor,
+                         int attributeName,
+                         int attributeType,
+                         hyper elementCount,
+                         mem_data arrayOfElements) = 5313;
+        mem_result rpc_cudnnBackendGetAttribute(ptr descriptor,
+                            int attributeName,
+                            int attributeType,
+                            hyper requestedElementCount) = 5314;
+        int rpc_cudnnBackendExecute(ptr handle, ptr executionPlan, ptr variantPack) = 5315;
     } = 1;
 } = 99;

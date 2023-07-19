@@ -19,7 +19,7 @@ cuda-gdb:
 
 libtirpc:
 	@echo -e "\033[36m----> Building libtirpc\033[0m"
-	$(MAKE) -C submodules libtirpc
+	$(MAKE) -C submodules libtirpc/install
 
 gpu: cuda-gdb
 	@echo -e "\033[36m----> Building gpu\033[0m"
@@ -33,7 +33,7 @@ tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
 
-install-cpu: bin/cricket-client.so bin/cricket-server.so bin/libtirpc.so bin/libtirpc.so.3 bin/tests
+install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3 bin/tests
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
 install: install-cpu bin/cricket
@@ -51,7 +51,8 @@ bin/cricket-client.so: bin
 
 bin/cricket-server.so: bin
 	$(MAKE) -C cpu cricket-server.so
-	cp cpu/cricket-server.so bin
+	mv cpu/cricket-server.so bin/cricket-server.so
+
 
 bin/cricket-rpc-server: bin
 	$(MAKE) -C cpu cricket-rpc-server

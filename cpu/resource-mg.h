@@ -28,14 +28,27 @@ resource_mg rm_streams;
 resource_mg rm_events;
 resource_mg rm_arrays;
 resource_mg rm_memory;
+resource_mg rm_kernels;
 
 //Driver API RMs
 resource_mg rm_modules;
 resource_mg rm_functions;
+resource_mg rm_globals;
 
 //Other RMs
 resource_mg rm_cusolver;
 resource_mg rm_cublas;
+
+//CUDNN RMs
+resource_mg rm_cudnn;
+resource_mg rm_cudnn_tensors;
+resource_mg rm_cudnn_filters;
+resource_mg rm_cudnn_tensortransform;
+resource_mg rm_cudnn_poolings;
+resource_mg rm_cudnn_activations;
+resource_mg rm_cudnn_lrns;
+resource_mg rm_cudnn_convs;
+resource_mg rm_cudnn_backendds;
 
 
 /** initializes the resource manager
@@ -53,5 +66,7 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
 int resource_mg_create(resource_mg *mg, void* cuda_address);
 
 void* resource_mg_get(resource_mg *mg, void* client_address);
+
+void resource_mg_print(resource_mg *mg);
 
 #endif //_RESOURCE_MG_H_

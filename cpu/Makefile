@@ -1,12 +1,12 @@
-#RPC server library
-SERVER = cricket-server.so
 #Standalone RPC Server
-SERVER_BIN = cricket-rpc-server
+SERVER = cricket-rpc-server
+SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
+SUBMODULE_LIBS = ../submodules/lib
 
 CC = gcc
 LD = gcc
@@ -39,7 +39,10 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cr.c 					    \
 			 gsched_none.c 			    \
 			 oob.c 					    \
-			 mt-memcpy.c
+			 mt-memcpy.c				\
+			 cpu-elf2.c					\
+			 cpu-server-nvml.c			\
+			 cpu-server-cudnn.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -55,7 +58,11 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
-			 mt-memcpy.c
+			 mt-memcpy.c				\
+			 cpu-elf2.c					\
+			 cpu-client-nvml.c          \
+			 cpu-client-cudnn.c			\
+			 cpu-client-cublas.c
 
 # 			 cpu-client-driver-hidden.c \
 
@@ -72,15 +79,17 @@ RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 
-LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib -L$(CUDA_SRC)/lib64
-CC_FLAGS += -std=gnu99 $(INC_FLAGS) -O2
+LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
+LIB_FLAGS += -L$(CUDA_SRC)/lib64
+LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
+CC_FLAGS += -std=gnu11 $(INC_FLAGS) #-O2
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto
+LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
-CC_FLAGS += -g -ggdb #-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+CC_FLAGS += -g -ggdb #-static-libasan -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
 endif
 
 ifdef WITH_IB
@@ -90,48 +99,54 @@ endif
 ifdef LOG
 CC_FLAGS += -DLOG_LEVEL=LOG_$(LOG)
 endif
+
+ifdef LOGN
+CC_FLAGS += -DLOG_LEVEL=$(LOGN)
+endif
+
 ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lbfd -lrt -lpthread
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml -lcudnn
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
-CLIENT_LD_FLAGS = $(LD_FLAGS) -lbfd
+CLIENT_LD_FLAGS = $(LD_FLAGS)
 
 # Targets
 .PHONY: all clean
 
-all : $(SERVER) $(SERVER_BIN) $(CLIENT)
+all : $(SERVER) $(CLIENT)
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
-$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_LIB:%.c=%.o)
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_LD_FLAGS)
+$(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
-$(SERVER_BIN) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
+$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
 	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
 
 $(RPC_CLIENT) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -l -o $@ $<
 
 $(RPC_SERVER) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -m -o $@ $<
 
 $(RPC_SERVER_MOD) : $(RPC_SERVER)
 	./generate_dispatch.sh
 
 $(RPC_XDR) : $(RPC_DEF)
-	$(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
+	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_BIN) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(CLIENT)
+	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o)
+
 
 
 

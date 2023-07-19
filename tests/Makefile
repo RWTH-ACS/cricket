@@ -1,7 +1,11 @@
 #MIT License...
 .PHONY: all clean test_apps cpu gpu samples
 
+ifdef NOSAMPLES
+all: test_apps cpu gpu bin
+else
 all: test_apps cpu gpu samples bin
+endif
 
 test_apps:
 	@echo -e "\033[36m----> Building tests/test_apps\033[0m"
@@ -20,13 +24,13 @@ samples:
 	@echo -e "\033[36m----> Building tests/samples\033[0m"
 	$(MAKE) -C samples
 
-bin: cpu samples test_apps
+bin: cpu test_apps
 	mkdir -p bin
 	cp cpu/unit/*.test bin
 	cp test_apps/*.testapp bin
-	cp samples/matrixMul/matrixMul bin
-	cp samples/bandwidthTest/bandwidthTest bin
-	cp samples/nbody/nbody bin
+ifndef NOSAMPLES
+	cp samples/samples-bin/*.sample bin
+endif
 
 clean:
 	@echo -e "\033[31m----> Cleaning up tests/test_apps\033[0m"

@@ -4,11 +4,13 @@
 
 #include "api-recorder.h"
 #include "log.h"
+#include "list.h"
 
 
 list api_records;
 
-void api_records_free_args(void)
+
+static void api_records_free_args(void)
 {
     api_record_t *record;
     for (size_t i = 0; i < api_records.length; i++) {
@@ -20,6 +22,27 @@ void api_records_free_args(void)
         record->arguments = NULL;
     }
 
+}
+
+static void api_records_free_data(void)
+{
+    api_record_t *record;
+    for (size_t i = 0; i < api_records.length; i++) {
+        if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            continue;
+        }
+        free(record->data);
+        record->data = NULL;
+    }
+}
+
+
+void api_records_free(void)
+{
+    api_records_free_args();
+    api_records_free_data();
+    list_free(&api_records);
 }
 
 size_t api_records_malloc_get_size(void *ptr)
