@@ -1,0 +1,42 @@
+FROM ubuntu:22.04
+
+LABEL \
+	org.label-schema.schema-version = "1.0" \
+	org.label-schema.name = "cricket" \
+	org.label-schema.license = "MIT" \
+	org.label-schema.vendor = "Institute for Automation of Complex Power Systems, RWTH Aachen University" \
+	org.label-schema.author.name = "Niklas Eiling" \
+	org.label-schema.author.email = "niklas.eiling@eonerc.rwth-aachen.de" \
+	org.label-schema.vcs-url = "https://git.rwth-aachen.de/niklas.eiling/cricket"
+
+RUN apt-get update
+RUN apt install -y software-properties-common && apt-get update 
+RUN add-apt-repository universe
+RUN apt-get update 
+
+RUN apt-get install -y make bash  git gcc autoconf libtool automake build-essential \
+                   libncurses-dev zlib1g-dev binutils-dev libgl1-mesa-dev \
+                   libvdpau-dev libegl1-mesa-dev libssl-dev rpcbind \
+                   texinfo bison flex python3 libibverbs-dev \
+                   libasan5 cppcheck wget libexpat1 xz-utils libglu1-mesa-dev freeglut3-dev rpm2cpio 
+
+ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
+
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-archive-keyring.gpg && \
+    mv cuda-archive-keyring.gpg /usr/share/keyrings/cuda-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | tee /etc/apt/sources.list.d/cuda-ubuntu2204-x86_64.list && \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin && \
+    mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
+
+RUN apt-get update && \
+    apt-get install -y cuda
+
+ENV PATH="/usr/local/cuda/bin:${PATH}"
+ENV LIBRARY_PATH="/usr/local/cuda/targets/x86_64-linux/lib/stubs:$(LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/cuda/targets/x86_64-linux/lib/stubs:${LD_LIBRARY_PATH}"
+
+#COPY --chown=root .ssh /root/.ssh
+
+WORKDIR /cricket
+
+ENTRYPOINT /bin/bash
