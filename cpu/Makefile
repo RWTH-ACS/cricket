@@ -82,7 +82,7 @@ INC_FLAGS += -I$(CUDA_SRC)/include
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
 LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
-CC_FLAGS += -std=gnu11 $(INC_FLAGS) #-O2
+CC_FLAGS += -std=gnu11 $(INC_FLAGS)
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
 LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
@@ -90,6 +90,8 @@ LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
 CC_FLAGS += -g -ggdb #-static-libasan -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize-address-use-after-scope
+else
+CC_FLAGS += -O2
 endif
 
 ifdef WITH_IB
