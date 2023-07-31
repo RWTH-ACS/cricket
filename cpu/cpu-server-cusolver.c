@@ -95,6 +95,9 @@ bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A,
                                resource_mg_get(&rm_memory, (void*)B),
                                ldb,
                                resource_mg_get(&rm_memory, (void*)devInfo));
+
+    LOGE(LOG_DEBUG, "handle: %p, A: %p, devIpiv: %p, B: %p, devInfo: %p", handle, A, devIpiv, B, devInfo);
+    LOGE(LOG_DEBUG, "trans: %d, n: %d, nrhs: %d, lda: %d, ldb: %d, result: %d", trans, n, nrhs, lda, ldb, *result);
     return 1;
 }
 

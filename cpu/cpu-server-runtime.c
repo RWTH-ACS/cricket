@@ -1219,7 +1219,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {   
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
-    LOGE(LOG_DEBUG, "cudaMalloc");
+    LOGE(LOG_DEBUG, "cudaMalloc(%d)", argp);
 
 
 #ifdef WITH_IB
@@ -1495,7 +1495,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
     RECORD_ARG(2, src);
     RECORD_ARG(3, size);
 
-    LOGE(LOG_DEBUG, "cudaMemcpyDtoD");
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoD(%p, %p, %zu)", (void*)dst, (void*)src, size);
     *result = cudaMemcpy(
       resource_mg_get(&rm_memory, (void*)dst),
       resource_mg_get(&rm_memory, (void*)src),

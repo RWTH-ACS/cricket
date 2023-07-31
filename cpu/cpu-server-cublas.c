@@ -74,7 +74,8 @@ bool_t rpc_cublasdgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     RECORD_ARG(12, beta);
     RECORD_ARG(13, C);
     RECORD_ARG(14, ldc);
-    LOGE(LOG_DEBUG, "cublasDgemm");
+    LOGE(LOG_DEBUG, "cublasDgemm(%p, %d, %d, %d, %d, %d, %d, %f, %p, %d, %p, %d, %f, %p, %d)",
+        handle, transa, transb, m, n, k, lda, alpha, A, lda, B, ldb, beta, C, ldc);
     GSCHED_RETAIN;
     *result = cublasDgemm(resource_mg_get(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
