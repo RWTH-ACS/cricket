@@ -5,7 +5,7 @@ HOST_LD = gcc
 HOST_CFLAGS = -Wall -std=gnu99
 
 CC = nvcc -ccbin g++
-ARCH = sm_80
+ARCH = sm_61
 CFLAGS = -arch=$(ARCH) -cudart shared
 #CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
@@ -61,7 +61,7 @@ $(BINARY) : $(FILES)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 $(OVERHEAD_O) : $(OVERHEAD_O:.o=.cu)
-	$(CC) -O2 $(CFLAGS) -dc -o $@ $<
+	$(CC) -O3 $(CFLAGS) -dc -o $@ $<
 
 $(OVERHEAD_BIN) : $(OVERHEAD_O)
 	$(LD) $(LDFLAGS) -O2 -o $@ $^
