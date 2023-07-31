@@ -674,6 +674,7 @@ static int get_parm_for_kernel(Elf *elf, kernel_info_t *kernel, void* memory, si
         goto cleanup;
     }
     kernel->param_num = 0;
+    kernel->param_size = 0;
     kernel->param_offsets = NULL;
     kernel->param_sizes = NULL;
 
