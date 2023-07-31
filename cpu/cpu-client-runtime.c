@@ -970,7 +970,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 
     for (i=0; i < kernel_infos.length; ++i) {
         if (list_at(&kernel_infos, i, (void**)&info) != 0) {
-            LOGE(LOG_ERROR, "error gettint element at %d", i);
+            LOGE(LOG_ERROR, "error getting element at %d", i);
             return cudaErrorInvalidDeviceFunction;
         }
         if (func != NULL && info != NULL && info->host_fun == func) {
