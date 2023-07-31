@@ -5,7 +5,7 @@ HOST_LD = gcc
 HOST_CFLAGS = -Wall -std=gnu99
 
 CC = nvcc -ccbin g++
-ARCH = sm_61
+ARCH = sm_80
 CFLAGS = -arch=$(ARCH) -cudart shared
 #CFLAGS = -arch=$(ARCH)
 LD = nvcc -ccbin g++
@@ -19,6 +19,8 @@ TEST_API_O = test_api.o
 TEST_KERNEL_BIN = kernel.testapp
 TEST_KERNEL_O = test_kernel.o
 BINARY = cricket.testapp
+OVERHEAD_BIN = overhead.testapp
+OVERHEAD_O = overhead.o
 
 TEST_KERNEL_LIB_O = test_kernel_lib.o
 TEST_KERNEL_LIB = test_kernel.so
@@ -57,6 +59,12 @@ $(TEST_KERNEL_BIN) : $(TEST_KERNEL_O)
 
 $(BINARY) : $(FILES)
 	$(LD) $(LDFLAGS) -o $@ $^
+
+$(OVERHEAD_O) : $(OVERHEAD_O:.o=.cu)
+	$(CC) -O2 $(CFLAGS) -dc -o $@ $<
+
+$(OVERHEAD_BIN) : $(OVERHEAD_O)
+	$(LD) $(LDFLAGS) -O2 -o $@ $^
 
 $(LIBCUDA_OBJ) : $(LIBCUDA_OBJ:.o=.c)
 	$(HOST_CC) -c -fpic -o $@ $< $(LIBCUDA_LIBS)
