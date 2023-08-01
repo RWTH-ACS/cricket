@@ -6,7 +6,8 @@
 
 #include <cuda_runtime.h>
 
-#define ITERATIONS 10
+#define ITERATIONS 100000
+#define WARUMUPS 10
 #define MEMSIZE 1024*1024
 const int blocksize = 32;
 
@@ -31,7 +32,10 @@ int main()
 
     printf("init CUDA\n");
     cudaGetDeviceCount(&cnt);
-    printf("cudaGetDeviceCount (%d iterations)\n", iterations);
+    printf("1. cudaGetDeviceCount (%d iterations)\n", iterations);
+    for (int i=0; i != WARUMUPS; i++) {
+        cudaGetDeviceCount(&cnt);
+    }
     gettimeofday(&begin, NULL);
     for (int i=0; i != iterations; i++) {
         cudaGetDeviceCount(&cnt);
@@ -41,7 +45,11 @@ int main()
 
     uint16_t *dev_A;
     size_t A_size = MEMSIZE;
-    printf("cudaMalloc/cudaFree (%d iterations)\n", iterations);
+    printf("2. cudaMalloc/cudaFree (%d iterations)\n", iterations);
+    for (int i=0; i != WARMUPS; i++) {
+        cudaMalloc( (void**)&dev_A, A_size );
+        cudaFree( dev_A );
+    }
     gettimeofday(&begin, NULL);
     for (int i=0; i != iterations; i++) {
         cudaMalloc( (void**)&dev_A, A_size );
@@ -53,7 +61,10 @@ int main()
 
     dim3 dimBlock( blocksize, 1 );
     dim3 dimGrid( 1, 1);
-    printf("kernel launch w/o parameteter (%d iterations)\n", iterations);
+    printf("3. kernel launch w/o parameteter (%d iterations)\n", iterations);
+    for (int i=0; i != WARMUPS; i++) {
+        kernel_no_param<<<dimGrid, dimBlock>>>();
+    }
     gettimeofday(&begin, NULL);
     for (int i=0; i != iterations; i++) {
         kernel_no_param<<<dimGrid, dimBlock>>>();
@@ -71,7 +82,10 @@ int main()
     cudaMalloc( (void**)&dev_A, MEMSIZE );
     cudaMemset( dev_A, 1, MEMSIZE);
     cudaMemset( dev_x, 2, MEMSIZE);
-    printf("kernel launch w/ parameteters (%d iterations)\n", iterations);
+    printf("4. kernel launch w/ parameteters (%d iterations)\n", iterations);
+    for (int i=0; i != WARMUPS; i++) {
+        kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
+    }
     gettimeofday(&begin, NULL);
     for (int i=0; i != iterations; i++) {
         kernel<<<dimGrid, dimBlock>>>(dev_A, dev_x, dev_res, 0, 0, 0, 0);
