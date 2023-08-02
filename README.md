@@ -77,6 +77,8 @@ REMOTE_GPU_ADDRESS=remoteSystem.my-domain.com LD_PRELOAD=/nfs_share/cricket/bin/
 * **tests:** some synthetic CUDA applications to test cricket.
 * **utils:** A Dockerfile for repoducibility and for our CI.
 
+Please agree to the [DCO](DCO.md) by signing off your commits.
+
 ## Style Guidelines:
 ```
 set cindent
