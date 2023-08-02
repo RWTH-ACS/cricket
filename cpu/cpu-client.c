@@ -259,7 +259,7 @@ void *dlopen(const char *filename, int flag)
                 LOG(LOG_DEBUG, "replacing dlopen call to %s with cricket-client.so", filename);
                 dl_handle = dlopen_orig("cricket-client.so", flag);
                 if (clnt == NULL) {
-                    LOGE(LOG_ERROR, "rpc seems to be uninitialized");
+                    LOGE(LOG_WARNING, "rpc seems to be uninitialized while loading %s", filename);
                 }
                 return dl_handle;
             }
