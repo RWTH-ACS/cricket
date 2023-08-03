@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 
 #define ITERATIONS 100000
-#define WARUMUPS 10
+#define WARMUPS 100
 #define MEMSIZE 1024*1024
 const int blocksize = 32;
 
@@ -33,7 +33,7 @@ int main()
     printf("init CUDA\n");
     cudaGetDeviceCount(&cnt);
     printf("1. cudaGetDeviceCount (%d iterations)\n", iterations);
-    for (int i=0; i != WARUMUPS; i++) {
+    for (int i=0; i != WARMUPS; i++) {
         cudaGetDeviceCount(&cnt);
     }
     gettimeofday(&begin, NULL);

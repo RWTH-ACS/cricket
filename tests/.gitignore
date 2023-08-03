@@ -4,3 +4,4 @@ test_api
 test_cpu
 test_kernel
 test_kernel_call
+cudnn-samples
