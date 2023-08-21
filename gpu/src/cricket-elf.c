@@ -381,7 +381,7 @@ bool cricket_elf_get_info(const char *function_name, cricket_elf_info *info)
                     info->params[i].index = *(uint16_t *)(attrs + 4 + i * 12);
                     info->params[i].offset = *(uint16_t *)(attrs + 6 + i * 12);
                     info->params[i].size =
-                        *(uint8_t *)(attrs + 10 + i * 12) >> 2;
+                        *(uint16_t *)(attrs + 10 + i * 12) >> 2;
                 }
                 free(attrs);
                 if (!cricket_elf_extract_attribute((*objfile)->obfd, section,

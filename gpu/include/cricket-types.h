@@ -59,7 +59,7 @@ typedef struct _cricket_param_info
     uint16_t index;
     uint16_t ordinal;
     uint16_t offset;
-    uint8_t size;
+    uint16_t size;
 } cricket_param_info;
 
 typedef struct _cricket_elf_info
