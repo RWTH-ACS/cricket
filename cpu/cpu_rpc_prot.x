@@ -2,7 +2,9 @@ typedef opaque mem_data<>;
 
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
+typedef hyper ll;
 typedef opaque rpc_cuda_device_prop[1032];
+typedef opaque rpc_matmul_heuristic_result[96];
 
 struct dint {
     int i1;
@@ -17,6 +19,11 @@ struct dsz {
 struct ptrsz {
     ptr p;
     size_t s;
+};
+
+struct matmul_hr {
+    rpc_matmul_heuristic_result p;
+    int s;
 };
 
 struct cuda_channel_format_desc {
@@ -131,6 +138,13 @@ default:
 union ptrsz_result switch (int err) {
 case 0:
     ptrsz data;
+default:
+    void;
+};
+
+union matmul_hr_result switch (int err) {
+case 0:
+    matmul_hr data;
 default:
     void;
 };
@@ -570,5 +584,21 @@ program RPC_CD_PROG {
                             int attributeType,
                             hyper requestedElementCount) = 5314;
         int rpc_cudnnBackendExecute(ptr handle, ptr executionPlan, ptr variantPack) = 5315;
+        int rpc_cudnnSetConvolutionGroupCount(ptr convDesc, int groupCount) = 5316;
+        int rpc_cudnnsetconvolutionmathtype(ptr convDesc, int mathType) = 5317;
+        ptr_result rpc_cublasltcreate(void) = 5318;
+        ptr_result rpc_cublasltmatmuldesccreate(int computeType, int scaleType) = 5319;
+        matmul_hr_result rpc_cublasltmatmulalgogetheuristic(ptr handle, ptr operationDesc, ptr aDesc, ptr bDesc, ptr cDesc, ptr dDesc, ptr preference, int requestedAlgoCount) = 5320;
+        int rpc_cublasltmatmuldescsetattribute(ptr matmulDesc, int attr, mem_data data) = 5321;
+        int rpc_cublasltmatmuldescdestroy(ptr matmulDesc) = 5322;
+        ptr_result rpc_cublasltmatrixlayoutcreate(int type, uint64_t row, uint64_t cols, int64_t ld) = 5323;
+        ptr_result rpc_cublasltmatmulpreferencecreate(void) = 5324;
+        int rpc_cublasltmatmulpreferencedestroy(ptr pref) = 5325;
+        int rpc_cublasltmatrixlayoutdestroy(ptr matLayout) = 5326;
+        int rpc_cublasltmatmul(ptr lightHandle,ptr computeDesc,float alpha,ptr A,ptr Adesc,ptr B,ptr Bdesc,float beta,ptr C,ptr Cdesc,ptr D,ptr Ddesc,ptr algo,ptr workspace,size_t workspaceSizeInBytes,ptr stream) = 5327;
+        int_result rpc_cublasgetmathmode(ptr handle) = 5328;
+        int rpc_cublasgemmstridedbatchedex(ptr handle, int transa, int transb, int m,int n,int k,float alpha,ptr A, int Atype, int lda, ll strideA,ptr B,int Btype,int ldb, ll strideB,float beta,   ptr C,int Ctype,int ldc, ll strideC,int batchCount,int computeType,int algo) = 5329;
+        int rpc_cublasgemmex(ptr, int, int, int, int, int, float,ptr, int, int, ptr, int, int, float, ptr, int, int, int, int) = 5330;
+        int rpc_cublasgemmstridedbatched(ptr handle, int transa, int transb, int m,int n,int k,float alpha,ptr A, int lda, ll strideA,ptr B,int ldb, ll strideB,float beta,   ptr C,int ldc, ll strideC,int batchCount) = 5331;
     } = 1;
 } = 99;

@@ -33,6 +33,7 @@
 #include "cr.h"
 #include "cpu-server-cusolver.h"
 #include "cpu-server-cublas.h"
+#include "cpu-server-cublaslt.h"
 #include "mt-memcpy.h"
 
 typedef struct host_alloc_info {
@@ -74,6 +75,7 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_memory, 1);
         ret &= cusolver_init(1, &rm_streams, &rm_memory);
         ret &= cublas_init(1, &rm_memory);
+	    ret &= cublaslt_init(1, &rm_memory);
     } else {
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_events, 0);
@@ -83,6 +85,7 @@ int server_runtime_init(int restore)
         ret &= cusolver_init(0, &rm_streams, &rm_memory);
         ret &= cublas_init(0, &rm_memory);
         ret &= server_runtime_restore("ckp");
+	    ret &= cublaslt_init(0, &rm_memory);
     }
     
     // Make sure runtime API is initialized
@@ -364,7 +367,7 @@ bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *res
 {
     LOGE(LOG_DEBUG, "cudaGetDeviceProperties");
     if (sizeof(result->cuda_device_prop_result_u.data) != sizeof(struct cudaDeviceProp)) {
-        LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch");
+        LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch, result %d prop %d", sizeof(result->cuda_device_prop_result_u.data), sizeof(struct cudaDeviceProp));
         return 0;
     }
     result->err = cudaGetDeviceProperties((void*)result->cuda_device_prop_result_u.data, device);

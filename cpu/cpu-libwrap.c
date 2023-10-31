@@ -3,7 +3,7 @@
 #include "cpu-libwrap.h"
 #include "log.h"
 
-static const char* LIBCUDA_PATH;
+static const char* LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
 static void *so_handle;
 
 inline void* libwrap_get_sohandle()
