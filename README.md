@@ -92,3 +92,9 @@ match ErrorMsg /\s\+$\| \+\ze\t/
 This project adheres to the [Linux Kernel Coding Style](https://www.kernel.org/doc/html/v4.10/process/coding-style.html), except when it doesn't.
 
 Etymology: Cricket is an abbreviation for Checkpoint Restart In Cuda KErnels Tool
+
+## Acknowledgments
+
+<p>
+    <img src="assets/bmbf_internet_in_farbe_en.jpg" height="250" alt="Sponsored by the Federal Ministry of Education and Research" />
+</p>
