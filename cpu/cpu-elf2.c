@@ -474,7 +474,7 @@ int elf2_get_fatbin_info(const struct fat_header *fatbin, list *kernel_infos, ui
     input_pos += eh->header_size;
     fatbin_total_size = eh->header_size + eh->size;
     do {
-        if (get_text_header(input_pos, *fatbin_size - (input_pos - fatbin_data) - eh->header_size, &th) != 0) {
+        if (get_text_header(input_pos, fatbin_total_size - (input_pos - fatbin_data) - eh->header_size, &th) != 0) {
             LOGE(LOG_ERROR, "Something went wrong while checking the header.");
             goto error;
         }
