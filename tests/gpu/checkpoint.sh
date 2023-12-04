@@ -52,4 +52,3 @@ ${CRICKET_BIN} checkpoint $server_pid
 sleep 2
 
 kill $server_pid
-

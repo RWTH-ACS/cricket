@@ -212,7 +212,7 @@ int cricket_restore(int argc, char *argv[])
 
     gdb_init(argc, argv, (char*)patched_binary, NULL);
     LOGE(LOG_DEBUG, "GDB init");
-    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/cpu/cricket-server.so' 'CRICKET_RESTORE=1'", !batch_flag);
+    execute_command("set exec-wrapper env 'LOG=DEBUG' 'LD_PRELOAD=/opt/cricket/bin/cricket-server.so' 'CRICKET_RESTORE=1'", !batch_flag);
 
     // load the patched binary
     //exec_file_attach(patched_binary, !batch_flag);
@@ -1106,7 +1106,7 @@ int cricket_start(int argc, char *argv[])
     /* load files */
     //exec_file_attach(argv[2], !batch_flag);
     //
-    execute_command("set exec-wrapper env 'LD_PRELOAD=/home/eiling/projects/cricket/bin/libtirpc.so.3:/home/eiling/projects/cricket/cpu/cricket-server.so'", !batch_flag);
+    execute_command("set exec-wrapper env 'LD_PRELOAD=/opt/cricket/bin/libtirpc.so.3:/opt/cricket/bin/cricket-server.so' 'LOG=DEBUG'", !batch_flag);
     //execute_command("break main", !batch_flag);
     execute_command("starti", !batch_flag);
     //execute_command("unset exec-wrapper", !batch_flag);

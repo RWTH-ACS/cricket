@@ -21,8 +21,8 @@ void libwrap_post_call(char *ret, char *name, char *parameters);
     } \
 
 #define DEF_FN_BODY(RET, NAME, P_NAMES...) \
+    LOG(LOG_DEBUG, "%s call", #NAME); \
     DEF_DLSYM(RET, NAME) \
-    LOG(LOG_DEBUG, "%s called", #NAME); \
     CAL_FN_PTR(P_NAMES); \
     LOG(LOG_DEBUG, "%s finished", #NAME); \
     return ret;

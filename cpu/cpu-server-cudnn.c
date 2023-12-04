@@ -1031,6 +1031,41 @@ bool_t rpc_cudnndestroyconvolutiondescriptor_1_svc(ptr convDesc, int *result, st
     return 1;
 }
 
+bool_t rpc_cudnnsetconvolutionmathtype_1_svc(ptr convDesc, int mathType, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetconvolutionmathtype_1_argument);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(mathType);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetConvolutionMathType(
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnMathType_t)mathType);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+
+bool_t rpc_cudnnsetconvolutiongroupcount_1_svc(ptr convDesc, int groupCount, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetconvolutiongroupcount_1_argument);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(groupCount);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetConvolutionGroupCount(
+        (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
+        groupCount);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
 bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, mem_data padA, mem_data filterStrideA, mem_data dilationA, int mode, int computeType, int *result, struct svc_req *rqstp)
 {
     RECORD_API(rpc_cudnnsetconvolutionnddescriptor_1_argument);

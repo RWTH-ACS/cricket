@@ -39,6 +39,7 @@ size_t cudnnGetMaxDeviceVersion(void)
     }
     return result;
 }
+
 size_t cudnnGetCudartVersion(void)
 {
 #ifdef WITH_API_CNT
@@ -1402,15 +1403,58 @@ cudnnStatus_t cudnnDestroyConvolutionDescriptor(cudnnConvolutionDescriptor_t con
     }
     return result;
 }
-DEF_FN(cudnnStatus_t, cudnnSetConvolutionMathType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnMathType_t, mathType)
 DEF_FN(cudnnStatus_t, cudnnGetConvolutionMathType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnMathType_t*, mathType)
-DEF_FN(cudnnStatus_t, cudnnSetConvolutionGroupCount,  cudnnConvolutionDescriptor_t, convDesc,  int, groupCount)
 DEF_FN(cudnnStatus_t, cudnnGetConvolutionGroupCount,  cudnnConvolutionDescriptor_t, convDesc,  int*, groupCount)
 DEF_FN(cudnnStatus_t, cudnnSetConvolutionReorderType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnReorderType_t, reorderType)
 DEF_FN(cudnnStatus_t, cudnnGetConvolutionReorderType,  cudnnConvolutionDescriptor_t, convDesc,  cudnnReorderType_t*, reorderType)
 DEF_FN(cudnnStatus_t, cudnnSetConvolution2dDescriptor,  cudnnConvolutionDescriptor_t, convDesc,  int, pad_h,  int, pad_w,  int, u, int, v, int, dilation_h,  int, dilation_w,  cudnnConvolutionMode_t, mode,  cudnnDataType_t, computeType)
 DEF_FN(cudnnStatus_t, cudnnGetConvolution2dDescriptor,  const cudnnConvolutionDescriptor_t, convDesc,  int*, pad_h,  int*, pad_w,  int*, u,  int*, v,  int*, dilation_h,  int*, dilation_w,  cudnnConvolutionMode_t*, mode,  cudnnDataType_t*, computeType)
-    
+
+cudnnStatus_t cudnnSetConvolutionMathType(cudnnConvolutionDescriptor_t convDesc, cudnnMathType_t mathType)
+{
+    #ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetconvolutionmathtype_1(
+        (ptr)convDesc,
+        mathType,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+cudnnStatus_t cudnnSetConvolutionGroupCount(cudnnConvolutionDescriptor_t convDesc, int groupCount)
+{
+    #ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+
+        int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cudnnsetconvolutiongroupcount_1(
+        (ptr)convDesc,
+        groupCount,
+        &result, clnt);
+
+    if (retval_1 != RPC_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
+    }
+    if (result != CUDNN_STATUS_SUCCESS) {
+        LOGE(LOG_ERROR, "%s failed (result is %d)", __FUNCTION__, result);
+    }
+    return result;
+}
+
+
 cudnnStatus_t cudnnSetConvolutionNdDescriptor(cudnnConvolutionDescriptor_t convDesc,  int arrayLength,  const int* padA,  const int* filterStrideA,  const int* dilationA,  cudnnConvolutionMode_t mode,  cudnnDataType_t computeType)
 {
 #ifdef WITH_API_CNT

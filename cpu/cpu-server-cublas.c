@@ -46,7 +46,9 @@ bool_t rpc_cublascreate_1_svc(ptr_result *result, struct svc_req *rqstp)
 
     GSCHED_RETAIN;
     result->err = cublasCreate_v2((cublasHandle_t*)&result->ptr_result_u.ptr);
-    resource_mg_create(&rm_cublas, (void*)result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cublas, (void*)result->ptr_result_u.ptr) != 0) {
+      LOGE(LOG_ERROR, "error in resource manager");
+    }
     GSCHED_RELEASE;
     
     RECORD_RESULT(ptr_result_u, *result);
@@ -299,5 +301,123 @@ bool_t rpc_cublassgemmex_1_svc(ptr handle, int transa, int transb, int m, int n,
     );
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cublasgetmathmode_1_svc(ptr handle, int_result *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result-> err = cublasGetMathMode(
+        (cublasHandle_t)resource_mg_get(&rm_cublas, (void*)handle),
+        (cublasMath_t*)&result->int_result_u.data
+    );
+    GSCHED_RELEASE;
+    return 1;
+}
+
+
+bool_t rpc_cublasgemmstridedbatchedex_1_svc(
+    ptr handle,
+    int transa,
+    int transb,
+    int m, int n, int k,
+    float alpha,
+    ptr A,
+    int Atype,
+    int lda,
+    ll strideA,
+    ptr B,
+    int Btype,
+    int ldb,
+    ll strideB,
+    float beta,
+    ptr C,
+    int Ctype,
+    int ldc,
+    ll strideC,
+    int batchCount,
+    int computeType,
+    int algo,
+    int *result, struct svc_req *rqstp
+)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cublasGemmStridedBatchedEx(
+        (cublasHandle_t)resource_mg_get(&rm_cublas, (void*)handle),
+        (cublasOperation_t) transa,
+        (cublasOperation_t) transb,
+        m, n, k, &alpha,
+        resource_mg_get(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda, (long long int)strideA,
+        resource_mg_get(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, (long long int)strideB,
+        &beta,
+        resource_mg_get(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc, (long long int)strideC,
+        batchCount,
+        (cublasComputeType_t)computeType,
+        (cublasGemmAlgo_t)algo
+    );
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cublasgemmex_1_svc(ptr handle, int transa, int transb, int m, int n, int k, float alpha,
+            ptr A, int Atype, int lda,
+            ptr B, int Btype, int ldb, float beta,
+            ptr C, int Ctype, int ldc,
+            int computeType, int algo,
+            int *result, struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cublasGemmEx");
+    GSCHED_RETAIN;
+    *result = cublasGemmEx(resource_mg_get(&rm_cublas, (void*)handle),
+                    (cublasOperation_t) transa,
+                    (cublasOperation_t) transb,
+                    m, n, k, &alpha,
+                    resource_mg_get(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda,
+                    resource_mg_get(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, &beta,
+                    resource_mg_get(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc,
+        (cublasComputeType_t)computeType,
+        (cublasGemmAlgo_t)algo
+    );
+    GSCHED_RELEASE;
+    return 1;
+}
+
+
+bool_t rpc_cublasgemmstridedbatched_1_svc(
+    ptr handle,
+    int transa,
+    int transb,
+    int m, int n, int k,
+    float alpha,
+    ptr A,
+    int lda,
+    ll strideA,
+    ptr B,
+    int ldb,
+    ll strideB,
+    float beta,
+    ptr C,
+    int ldc,
+    ll strideC,
+    int batchCount,
+    int *result, struct svc_req *rqstp
+)
+{
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    *result = cublasSgemmStridedBatched(
+        (cublasHandle_t)resource_mg_get(&rm_cublas, (void*)handle),
+        (cublasOperation_t) transa,
+        (cublasOperation_t) transb,
+        m, n, k, &alpha,
+        resource_mg_get(&rm_memory, (void*)A), lda, (long long int)strideA,
+        resource_mg_get(&rm_memory, (void*)B), ldb, (long long int)strideB,
+        &beta,
+        resource_mg_get(&rm_memory, (void*)C), ldc, (long long int)strideC,
+        batchCount
+    );
+    GSCHED_RELEASE;
     return 1;
 }

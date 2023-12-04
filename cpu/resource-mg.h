@@ -38,6 +38,8 @@ resource_mg rm_globals;
 //Other RMs
 resource_mg rm_cusolver;
 resource_mg rm_cublas;
+resource_mg rm_cublaslt;
+
 
 //CUDNN RMs
 resource_mg rm_cudnn;
