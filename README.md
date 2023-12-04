@@ -96,5 +96,7 @@ Etymology: Cricket is an abbreviation for Checkpoint Restart In Cuda KErnels Too
 ## Acknowledgments
 
 <p>
+    <img src="assets/EN_Funded_by_European_Union_vert_RGB_POS.png#gh-light-mode-only" height="250" alt="Funded by the European Union—NextGenerationEU" />
+    <img src="assets/EN_Funded_by_European_Union_vert_RGB_NEG.png#gh-dark-mode-only" height="250" alt="Funded by the European Union—NextGenerationEU" />
     <img src="assets/bmbf_internet_in_farbe_en.jpg" height="250" alt="Sponsored by the Federal Ministry of Education and Research" />
 </p>
