@@ -1821,12 +1821,20 @@ cudnnStatus_t cudnnBackendGetAttribute(cudnnBackendDescriptor_t const descriptor
         }
     } else {
         if (elementCount != NULL) {
-            *elementCount = *(int64_t*)result.mem_result_u.data.mem_data_val;
-            LOGE(LOG_DEBUG, "elementCount = %ld", *elementCount);
-        }
-        if (arrayOfElements != NULL) {
+            int64_t min_elem = *(int64_t*)result.mem_result_u.data.mem_data_val;
+            if (requestedElementCount < min_elem) {
+                min_elem = requestedElementCount;
+            }
+            if (elementCount != NULL) {
+                *elementCount = min_elem;
+            }
             memcpy(arrayOfElements, result.mem_result_u.data.mem_data_val + sizeof(int64_t), *elementCount * backendAttributeSizes[attributeType]);
+        } else {
+            if (elementCount != NULL) {
+                *elementCount = *(int64_t)result.mem_result_u.data.mem_data_val;
+            }
         }
+        LOGE(LOG_DEBUG, "elementCount = %ld", *elementCount);
     }
     return result.err;
 }
