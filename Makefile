@@ -48,18 +48,16 @@ bin:
 bin/tests: bin tests
 	ln -sf ../tests/bin bin/tests
 
-bin/cricket-client.so: bin
-	$(MAKE) -C cpu cricket-client.so
+bin/cricket-client.so: bin cpu
 	cp cpu/cricket-client.so bin
 
 bin/cricket-server.so: bin
 	$(MAKE) -C cpu cricket-server.so
-	mv cpu/cricket-server.so bin/cricket-server.so
+	cp cpu/cricket-server.so bin/cricket-server.so
 
 
-bin/cricket-rpc-server: bin
-	$(MAKE) -C cpu cricket-rpc-server
-	mv cpu/cricket-rpc-server bin/cricket-rpc-server
+bin/cricket-rpc-server: bin cpu
+	cp cpu/cricket-rpc-server bin/cricket-rpc-server
 
 bin/cricket: bin gpu
 	cp gpu/cricket bin
