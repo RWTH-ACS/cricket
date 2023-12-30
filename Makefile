@@ -1,8 +1,8 @@
 #MIT License...
 
-.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu bin/tests
+.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu
 
-all: gpu cpu install
+all: cpu install
 
 clean:
 	@echo -e "\033[31m----> Cleaning up gpu\033[0m"
@@ -36,27 +36,28 @@ tests:
 install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3 bin/tests
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
-install: install-cpu bin/cricket
+install-gpu: bin/cricket
+	@echo -e "\033[36m----> Copying gpu binaries to build/bin\033[0m"
+
+install: install-cpu
 	@echo -e "\033[36m----> Copying to build/bin\033[0m"
 
 bin:
 	mkdir bin
 
 bin/tests: bin tests
-	ln -s ../tests/bin bin/tests
+	ln -sf ../tests/bin bin/tests
 
-bin/cricket-client.so: bin
-	$(MAKE) -C cpu cricket-client.so
+bin/cricket-client.so: bin cpu
 	cp cpu/cricket-client.so bin
 
 bin/cricket-server.so: bin
 	$(MAKE) -C cpu cricket-server.so
-	mv cpu/cricket-server.so bin/cricket-server.so
+	cp cpu/cricket-server.so bin/cricket-server.so
 
 
-bin/cricket-rpc-server: bin
-	$(MAKE) -C cpu cricket-rpc-server
-	mv cpu/cricket-rpc-server bin/cricket-rpc-server
+bin/cricket-rpc-server: bin cpu
+	cp cpu/cricket-rpc-server bin/cricket-rpc-server
 
 bin/cricket: bin gpu
 	cp gpu/cricket bin

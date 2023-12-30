@@ -42,7 +42,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 mt-memcpy.c				\
 			 cpu-elf2.c					\
 			 cpu-server-nvml.c			\
-			 cpu-server-cudnn.c  \
+			 cpu-server-cudnn.c         \
 			 cpu-server-cublaslt.c
 
 SRC_SERVER_LIB = server-library.c
@@ -63,10 +63,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-elf2.c					\
 			 cpu-client-nvml.c          \
 			 cpu-client-cudnn.c			\
-			 cpu-client-cublas.c  \
+			 cpu-client-cublas.c        \
 			 cpu-client-cublaslt.c
-
-# 			 cpu-client-driver-hidden.c \
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

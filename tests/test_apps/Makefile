@@ -23,7 +23,7 @@ OVERHEAD_BIN = overhead.testapp
 OVERHEAD_O = overhead.o
 
 TEST_KERNEL_LIB_O = test_kernel_lib.o
-TEST_KERNEL_LIB = test_kernel.so
+TEST_KERNEL_LIB = libtest_kernel.so
 TEST_KERNEL_LIB_CALL_O = test_kernel_call.o
 TEST_KERNEL_LIB_CALL = test_kernel_call
 
@@ -73,7 +73,7 @@ $(TEST_KERNEL_LIB_O) : $(FILES)
 	$(CC) $(CFLAGS) $(DEBUG_FLAGS) -dc --compiler-options '-fPIC' -o $@ $<
 
 $(TEST_KERNEL_LIB) : $(TEST_KERNEL_LIB_O)
-	$(LD) $(LDFLAGS) $(DEBUG_FLAGS) -shared -o lib$@ $^
+	$(LD) $(LDFLAGS) $(DEBUG_FLAGS) -shared -o $@ $^
 
 $(TEST_KERNEL_LIB_CALL_O) : $(TEST_KERNEL_LIB_CALL_O:.o=.c)
 	$(HOST_CC) -c -o $@ $<

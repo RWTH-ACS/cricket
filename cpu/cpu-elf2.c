@@ -954,8 +954,17 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
             LOGE(LOG_ERROR, "gelf_getsym failed for entry %d", entry->kernel_id);
             continue;
         }
+
         if ((kernel_str = elf_strptr(elf, symtab_shdr.sh_link, sym.st_name) ) == NULL) {
             LOGE(LOG_ERROR, "strptr failed for entry %d", entry->kernel_id);
+            continue;
+        }
+
+        /* When using (some?) intrinsics, nvcc adds symbols for them in the .nv.info table.
+        * They are prefixed with $__internal_7_$ and are not kernels. We skip them he
+        */
+        const char *intrinsics_prefix = "$__internal_";
+        if (strncmp(kernel_str, intrinsics_prefix, strlen(intrinsics_prefix)) == 0) {
             continue;
         }
 

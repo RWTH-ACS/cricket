@@ -41,20 +41,6 @@ prepare:centos8:cuda11:
   tags:
     - docker
 
-# check if styleguide is fulfilled
-#style_check:
-#  stage: build
-#  image: ${DOCKER_IMAGE_DEV}:${DOCKER_TAG}
-#  allow_failure: true
-#  tags:
-#    - docker
-#  script:
-#    - ls
-#    - utils/test_style.sh
-
-# Stage: build
-##############################################################################
-
 build:
   stage: build
   needs: ["prepare:rocky9:docker-dev"]
@@ -173,12 +159,15 @@ build:debug:
     PARAMETER: ''
     CHDIR: 'tests'
   script:
-    - mkdir ~/.ssh &&
-      echo "-----BEGIN OPENSSH PRIVATE KEY-----" > ~/.ssh/id_rsa &&
-      echo $SSH_PRIVATE | sed "s/\S\{64\}/&\n/g" >> ~/.ssh/id_rsa &&
-      echo "-----END OPENSSH PRIVATE KEY-----" >> ~/.ssh/id_rsa &&
-      echo $SSH_PUBLIC > ~/.ssh/id_rsa.pub &&
-      echo $KNOWN_HOSTS > ~/.ssh/known_hosts && chmod 600 ~/.ssh/id_rsa
+    - mkdir ~/.ssh
+    - echo "-----BEGIN OPENSSH PRIVATE KEY-----" > ~/.ssh/id_rsa
+    - echo $SSH_PRIVATE | sed "s/\S\{64\}/&\n/g" >> ~/.ssh/id_rsa
+    - echo "-----END OPENSSH PRIVATE KEY-----" >> ~/.ssh/id_rsa
+    - echo $SSH_PUBLIC > ~/.ssh/id_rsa.pub
+    - echo $KNOWN_HOSTS > ~/.ssh/known_hosts
+    - chmod 600 ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/known_hosts
+    - chmod 600 ~/.ssh/id_rsa.pub
     - ssh $GPU_TARGET mkdir -p $RDIR
     - scp -r $LDIR/* $GPU_TARGET:$RDIR/
     - ssh $GPU_TARGET "LD_PRELOAD=$RDIR/libtirpc.so.3 $RDIR/cricket-rpc-server 255" &

@@ -312,7 +312,7 @@ bool_t rpc_cumoduleloaddata_1_svc(mem_data mem, ptr_result *result,
         LOGE(LOG_ERROR, "error in resource manager");
     }
     if (result->err != 0) {
-        char *err_str = NULL;
+        const char *err_str = NULL;
         cuGetErrorName(result->err, &err_str);
         LOGE(LOG_DEBUG, "cuModuleLoadData result: %s", err_str);
     }
@@ -332,7 +332,7 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
         LOGE(LOG_ERROR, "error in resource manager");
     }
     if (result->err != 0) {
-        char *err_str = NULL;
+        const char *err_str = NULL;
         cuGetErrorName(result->err, &err_str);
         LOGE(LOG_DEBUG, "cuModuleLoad result: %s", err_str);
     }
