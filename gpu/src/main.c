@@ -149,6 +149,7 @@ int cricket_restore(int argc, char *argv[])
     cricket_jmptable_index *jmptbl;
     uint64_t warp_mask;
     size_t jmptbl_len;
+    char cmd_str[1024];
 
     uint32_t lanemask;
     uint64_t sswarps;
@@ -228,10 +229,16 @@ int cricket_restore(int argc, char *argv[])
     gettimeofday(&b, NULL);
 #endif
 
+    cricket_path = getenv("CRICKET_PATH");
+    if (cricket_path == NULL) {
+	    LOG(LOG_DEBUG, "no cricket path specified. assuming /usr/local/cricket\n");
+	    cricket_path = "/usr/local/cricket";
+    }
+
     gdb_init(argc, argv, (char*)patched_binary, NULL);
     LOGE(LOG_DEBUG, "GDB init");
-    execute_command("set exec-wrapper env 'LOG=DEBUG' 'LD_PRELOAD=/opt/cricket/bin/cricket-server.so' 'CRICKET_RESTORE=1'", !batch_flag);
-
+    snprintf(cmd_str, 1024, "set exec-wrapper env 'LD_PRELOAD=%s/bin/libtirpc.so.3:%s/cpu/cricket-server.so' 'CRICKET_RESTORE=1' 'LOG=DEBUG'", cricket_path, cricket_path);
+    execute_command(cmd_str, !batch_flag);
     // load the patched binary
     //exec_file_attach(patched_binary, !batch_flag);
 
