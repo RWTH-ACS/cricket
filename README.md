@@ -1,8 +1,22 @@
-# cricket
+# Cricket
 
 [![pipeline status](https://git.rwth-aachen.de/acs/public/virtualization/cricket-ci/badges/master/pipeline.svg)](https://git.rwth-aachen.de/acs/public/virtualization/cricket-ci/-/commits/master)
 
-Cricket consists of two parts: A virtualization layer for CUDA applications that allows the isolation of CPU and CPU parts by using Remote Procedure Calls and a checkpoint/restart tool for GPU kernels.
+Cricket is a virtualization layer for CUDA application that enables remote execution and checkpoint/restart without the need to recompile applications.
+Cricket isolates CUDA applications from the CUDA APIs by using ONC Remote Procedure Calls.
+User code and CUDA APIs are thus executed in separate processes.
+
+![virtualization layer](assets/virt-layer.svg)
+
+For Cricket to be able to insert the virtualization layer, the CUDA application has to link dynamically to the CUDA APIs. For this, you have to pass `-cudart shared` to `nvcc` during linking.
+
+- For experimental pytorch support see [here](docs/pytorch.md).
+- For using Cricket from Rust see [here](https://github.com/RWTH-ACS/RPC-Lib).
+
+Supported transports for cudaMemcpy:
+- TCP (slow, for pageable memory)
+- Infiniband (fast, for pinned memory)
+- Shared Memory (fastest, for pinned memory and no remote execution)
 
 # Dependencies
 Cricket requires
@@ -11,7 +25,7 @@ Cricket requires
 - `libcrypto`
 - `libtirpc`
 
-libtirpc built as part of the main Makefile.
+libtirpc is built as part of the main Makefile.
 
 On the system where the Cricket server should be executed, the appropriate NVIDIA drivers should be installed.
 
@@ -70,28 +84,26 @@ REMOTE_GPU_ADDRESS=remoteSystem.my-domain.com LD_PRELOAD=/nfs_share/cricket/bin/
 
 ## File structue
 * **cpu:** The virtualization layer
-* **gpu:** The checkpoint/restart tool
+* **gpu:** experimental in-kernel checkpoint/restart
 * **submodules:** Submodules are located here.
-    * **cuda-gdb:** modified GDB for use with CUDA. We mostly need the modified libbfd for gathering information from the CUDA ELF.
-    * **libtirpc:** Transport Indepentend Remote Procedure Calls is requried for the virtualization layer-
-* **tests:** some synthetic CUDA applications to test cricket.
-* **utils:** A Dockerfile for repoducibility and for our CI.
+    * **cuda-gdb:** modified GDB for use with CUDA. This is only required for in-kernel checkpoint/restart
+    * **libtirpc:** Transport Indepentend Remote Procedure Calls is requried for the virtualization layer
+* **tests:** various CUDA applications to test cricket.
+* **utils:** A Dockerfile for for our CI.s
 
 Please agree to the [DCO](DCO.md) by signing off your commits.
 
-## Style Guidelines:
-```
-set cindent
-set tabstop=4
-set shiftwidth=4
-set expandtab
-set cinoptions=(0,:0,l1,t0,L3
-match ErrorMsg /\s\+$\| \+\ze\t/
-```
+## Publications
 
-This project adheres to the [Linux Kernel Coding Style](https://www.kernel.org/doc/html/v4.10/process/coding-style.html), except when it doesn't.
+Eiling et. al: A virtualization layer for distributed execution of CUDA applications with checkpoint/restart support. Concurrency and Computation: Practice and Experience. 2022. https://doi.org/10.1002/cpe.6474
 
-Etymology: Cricket is an abbreviation for Checkpoint Restart In Cuda KErnels Tool
+Eiling et. al: Checkpoint/Restart for CUDA Kernels. In Proceedings of the SC '23 Workshops of The International Conference on High Performance Computing, Network, Storage, and Analysis (SC-W '23). 2023. ACM. https://doi.org/10.1145/3624062.3624254
+      
+Eiling et. al: GPU Acceleration in Unikernels Using Cricket GPU Virtualization. In Proceedings of the SC '23 Workshops of The International Conference on High Performance Computing, Network, Storage, and Analysis (SC-W '23). 2023. ACM. https://doi.org/10.1145/3624062.3624236
+
+Eiling et. al: An Open-Source Virtualization Layer for CUDA Applications. In Euro-Par 2020: Parallel Processing Workshops. 2021. Lecture Notes in Computer Science, vol 12480. Springer. https://doi.org/10.1007/978-3-030-71593-9_13
+
+
 
 ## Acknowledgments
 
