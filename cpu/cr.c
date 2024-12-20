@@ -729,6 +729,7 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     case CUDA_MEMCPY_DTOD:
     case CUDA_MEMCPY_DTOH:
     case CUDA_MEMCPY_TO_SYMBOL:
+    case rpc_register_function:
         break;
     case CUDA_STREAM_CREATE:
     case CUDA_STREAM_CREATE_WITH_FLAGS:
