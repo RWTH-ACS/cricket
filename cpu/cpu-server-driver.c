@@ -4,9 +4,6 @@
 #include <cuda.h>
 
 #include "cpu_rpc_prot.h"
-#include "cpu-server-driver-hidden.h"
-#include "cpu-common.h"
-#include "cpu-utils.h"
 #include "log.h"
 #include "resource-mg.h"
 #define WITH_RECORDER
@@ -36,18 +33,33 @@ int server_driver_init(int restore)
 
 #include <cuda_runtime_api.h>
 
-// Does not support checkpoint/restart yet
 bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(rpc_elf_load_1_argument);
+    RECORD_ARG(1, elf);
+    RECORD_ARG(2, module_key);
+    char *elf_copy = NULL;
     LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module = NULL;
-    
+    GSCHED_RETAIN;
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
         *result = res;
         return 1;
     }
+
+    // FIXME: We have to copy the elf because libtirpc will free it after the
+    // call. This is pretty ugly and we should find a better solution.
+    if ((elf_copy = malloc(elf.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        *result = 1;
+    }
+    if (memcpy(elf_copy, elf.mem_data_val, elf.mem_data_len) == NULL) {
+        LOGE(LOG_ERROR, "could not copy elf");
+        *result = 1;
+    }
+    arguments->arg1.mem_data_val = elf_copy;
 
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
@@ -56,20 +68,23 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
         *result = res;
         return 1;
     }
-
+    GSCHED_RELEASE;
     LOGE(LOG_DEBUG, "->module: %p", module);
     *result = 0;
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
-// Does not support checkpoint/restart yet
 // TODO: We should also remove associated function handles
 bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 {
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(elf_handle);
     LOGE(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
     CUmodule module = NULL;
     CUresult res;
-    
+
+    GSCHED_RETAIN;
     if ((module = (CUmodule)resource_mg_get(&rm_modules, (void*)elf_handle)) == NULL) {
         LOG(LOG_ERROR, "resource_mg_get failed");
         *result = -1;
@@ -91,12 +106,13 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
         *result = res;
         return 1;
     }
+    GSCHED_RELEASE;
 
     *result = 0;
+    RECORD_RESULT(integer, *result);
     return 1;
 }
 
-// Does not support checkpoint/restart yet
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
                             char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
 {
@@ -109,8 +125,15 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     RECORD_ARG(5, thread_limit);
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+    record->data_size = strlen(deviceFun) + 1 + strlen(deviceName) + 1;
+    if ((record->data = malloc(record->data_size)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        return 1;
+    }
+    strcpy(record->data, deviceFun);
+    strcpy(record->data + strlen(deviceFun) + 1, deviceName);
+
     GSCHED_RETAIN;
-    //resource_mg_print(&rm_modules);
     if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         result->err = -1;
@@ -127,7 +150,6 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     return 1;
 }
 
-// Does not support checkpoint/restart yet
 bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress, char *deviceName, int ext, size_t size,
                         int constant, int global, int *result, struct svc_req *rqstp)
 {
@@ -144,7 +166,13 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
     LOG(LOG_DEBUG, "rpc_register_var(fatCubinHandle: %p, hostVar: %p, deviceAddress: %p, deviceName: %s, "
                    "ext: %d, size: %d, constant: %d, global: %d)",
                    fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
-    
+    record->data_size = strlen(deviceName) + 1;
+    if ((record->data = malloc(record->data_size)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        return 1;
+    }
+    strcpy(record->data, deviceName);
+
     CUdeviceptr dptr = 0;
     size_t d_size = 0;
     CUresult res;
