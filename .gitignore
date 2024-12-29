@@ -23,6 +23,7 @@ bin
 submodules/cuda-gdb
 submodules/lib
 ckp
+criu-ckp
 .nfs*
 *.rpm
 *.test
