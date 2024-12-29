@@ -1,6 +1,7 @@
 #include "resource-mg.h"
 #include "list.h"
 #include "log.h"
+#include <stdio.h>
 
 
 int resource_mg_init(resource_mg *mg, int bypass)
@@ -107,7 +108,6 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
     return 0;
 }
 
-#include <stdio.h>
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
 {
     ssize_t start = 0;
