@@ -1,16 +1,16 @@
 #define _GNU_SOURCE
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cuda_runtime.h>
 #include <arpa/inet.h>
-#include <rpc/clnt.h>
-#include <cusolverDn.h>
 #include <cublas_v2.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <cusolverDn.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <rpc/clnt.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include "cpu-common.h"
 #include "api-recorder.h"
 #include "resource-mg.h"
 #include "log.h"
@@ -300,6 +300,73 @@ static int cr_restore_streams(api_record_t *record, resource_mg *rm_streams)
     return 0;
 }
 
+static int cr_restore_elf(const char *path, api_record_t *record,
+                          resource_mg *rm_modules)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    int elf_restored = 1;
+    const char *suffix = "elf";
+    void *mem_data;
+    rpc_elf_load_1_argument *arg;
+    int result;
+    CUresult res;
+    CUmodule module = NULL;
+    if (record->function != rpc_elf_load) {
+        LOGE(LOG_ERROR, "got a record that is not of type rpc_elf_load");
+        return 0;
+    }
+    arg = (rpc_elf_load_1_argument *)record->arguments;
+    result = record->result.integer;
+    if ((mem_data = malloc(arg->arg1.mem_data_len)) == NULL) {
+        LOGE(LOG_ERROR, "could not allocate memory");
+        return 1;
+    }
+
+    if (asprintf(&file_name, "%s/%s-0x%lx", path, suffix, arg->arg2) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+
+    if ((fp = fopen(file_name, "rb")) != NULL) {
+
+        if (ferror(fp) || feof(fp)) {
+            LOGE(LOG_ERROR, "file descriptor is invalid");
+            goto cleanup;
+        }
+
+        if (fread(mem_data, 1, arg->arg1.mem_data_len, fp) !=
+            arg->arg1.mem_data_len) {
+            LOGE(LOG_ERROR, "error reading mem_data");
+            goto cleanup;
+        }
+    } else {
+        LOGE(LOG_WARNING, "could not open memory file: %s", file_name);
+        elf_restored = 0;
+    }
+
+    if ((res = cuModuleLoadData(&module, mem_data)) != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
+        result = res;
+        goto cleanup;
+    }
+
+    LOG(LOG_DEBUG, "restored elf %p -> %p", arg->arg2, module);
+
+    if ((res = resource_mg_add_sorted(rm_modules, (void *)arg->arg2,
+                                      (void *)module)) != 0) {
+        LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
+        result = res;
+        goto cleanup;
+    }
+
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return result;
+}
+
 static int cr_restore_memory(const char *path, api_record_t *record, resource_mg *rm_memory)
 {
     FILE *fp = NULL;
@@ -382,6 +449,46 @@ out:
     return ret;
 }
 
+static int cr_dump_elf_entry(const char *path, api_record_t *record)
+{
+    FILE *fp = NULL;
+    char *file_name;
+    const char *suffix = "elf";
+    rpc_elf_load_1_argument *arg;
+    int result;
+    int ret;
+    if (record->function != rpc_elf_load) {
+        LOGE(LOG_ERROR, "got a record that is not of type rpc_elf_load");
+        return 0;
+    }
+    arg = (rpc_elf_load_1_argument *)record->arguments;
+    result = record->result.integer;
+
+    if (asprintf(&file_name, "%s/%s-0x%lx", path, suffix, arg->arg2) < 0) {
+        LOGE(LOG_ERROR, "memory allocation failed");
+        goto out;
+    }
+    if ((fp = fopen(file_name, "w+b")) == NULL) {
+        LOGE(LOG_ERROR, "error while opening file");
+        free(file_name);
+        goto out;
+    }
+
+    if (fwrite(arg->arg1.mem_data_val, 1, arg->arg1.mem_data_len, fp) !=
+        arg->arg1.mem_data_len) {
+        LOGE(LOG_ERROR, "error writing mem_data");
+        return 1;
+    }
+    LOG(LOG_DEBUG, "dumped elf from %#x of size %zu to %s",
+        arg->arg1.mem_data_val, arg->arg1.mem_data_len, file_name);
+    ret = 0;
+cleanup:
+    free(file_name);
+    fclose(fp);
+out:
+    return ret;
+}
+
 static int cr_dump_memory_entry(const char *path, api_record_t *record)
 {
     FILE *fp = NULL;
@@ -407,7 +514,8 @@ static int cr_dump_memory_entry(const char *path, api_record_t *record)
            (void*)result.ptr_result_u.ptr,
            mem_size,
            cudaMemcpyDeviceToHost)) != 0) {
-        LOGE(LOG_ERROR, "cudaMalloc returned an error: %s", cudaGetErrorString(ret));
+        LOGE(LOG_ERROR, "cudaMemcpy returned an error: %s",
+             cudaGetErrorString(ret));
         return 0;
     }
 
@@ -483,6 +591,29 @@ static int cr_dump_api_record(FILE *fp, api_record_t *record)
     return ret;
 }
 
+int cr_dump_elfs(const char *path)
+{
+    int res = 1;
+    api_record_t *record;
+    LOG(LOG_DEBUG, "dumping elf records to %s", path);
+    for (size_t i = 0; i < api_records.length; i++) {
+        if (list_at(&api_records, i, (void **)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            goto cleanup;
+        }
+        if (record->function == rpc_elf_load) {
+            api_records_print_records(record);
+            if (cr_dump_elf_entry(path, record) != 0) {
+                LOGE(LOG_ERROR, "error dumping memory");
+                goto cleanup;
+            }
+        }
+    }
+    res = 0;
+cleanup:
+    return res;
+}
+
 int cr_dump_memory(const char *path)
 {
     int res = 1;
@@ -493,8 +624,8 @@ int cr_dump_memory(const char *path)
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
             goto cleanup;
         }
-        api_records_print_records(record);
         if (record->function == CUDA_MALLOC) {
+            api_records_print_records(record);
             if (cr_dump_memory_entry(path, record) != 0) {
                 LOGE(LOG_ERROR, "error dumping memory");
                 goto cleanup;
@@ -715,7 +846,11 @@ int cr_call_record(api_record_t *record)
     return (retval==1 ? 0 : 1);
 }
 
-static int cr_restore_resources(const char *path, api_record_t *record, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver, resource_mg *rm_cublas)
+static int cr_restore_resources(const char *path, api_record_t *record,
+                                resource_mg *rm_memory, resource_mg *rm_streams,
+                                resource_mg *rm_events, resource_mg *rm_arrays,
+                                resource_mg *rm_cusolver,
+                                resource_mg *rm_cublas, resource_mg *rm_modules)
 {
     int ret = 1;
     switch (record->function) {
@@ -729,7 +864,31 @@ static int cr_restore_resources(const char *path, api_record_t *record, resource
     case CUDA_MEMCPY_DTOD:
     case CUDA_MEMCPY_DTOH:
     case CUDA_MEMCPY_TO_SYMBOL:
+        break;
+    case rpc_elf_load:
+        if (cr_restore_elf(path, record, rm_modules) != 0) {
+            LOGE(LOG_ERROR, "error restoring elf");
+            goto cleanup;
+        }
+        break;
     case rpc_register_function:
+        ((rpc_register_function_1_argument *)record->arguments)->arg3 =
+            record->data;
+        ((rpc_register_function_1_argument *)record->arguments)->arg4 =
+            record->data + strlen(record->data) + 1;
+
+        if (cr_call_record(record) != 0) {
+            LOGE(LOG_ERROR, "calling record function failed");
+            goto cleanup;
+        }
+        break;
+    case rpc_register_var:
+        ((rpc_register_var_1_argument *)record->arguments)->arg4 = record->data;
+
+        if (cr_call_record(record) != 0) {
+            LOGE(LOG_ERROR, "calling record function failed");
+            goto cleanup;
+        }
         break;
     case CUDA_STREAM_CREATE:
     case CUDA_STREAM_CREATE_WITH_FLAGS:
@@ -829,7 +988,10 @@ int cr_launch_kernel(void)
     return ret;
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams, resource_mg *rm_events, resource_mg *rm_arrays, resource_mg *rm_cusolver, resource_mg *rm_cublas)
+int cr_restore(const char *path, resource_mg *rm_memory,
+               resource_mg *rm_streams, resource_mg *rm_events,
+               resource_mg *rm_arrays, resource_mg *rm_cusolver,
+               resource_mg *rm_cublas, resource_mg *rm_modules)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -867,16 +1029,17 @@ int cr_restore(const char *path, resource_mg *rm_memory, resource_mg *rm_streams
             }
         }
         api_records_print_records(record);
-        if (cr_restore_resources(path, record, rm_memory, rm_streams,
-                                 rm_events, rm_arrays, rm_cusolver, rm_cublas) != 0) {
+        if (cr_restore_resources(path, record, rm_memory, rm_streams, rm_events,
+                                 rm_arrays, rm_cusolver, rm_cublas,
+                                 rm_modules) != 0) {
             LOGE(LOG_ERROR, "error restoring resources");
             goto cleanup;
         }
     }
-    if (cr_launch_kernel() != 0) {
-        LOGE(LOG_ERROR, "launching kernel failed");
-        goto cleanup;
-    }
+    // if (cr_launch_kernel() != 0) {
+    //     LOGE(LOG_ERROR, "launching kernel failed");
+    //     goto cleanup;
+    // }
     res = 0;
 cleanup:
     free(file_name);
