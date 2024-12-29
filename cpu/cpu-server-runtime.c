@@ -87,7 +87,13 @@ int server_runtime_init(int restore)
         ret &= server_runtime_restore("ckp");
 	    ret &= cublaslt_init(0, &rm_memory);
     }
-    
+
+    return ret;
+}
+
+int server_runtime_init_cuda(void)
+{
+    int ret = 0;
     // Make sure runtime API is initialized
     // If we don't do this and use the driver API, it might be unintialized
     cudaError_t cres;
@@ -96,7 +102,6 @@ int server_runtime_init(int restore)
         ret = 1;
     }
     cudaDeviceSynchronize();
-
     return ret;
 }
 
@@ -125,6 +130,10 @@ int server_runtime_checkpoint(const char *path, int dump_memory, unsigned long p
         return 1;
     }
     if (dump_memory == 1) {
+        if (cr_dump_elfs(path) != 0) {
+            LOGE(LOG_ERROR, "error dumping elfs");
+            return 1;
+        }
         if (cr_dump_memory(path) != 0) {
             LOGE(LOG_ERROR, "error dumping memory");
             return 1;
@@ -138,7 +147,8 @@ int server_runtime_restore(const char *path)
     struct timeval start, end;
     double time = 0;
     gettimeofday(&start, NULL);
-    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm(), cublas_get_rm()) != 0) {
+    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays,
+                   cusolver_get_rm(), cublas_get_rm(), &rm_modules) != 0) {
         LOGE(LOG_ERROR, "error restoring api_records");
         return 1;
     }

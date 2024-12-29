@@ -208,6 +208,10 @@ void cricket_main(size_t prog_num, size_t vers_num)
             restore = 1;
     }
 
+    if (server_runtime_init_cuda() != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        goto cleanup4;
+    }
     if (restore == 1) {
         if (cr_restore_rpc_id("ckp", &prog, &vers) != 0) {
             LOGE(LOG_ERROR, "error while restoring rpc id");
@@ -281,16 +285,16 @@ void cricket_main(size_t prog_num, size_t vers_num)
         goto cleanup4;
     }
 
+    if (server_driver_init(restore) != 0) {
+        LOGE(LOG_ERROR, "initializing server_runtime failed.");
+        goto cleanup2;
+    }
+
     if (server_runtime_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup3;
     }
 
-    if (server_driver_init(restore) != 0) {
-        LOGE(LOG_ERROR, "initializing server_runtime failed.");
-        goto cleanup2;        
-    }
-    
     if (server_nvml_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup1;
