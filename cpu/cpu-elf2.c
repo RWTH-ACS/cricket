@@ -937,7 +937,8 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         // entry->value, entry->value);
 
         if (entry->values_size != 8) {
-            LOGE(LOG_ERROR, "unexpected values_size: %#x", entry->values_size);
+            LOGE(LOG_WARNING, "unexpected values_size: %#x",
+                 entry->values_size);
             continue;
         }
 
