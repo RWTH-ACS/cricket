@@ -290,6 +290,7 @@ program RPC_CD_PROG {
         int          CUDA_STREAM_SYNCHRONIZE(ptr)                               = 267;
         int          CUDA_STREAM_WAIT_EVENT(ptr, ptr, int)                      = 268;
         int_result   CUDA_THREAD_EXCHANGE_STREAM_CAPTURE_MODE(int)              = 269;
+        int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                        = 270;
 
         /* ### Event Management ### */
         ptr_result   CUDA_EVENT_CREATE(void)                                    = 280;
@@ -480,6 +481,8 @@ program RPC_CD_PROG {
         int          rpc_cublasSetStream(ptr handle, ptr streamId)                             = 3008;
         int          rpc_cublasSetWorkspace(ptr handle, ptr workspace, size_t workspaceSizeInBytes) = 3009;
         int          rpc_cublasSetMathMode(ptr handle, int mode) = 3010;
+        int          rpc_cublasGemmBatchedEx(ptr, int, int, int, int, int, float,
+                         ptr, int, int, ptr, int, int, float, ptr, int, int, int, int, int)                 = 3011;
 
         /* NVML */
         int_result   rpc_nvmlDeviceGetCount_v2(void)                           = 4000;

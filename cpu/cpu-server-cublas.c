@@ -421,3 +421,27 @@ bool_t rpc_cublasgemmstridedbatched_1_svc(
     GSCHED_RELEASE;
     return 1;
 }
+
+bool_t rpc_cublasgemmbatchedex_1_svc(ptr handle, int transa, int transb, int m, int n, int k, float alpha,
+    ptr Aarray, int Atype, int lda,
+    ptr Barray, int Btype, int ldb, float beta,
+    ptr Carray, int Ctype, int ldc,
+    int batchCount, int computeType, int algo,
+    int *result, struct svc_req *rqstp)
+{
+LOGE(LOG_DEBUG, "cublasGemmBatchedEx");
+GSCHED_RETAIN;
+*result = cublasGemmBatchedEx(resource_mg_get(&rm_cublas, (void*)handle),
+            (cublasOperation_t) transa,
+            (cublasOperation_t) transb,
+            m, n, k, &alpha,
+            resource_mg_get(&rm_memory, (void*)Aarray), (cudaDataType_t)Atype, lda,
+            resource_mg_get(&rm_memory, (void*)Barray), (cudaDataType_t)Btype, ldb, &beta,
+            resource_mg_get(&rm_memory, (void*)Carray), (cudaDataType_t)Ctype, ldc,
+            batchCount,
+(cublasComputeType_t)computeType,
+(cublasGemmAlgo_t)algo
+);
+GSCHED_RELEASE;
+return 1;
+}

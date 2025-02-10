@@ -720,7 +720,32 @@ DEF_FN(cublasStatus_t, cublasCgemm3mStridedBatched, cublasHandle_t, handle, cubl
 DEF_FN(cublasStatus_t, cublasCgemm3mStridedBatched_64, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int64_t, m, int64_t, n, int64_t, k, const cuComplex*, alpha, const cuComplex*, A, int64_t, lda, long long int, strideA, const cuComplex*, B, int64_t, ldb, long long int, strideB, const cuComplex*, beta, cuComplex*, C, int64_t, ldc, long long int, strideC, int64_t, batchCount);
 DEF_FN(cublasStatus_t, cublasZgemmStridedBatched, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int, m, int, n, int, k, const cuDoubleComplex*, alpha, const cuDoubleComplex*, A, int, lda, long long int, strideA, const cuDoubleComplex*, B, int, ldb, long long int, strideB, const cuDoubleComplex*, beta, cuDoubleComplex*, C, int, ldc, long long int, strideC, int, batchCount);
 DEF_FN(cublasStatus_t, cublasZgemmStridedBatched_64, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int64_t, m, int64_t, n, int64_t, k, const cuDoubleComplex*, alpha, const cuDoubleComplex*, A, int64_t, lda, long long int, strideA, const cuDoubleComplex*, B, int64_t, ldb, long long int, strideB, const cuDoubleComplex*, beta, cuDoubleComplex*, C, int64_t, ldc, long long int, strideC, int64_t, batchCount);
-DEF_FN(cublasStatus_t, cublasGemmBatchedEx, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int, m, int, n, int, k, const void*, alpha, const void* const*,  Aarray, cudaDataType, Atype, int, lda, const void* const*,  Barray, cudaDataType, Btype, int, ldb, const void*, beta, void* const*,  Carray, cudaDataType, Ctype, int, ldc, int, batchCount, cublasComputeType_t, computeType, cublasGemmAlgo_t, algo);
+
+cublasStatus_t cublasGemmBatchedEx(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, int k, const void* alpha, const void* const* Aarray, cudaDataType Atype, int lda, const void* const*  Barray, cudaDataType Btype, int ldb, const void* beta, void* const*  Carray, cudaDataType Ctype, int ldc, int batchCount, cublasComputeType_t computeType, cublasGemmAlgo_t algo)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = rpc_cublasgemmbatchedex_1(
+        (ptr)handle,
+        (int)transa,
+        (int)transb,
+        m, n, k,
+        *((float*)alpha),
+        (ptr)Aarray, (int)Atype, lda,
+        (ptr)Barray, (int)Btype, ldb,
+        *((float*)beta),
+        (ptr)Carray, (int)Ctype, ldc,
+        batchCount, (int)computeType, (int)algo,
+         &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
+
 DEF_FN(cublasStatus_t, cublasGemmBatchedEx_64, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int64_t, m, int64_t, n, int64_t, k, const void*, alpha, const void* const*,  Aarray, cudaDataType, Atype, int64_t, lda, const void* const*,  Barray, cudaDataType, Btype, int64_t, ldb, const void*, beta, void* const*,  Carray, cudaDataType, Ctype, int64_t, ldc, int64_t, batchCount, cublasComputeType_t, computeType, cublasGemmAlgo_t, algo);
 DEF_FN(cublasStatus_t, cublasGemmStridedBatchedEx_64, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int64_t, m, int64_t, n, int64_t, k, const void*, alpha, const void*, A, cudaDataType, Atype, int64_t, lda, long long int, strideA, const void*, B, cudaDataType, Btype, int64_t, ldb, long long int, strideB, const void*, beta, void*, C, cudaDataType, Ctype, int64_t, ldc, long long int, strideC, int64_t, batchCount, cublasComputeType_t, computeType, cublasGemmAlgo_t, algo);
 DEF_FN(cublasStatus_t, cublasSgeam, cublasHandle_t, handle, cublasOperation_t, transa, cublasOperation_t, transb, int, m, int, n, const float*, alpha, const float*, A, int, lda, const float*, beta, const float*, B, int, ldb, float*, C, int, ldc);

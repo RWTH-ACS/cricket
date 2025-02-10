@@ -476,7 +476,20 @@ cudaError_t cudaPeekAtLastError(void)
 
 DEF_FN(cudaError_t, cudaStreamAddCallback, cudaStream_t, stream, cudaStreamCallback_t, callback, void*, userData, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaStreamAttachMemAsync, cudaStream_t, stream, void*, devPtr, size_t, length, unsigned int,  flags)
-DEF_FN(cudaError_t, cudaStreamBeginCapture, cudaStream_t, stream, enum cudaStreamCaptureMode, mode)
+
+cudaError_t cudaStreamBeginCapture(cudaStream_t stream, enum cudaStreamCaptureMode mode)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    int result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_begin_capture_1((ptr)stream, (int)mode, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    return result;
+}
 
 cudaError_t cudaStreamCreate(cudaStream_t* pStream)
 {
@@ -1429,7 +1442,7 @@ cudaError_t cudaMallocArray(cudaArray_t* array, const struct cudaChannelFormatDe
 cudaError_t cudaMallocHost(void** ptr, size_t size)
 {
     //TODO: Fall back to malloc only if shared memory is not enabled
-    *ptr = malloc(size);
+    *ptr = aligned_alloc(32, size);
     return cudaSuccess;
 }
 

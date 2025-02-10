@@ -657,6 +657,19 @@ bool_t cuda_thread_exchange_stream_capture_mode_1_svc(int mode, int_result *resu
     return 1;
 }
 
+bool_t cuda_stream_begin_capture_1_svc(ptr stream, int mode, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_stream_begin_capture_1_argument);
+    RECORD_ARG(1, stream);
+    RECORD_ARG(2, mode);
+    LOGE(LOG_DEBUG, "cudaStreamBeginCapture");
+    *result = cudaStreamBeginCapture(
+      resource_mg_get(&rm_streams, (void*)stream),
+      mode);
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
 /* ### Event Management ### */
 
 bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)

@@ -1,4 +1,3 @@
-#include "log.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -270,8 +269,12 @@ CUresult cuDeviceGetAttribute(int* pi, CUdevice_attribute attrib, CUdevice dev)
 {
 	enum clnt_stat retval;
     int_result result;
+    if (attrib == CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED) {
+        *pi = 0;
+        return CUDA_SUCCESS;
+    }
     retval = rpc_cudevicegetattribute_1(attrib, dev, &result, clnt);
-    printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
+    LOGE(LOG_DEBUG, "[rpc] %s(%d, %d) = %d, result %d", __FUNCTION__, attrib, dev, result.err,
                                         result.int_result_u.data);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
