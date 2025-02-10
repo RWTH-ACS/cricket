@@ -34,6 +34,8 @@ resource_mg rm_kernels;
 resource_mg rm_modules;
 resource_mg rm_functions;
 resource_mg rm_globals;
+resource_mg rm_devices;
+resource_mg rm_contexts;
 
 //Other RMs
 resource_mg rm_cusolver;

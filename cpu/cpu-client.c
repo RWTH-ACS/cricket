@@ -250,8 +250,11 @@ void *dlopen(const char *filename, int flag)
         "libcuda.so.1",
         "libcuda.so",
         "libnvidia-ml.so.1",
-        "libcudnn_cnn_infer.so.8"
+        "libcudnn_cnn_infer.so.8",
+        "/usr/lib/x86_64-linux-gnu/libcuda.so.550.127.05",
+        "/usr/local/cuda/lib64/libcudart.so"
     };
+    LOGE(LOG_DEBUG, "intercepted dlopen(filename: %s)", filename);
     static const size_t replace_libs_sz = sizeof(replace_libs) / sizeof(char *);
     if (filename != NULL) {
         for (size_t i=0; i != replace_libs_sz; ++i) {

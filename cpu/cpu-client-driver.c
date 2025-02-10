@@ -1,3 +1,4 @@
+#include "log.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,11 +54,48 @@ CUresult cuCtxCreate(CUcontext *pctx, unsigned int flags, CUdevice dev)
     printf("%s(%p, %u, %d) = %d\n", __FUNCTION__, pctx, flags, dev, ret);
     return ret;
 }
+
+#undef cuCtxCreate_v3
+CUresult cuCtxCreate_v3(CUcontext* pctx, CUexecAffinityParam* paramsArray, int numParams, unsigned int flags, CUdevice dev)
+{
+    ptr_result result;
+    enum clnt_stat retval_1;
+    mem_data params = {
+        .mem_data_len = sizeof(CUexecAffinityParam)*numParams,
+        .mem_data_val = (void*)paramsArray};
+    LOGE(LOG_DEBUG, "%s(%p, %p, %d, %u, %d)", __FUNCTION__, pctx, paramsArray, numParams, flags, dev);
+    retval_1 = rpc_cuctxcreate_v3_1(params, numParams, flags, (ptr)dev, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pctx = (void*)result.ptr_result_u.ptr;
+        LOGE(LOG_DEBUG, "context: %p", *pctx);
+    }
+    return result.err;
+        
+}
+
 DEF_FN(CUresult, cuCtxSynchronize)
 #undef cuModuleGetGlobal
 DEF_FN(CUresult, cuModuleGetGlobal, CUdeviceptr*, dptr, size_t*, bytes, CUmodule, hmod, const char*, name)
 #undef cuMemGetInfo
 DEF_FN(CUresult, cuMemGetInfo, size_t*, free, size_t*, total)
+CUresult cuMemGetInfo_v2(size_t* free, size_t* total)
+{
+	enum clnt_stat retval;
+    dsz_result result;
+    retval = rpc_cumemgetinfo_v2_1(&result, clnt);
+    printf("[rpc] %s = %d, result %zu, %zu\n", __FUNCTION__, result.err,
+                                        result.dsz_result_u.data.sz1, result.dsz_result_u.data.sz2);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *free = result.dsz_result_u.data.sz1;
+    *total = result.dsz_result_u.data.sz2;
+    return result.err;
+}
 
 #undef cuMemAlloc
 CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
@@ -156,15 +194,15 @@ CUresult cuInit(unsigned int Flags)
 CUresult cuDeviceGet(CUdevice* device, int ordinal)
 {
 	enum clnt_stat retval;
-    int_result result;
+    ptr_result result;
     retval = rpc_cudeviceget_1(ordinal, &result, clnt);
     printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
-                                        result.int_result_u.data);
+                                        result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
 		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
-    *device = result.int_result_u.data;
+    *device = result.ptr_result_u.ptr;
     return result.err;
 }
 
@@ -214,15 +252,15 @@ CUresult cuDeviceGetName(char* name, int len, CUdevice dev)
 CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 {
 	enum clnt_stat retval;
-    str_result result;
+    mem_result result;
     retval = rpc_cudevicegetuuid_1(dev, &result, clnt);
     printf("[rpc] %s = %d, result (uuid)\n", __FUNCTION__, result.err);
 
 	if (retval != RPC_SUCCESS) {
-		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
-    memcpy(uuid->bytes, result.str_result_u.str, 16);
+    memcpy(uuid->bytes, result.mem_result_u.data.mem_data_val, 16);
     return result.err;
 }
 
@@ -369,7 +407,7 @@ CUresult cuCtxSetCurrent(CUcontext ctx)
     retval = rpc_cuctxsetcurrent_1((uint64_t)ctx, &result, clnt);
     printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result);
 	if (retval != RPC_SUCCESS) {
-		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
     return result;
@@ -383,13 +421,28 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
     printf("[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, pctx, result.err,
                                         result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
-		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
     *pctx = (CUcontext)result.ptr_result_u.ptr;
     return result.err;
 }
 DEF_FN(CUresult, cuCtxDetach, CUcontext, ctx)
+
+#undef cuCtxDestroy
+CUresult cuCtxDestroy(CUcontext ctx)
+{
+	enum clnt_stat retval;
+    int result;
+    retval = rpc_cuctxdestroy_1((ptr)ctx, &result, clnt);
+    printf("[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, (ptr)ctx, result);
+	if (retval != RPC_SUCCESS) {
+		fprintf(stderr, "[rpc] %s failed.\n", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    return result;
+}
+
 DEF_FN(CUresult, cuCtxGetApi2Version, CUcontext, ctx, unsigned int*, version)
 //DEF_FN(CUresult, cuCtxGetDevice, CUdevice*, device)
 CUresult cuCtxGetDevice(CUdevice *device)
@@ -911,3 +964,18 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
 #endif
 
 
+CUresult cuMemGetAllocationGranularity(size_t *granularity, const CUmemAllocationProp *prop, CUmemAllocationGranularity_flags option)
+{
+	enum clnt_stat retval;
+    sz_result result;
+    mem_data rpc_prop = { .mem_data_len = sizeof(CUmemAllocationProp),
+                          .mem_data_val = (void*)prop };
+    retval = rpc_cumemgetallocationgranularity_1(rpc_prop, (int)option, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%p, %#x) = %d, result %zx", __FUNCTION__, prop, option, result.err, result.sz_result_u.data);
+	if (retval != RPC_SUCCESS) {
+		LOGE(LOG_ERROR,"[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+	}
+    *granularity = result.sz_result_u.data;
+    return result.err;
+}

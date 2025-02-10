@@ -1426,7 +1426,13 @@ cudaError_t cudaMallocArray(cudaArray_t* array, const struct cudaChannelFormatDe
     return result.err;
 }
 
-DEF_FN(cudaError_t, cudaMallocHost, void**, ptr, size_t, size)
+cudaError_t cudaMallocHost(void** ptr, size_t size)
+{
+    //TODO: Fall back to malloc only if shared memory is not enabled
+    *ptr = malloc(size);
+    return cudaSuccess;
+}
+
 DEF_FN(cudaError_t, cudaMallocManaged, void**, devPtr, size_t, size, unsigned int,  flags)
 DEF_FN(cudaError_t, cudaMallocMipmappedArray, cudaMipmappedArray_t*, mipmappedArray, const struct cudaChannelFormatDesc*, desc, struct cudaExtent, extent, unsigned int,  numLevels, unsigned int,  flags)
 

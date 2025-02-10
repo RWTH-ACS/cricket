@@ -22,10 +22,14 @@ int server_driver_init(int restore)
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
         ret &= resource_mg_init(&rm_globals, 0);
+        ret &= resource_mg_init(&rm_devices, 1);
+        ret &= resource_mg_init(&rm_contexts, 1);
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
         ret &= resource_mg_init(&rm_globals, 0);
+        ret &= resource_mg_init(&rm_devices, 0);
+        ret &= resource_mg_init(&rm_contexts, 0);
         //ret &= server_driver_restore("ckp");
     }
     return ret;
@@ -203,6 +207,8 @@ int server_driver_deinit(void)
 {
     resource_mg_free(&rm_modules);
     resource_mg_free(&rm_functions);
+    resource_mg_free(&rm_devices);
+    resource_mg_free(&rm_contexts);
     return 0;
 }
 
@@ -227,12 +233,20 @@ bool_t rpc_cudrivergetversion_1_svc(int_result *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rqstp)
+bool_t rpc_cudeviceget_1_svc(int ordinal, ptr_result *result, struct svc_req *rqstp)
 {
+    RECORD_API(int);
+    RECORD_SINGLE_ARG(ordinal);
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
-    result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
+    result->err = cuDeviceGet((CUdevice*)&result->ptr_result_u.ptr, ordinal);
+    if (resource_mg_create(&rm_devices, (void*)result->ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "failed to add kernel to resource manager");
+        result->err = -1;
+        return 1;
+    }
     GSCHED_RELEASE;
+    RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
 
@@ -255,6 +269,15 @@ bool_t rpc_cudevicetotalmem_1_svc(int dev, u64_result *result, struct svc_req *r
     return 1;
 }
 
+bool_t rpc_cumemgetinfo_v2_1_svc(dsz_result *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cuMemGetInfo_v2(&result->dsz_result_u.data.sz1, &result->dsz_result_u.data.sz2);
+    GSCHED_RELEASE;
+    return 1;
+}
+
 bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
@@ -264,15 +287,16 @@ bool_t rpc_cudevicegetattribute_1_svc(int attribute, int dev, int_result *result
     return 1;
 }
 
-bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rqstp)
+bool_t rpc_cudevicegetuuid_1_svc(int dev, mem_result *result, struct svc_req *rqstp)
 {
-    CUuuid uuid;
-    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    result->mem_result_u.data.mem_data_val = malloc(sizeof(CUuuid));
+    result->mem_result_u.data.mem_data_len = sizeof(CUuuid);
+    LOG(LOG_DEBUG, "%s(%d)", __FUNCTION__, dev);
     GSCHED_RETAIN;
-    result->err = cuDeviceGetUuid(&uuid, dev);
+    result->err = cuDeviceGetUuid((CUuuid*)result->mem_result_u.data.mem_data_val, dev);
     GSCHED_RELEASE;
-    if (result->err == 0) {
-        memcpy(result->str_result_u.str, uuid.bytes, 16);
+    if (result->err != 0) {
+        LOGE(LOG_ERROR, "error in cuDeviceGetUuid: %d", result->err);
     }
     return 1;
 }
@@ -556,6 +580,83 @@ bool_t rpc_cudevicegetp2pattribute_1_svc(int attrib, ptr srcDevice, ptr dstDevic
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
     result->err = cuDeviceGetP2PAttribute(&result->int_result_u.data, (CUdevice_P2PAttribute)attrib, (CUdevice)srcDevice, (CUdevice)dstDevice);
+    GSCHED_RELEASE;
+    return 1;
+}
+
+bool_t rpc_cuctxcreate_v3_1_svc(mem_data params, int numParams, unsigned int flags, int dev, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cuctxcreate_v3_1_argument);
+    RECORD_ARG(1, params);
+    RECORD_ARG(2, numParams);
+    RECORD_ARG(3, flags);
+    RECORD_ARG(4, dev);
+
+    LOG(LOG_DEBUG,
+        "rpc_cuCtxCreate_v3(params: %p, numParams: %d, flags: %d, dev: %d)",
+        params.mem_data_val, numParams, flags, dev);
+    // TODO: properly store params
+    // record->data_size = strlen(deviceName) + 1;
+    // if ((record->data = malloc(record->data_size)) == NULL) {
+    //     LOGE(LOG_ERROR, "could not allocate memory");
+    //     return 1;
+    // }
+    // strcpy(record->data, deviceName);
+
+    CUcontext* pctx = (CUcontext*)&result->ptr_result_u.ptr;
+    CUexecAffinityParam* execAffinity = (CUexecAffinityParam*)params.mem_data_val;
+    CUresult res;
+    GSCHED_RETAIN;
+    if ((res = cuCtxCreate_v3(pctx, execAffinity, numParams, flags, dev)) !=
+        CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuCtxCreate_v3 failed: %d", res);
+        result->err = -1;
+        return 1;
+    }
+    LOGE(LOG_DEBUG, "context: %p", (void*)*pctx);
+    if (resource_mg_create(&rm_contexts, (void *)*pctx) !=
+        0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+        result->err = -1;
+    } else {
+        result->err = res;
+    }
+    GSCHED_RELEASE;
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t rpc_cuctxdestroy_1_svc(ptr ctx, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(ctx);
+
+    LOG(LOG_DEBUG, "rpc_cuCtxDestroy(ctx: %p)", ctx);
+
+    GSCHED_RETAIN;
+    CUcontext context = (CUcontext)resource_mg_get(&rm_contexts, (void*)ctx);
+    LOGE(LOG_DEBUG, "context: %p", (void*)context);
+    *result = cuCtxDestroy(context);
+    if (*result != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuCtxDestroy failed: %d", *result);
+        return 1;
+    }
+    //TODO: remove from resource_mg
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cumemgetallocationgranularity_1_svc(mem_data prop, int option, sz_result *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "rpc_cumemgetallocationgranularity(prop: %p, option: %#x)", prop.mem_data_val, option);
+    const CUmemAllocationProp *prop_ptr = (const CUmemAllocationProp*)prop.mem_data_val;
+    GSCHED_RETAIN;
+    result->err = cuMemGetAllocationGranularity(&result->sz_result_u.data, prop_ptr, (CUmemAllocationGranularity_flags)option);
+    if (result->err != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuMemGetAllocationGranularity failed: %d", result->err);
+        return 1;
+    }
     GSCHED_RELEASE;
     return 1;
 }

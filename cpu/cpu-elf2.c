@@ -896,7 +896,7 @@ int elf2_parameter_info(list *kernel_infos, void* memory, size_t memsize)
         return -1;
     }
 
-#define ELF_DUMP_TO_FILE 1
+// #define ELF_DUMP_TO_FILE 1
 
 #ifdef ELF_DUMP_TO_FILE
     FILE* fd2 = fopen("/tmp/cricket-elf-dump", "wb");

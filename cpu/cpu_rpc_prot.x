@@ -415,11 +415,11 @@ program RPC_CD_PROG {
         int_result   rpc_cuDeviceGetCount(void)                                = 1002;
         int          rpc_cuInit(int)                                           = 1003;
         int_result   rpc_cuDriverGetVersion(void)                              = 1004;
-        int_result   rpc_cuDeviceGet(int)                                      = 1005;
+        ptr_result   rpc_cuDeviceGet(int)                                      = 1005;
         str_result   rpc_cuDeviceGetName(int)                                  = 1006;
         u64_result   rpc_cuDeviceTotalMem(int)                                 = 1007;
         int_result   rpc_cuDeviceGetAttribute(int, int)                        = 1008;
-        str_result   rpc_cuDeviceGetUuid(int)                                  = 1009;
+        mem_result   rpc_cuDeviceGetUuid(int)                                  = 1009;
         ptr_result   rpc_cuCtxGetCurrent(void)                                 = 1010;
         int          rpc_cuCtxSetCurrent(ptr)                                  = 1011;
         ptr_result   rpc_cuDevicePrimaryCtxRetain(int)                         = 1012;
@@ -439,6 +439,10 @@ program RPC_CD_PROG {
         dint_result  rpc_cuDeviceComputeCapability(int)                        = 1024;
         int_result   rpc_cuDeviceGetP2PAttribute(int, ptr, ptr)                = 1025; 
         ptr_result   rpc_cuModuleLoadData(mem_data mem)                        = 1026;
+        ptr_result   rpc_cuCtxCreate_v3(mem_data, int, unsigned int, int)      = 1027;
+        dsz_result   rpc_cumemgetinfo_v2(void)                                 = 1028;
+        int          rpc_cuctxdestroy(ptr)                                     = 1029;
+        sz_result    rpc_cumemgetallocationgranularity(mem_data, int)          = 1030;
 
         /* HIDDEN DRIVER API */
 /*        ptr_result   rpc_hidden_get_device_ctx(int)                            = 1101;
