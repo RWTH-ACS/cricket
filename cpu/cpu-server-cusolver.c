@@ -19,7 +19,7 @@
 
 
 
-int cusolver_init(int bypass, resource_mg *streams, resource_mg *memory)
+int cusolver_init(int bypass, resource_mg *streams)
 {
     int ret = 0;
     ret &= resource_mg_init(&rm_cusolver, bypass);
@@ -66,7 +66,7 @@ bool_t rpc_cusolverdndgetrf_buffersize_1_svc(ptr handle, int m, int n, ptr A, in
     LOGE(LOG_DEBUG, "cusolverDnDgetrf_buffersize");
     result->err = cusolverDnDgetrf_bufferSize(resource_mg_get(&rm_cusolver, (void*)handle),
                                               m, n,
-                                              resource_mg_get(&rm_memory, (void*)A),
+                                              memory_mg_get(&rm_memory, (void*)A),
                                               lda, &result->int_result_u.data);
     return 1;
 }
@@ -76,11 +76,11 @@ bool_t rpc_cusolverdndgetrf_1_svc(ptr handle, int m, int n, ptr A, int lda, ptr 
     LOGE(LOG_DEBUG, "cusolverDnDgetrf");
     *result = cusolverDnDgetrf(resource_mg_get(&rm_cusolver, (void*)handle),
                                m, n,
-                               resource_mg_get(&rm_memory, (void*)A),
+                               memory_mg_get(&rm_memory, (void*)A),
                                lda,
-                               resource_mg_get(&rm_memory, (void*)Workspace),
-                               resource_mg_get(&rm_memory, (void*)devIpiv),
-                               resource_mg_get(&rm_memory, (void*)devInfo));
+                               memory_mg_get(&rm_memory, (void*)Workspace),
+                               memory_mg_get(&rm_memory, (void*)devIpiv),
+                               memory_mg_get(&rm_memory, (void*)devInfo));
     return 1;
 }
 
@@ -89,12 +89,12 @@ bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A,
     LOGE(LOG_DEBUG, "cusolverDnDgetrs");
     *result = cusolverDnDgetrs(resource_mg_get(&rm_cusolver, (void*)handle),
                                (cublasOperation_t)trans, n, nrhs,
-                               resource_mg_get(&rm_memory, (void*)A),
+                               memory_mg_get(&rm_memory, (void*)A),
                                lda,
-                               resource_mg_get(&rm_memory, (void*)devIpiv),
-                               resource_mg_get(&rm_memory, (void*)B),
+                               memory_mg_get(&rm_memory, (void*)devIpiv),
+                               memory_mg_get(&rm_memory, (void*)B),
                                ldb,
-                               resource_mg_get(&rm_memory, (void*)devInfo));
+                               memory_mg_get(&rm_memory, (void*)devInfo));
 
     LOGE(LOG_DEBUG, "handle: %p, A: %p, devIpiv: %p, B: %p, devInfo: %p", handle, A, devIpiv, B, devInfo);
     LOGE(LOG_DEBUG, "trans: %d, n: %d, nrhs: %d, lda: %d, ldb: %d, result: %d", trans, n, nrhs, lda, ldb, *result);

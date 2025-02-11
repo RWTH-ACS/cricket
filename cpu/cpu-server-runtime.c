@@ -72,20 +72,22 @@ int server_runtime_init(int restore)
         ret &= resource_mg_init(&rm_streams, 1);
         ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
-        ret &= resource_mg_init(&rm_memory, 1);
-        ret &= cusolver_init(1, &rm_streams, &rm_memory);
-        ret &= cublas_init(1, &rm_memory);
-	    ret &= cublaslt_init(1, &rm_memory);
+        ret &= memory_mg_init(&rm_memory, 1);
+        ret &= resource_mg_init(&rm_graphs, 1);
+        ret &= cusolver_init(1, &rm_streams);
+        ret &= cublas_init(1);
+	    ret &= cublaslt_init(1);
     } else {
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
-        ret &= resource_mg_init(&rm_memory, 0);
+        ret &= memory_mg_init(&rm_memory, 0);
         ret &= resource_mg_init(&rm_kernels, 0);
-        ret &= cusolver_init(0, &rm_streams, &rm_memory);
-        ret &= cublas_init(0, &rm_memory);
+        ret &= resource_mg_init(&rm_graphs, 0);
+        ret &= cusolver_init(0, &rm_streams);
+        ret &= cublas_init(0);
         ret &= server_runtime_restore("ckp");
-	    ret &= cublaslt_init(0, &rm_memory);
+	    ret &= cublaslt_init(0);
     }
 
     return ret;
@@ -110,8 +112,9 @@ int server_runtime_deinit(void)
     resource_mg_free(&rm_streams);
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
-    resource_mg_free(&rm_memory);
+    memory_mg_free(&rm_memory);
     resource_mg_free(&rm_kernels);
+    resource_mg_free(&rm_graphs);
     cusolver_deinit();
     cublas_deinit();
     list_free(&mt_memcpy_list);
@@ -148,7 +151,7 @@ int server_runtime_restore(const char *path)
     double time = 0;
     gettimeofday(&start, NULL);
     if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays,
-                   cusolver_get_rm(), cublas_get_rm(), &rm_modules) != 0) {
+                   cusolver_get_rm(), cublas_get_rm(), &rm_modules, &rm_devices) != 0) {
         LOGE(LOG_ERROR, "error restoring api_records");
         return 1;
     }
@@ -344,10 +347,10 @@ bool_t cuda_device_set_shared_mem_config_1_svc(int config, int *result, struct s
 
 bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
 {
-    RECORD_VOID_API;
+    // RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaDeviceSynchronize");
     *result = cudaDeviceSynchronize();
-    RECORD_RESULT(integer, *result);
+    // RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -501,9 +504,6 @@ bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqst
 /* Requires unified memory OR attaching a shared memory region. */
 //        int          CUDA_STREAM_ATTACH_MEM_ASYNC(ptr, ptr, size_t, int)= 252;
 
-/* Requires Graph API to make sense */
-//        int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                = 253;
-
 bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct svc_req *rqstp)
 {
 #if CUDART_VERSION >= 11000
@@ -575,8 +575,86 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-/* Capture API does not make sense without graph API */
-//        /*ptr_result   CUDA_STREAM_END_CAPTURE(ptr)                       = 259;*/
+bool_t cuda_stream_end_capture_1_svc(ptr stream, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(ptr);
+    RECORD_SINGLE_ARG(stream);
+
+    LOGE(LOG_DEBUG, "cudaStreamEndCapture");
+    cudaStream_t stream_ptr = resource_mg_get(&rm_streams, (void*)stream);
+    result->err = cudaStreamEndCapture(stream_ptr, (cudaGraph_t*)&result->ptr_result_u.ptr);
+
+    if (result->err == cudaSuccess) {
+        if (resource_mg_create(&rm_graphs, (void*)result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t cuda_graph_instantiate_1_svc(ptr graph, size_t flags, ptr_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_graph_instantiate_1_argument);
+    RECORD_ARG(1, graph);
+    RECORD_ARG(2, flags);
+
+    LOGE(LOG_DEBUG, "cudaGraphInstantiate");
+    cudaGraph_t graph_ptr = resource_mg_get(&rm_graphs, (void*)graph);
+    result->err = cudaGraphInstantiate((cudaGraphExec_t*)&result->ptr_result_u.ptr, graph_ptr, flags);
+
+    if (result->err == cudaSuccess) {
+        if (resource_mg_create(&rm_graphs, (void*)result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+    RECORD_RESULT(ptr_result_u, *result);
+    return 1;
+}
+
+bool_t cuda_graph_get_nodes_1_svc(ptr graph, bool_t nodes_is_null, size_t num_nodes, mem_result *result, struct svc_req *rqstp)
+{
+    RECORD_API(cuda_graph_get_nodes_1_argument);
+    RECORD_ARG(1, graph);
+    RECORD_ARG(2, nodes_is_null);
+    RECORD_ARG(3, num_nodes);
+
+    LOGE(LOG_DEBUG, "cudaGraphGetNodes(%p, %d, %d)", graph, nodes_is_null, num_nodes);
+    cudaGraph_t graph_ptr = resource_mg_get(&rm_graphs, (void*)graph);
+    cudaGraphNode_t *nodes = NULL;
+    if (!nodes_is_null) {
+        result->mem_result_u.data.mem_data_len = sizeof(size_t) + num_nodes * sizeof(cudaGraphNode_t);
+        result->mem_result_u.data.mem_data_val = malloc(sizeof(size_t) + num_nodes * sizeof(cudaGraphNode_t));
+        if (result->mem_result_u.data.mem_data_val == NULL) {
+            LOGE(LOG_ERROR, "malloc failed");
+            return 0;
+        }
+        nodes = (cudaGraphNode_t*)(result->mem_result_u.data.mem_data_val + sizeof(size_t));
+        *((size_t*)result->mem_result_u.data.mem_data_val) = num_nodes;
+    } else {
+        result->mem_result_u.data.mem_data_len = sizeof(size_t);
+        result->mem_result_u.data.mem_data_val = malloc(sizeof(size_t));
+        if (result->mem_result_u.data.mem_data_val == NULL) {
+            LOGE(LOG_ERROR, "malloc failed");
+            return 0;
+        }
+    }
+    size_t* num_nodes_ptr = (size_t*)result->mem_result_u.data.mem_data_val;
+
+    result->err = cudaGraphGetNodes(graph_ptr, nodes, num_nodes_ptr);
+
+    if (result->err == cudaSuccess && !nodes_is_null) {
+        for (size_t i = 0; i < *num_nodes_ptr; i++) {
+            if (resource_mg_create(&rm_graphs, (void*)nodes[i]) != 0) {
+                LOGE(LOG_ERROR, "error in resource manager");
+            }
+        }
+    }
+    LOGE(LOG_DEBUG, "cudaGraphGetNodes: numNodes: %d, return: %d", *num_nodes_ptr, result->err);
+    RECORD_RESULT(integer, result->err);
+    return 1;
+}
+
 /* What datatypes are in the union cudaStreamAttrValue? */
 //        /* ?         CUDA_STREAM_GET_ATTRIBUTE(ptr, int)                = 260;*/
 /* Capture API does not make sense without graph API */
@@ -622,12 +700,12 @@ bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
 
 bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(uint64_t);
-    RECORD_SINGLE_ARG(stream);
-    LOGE(LOG_DEBUG, "cudaStreamSynchronize");
+    // RECORD_API(uint64_t);
+    // RECORD_SINGLE_ARG(stream);
+    LOGE(LOG_DEBUG, "cudaStreamSynchronize(%p)", stream);
     *result = cudaStreamSynchronize(
       resource_mg_get(&rm_streams, (void*)stream));
-    RECORD_RESULT(integer, *result);
+    // RECORD_RESULT(integer, *result);
     return 1;
 }
 
@@ -883,7 +961,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_mg_get(&rm_memory, *(void**)cuda_args[i]);
+        *(void**)cuda_args[i] = memory_mg_get(&rm_memory, *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
@@ -1011,7 +1089,7 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 
     #else
 
-    *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
+    *result = cudaFree(memory_mg_get(&rm_memory, (void*)devPtr));
 
     #endif
 
@@ -1131,7 +1209,7 @@ bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result,
     result->err = cudaErrorMemoryAllocation;
 
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
-        if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_cnt) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_cnt) == -1) {
             LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
             goto out;
         }
@@ -1205,7 +1283,7 @@ bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *resu
         LOGE(LOG_ERROR, "cudaHostAllocRegShm is only supported for local connections.");
         goto out;
     }
-    if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_idx) == -1) {
+    if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_idx) == -1) {
         LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
         goto out;
     }
@@ -1259,7 +1337,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
             }    
 #else
     result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
-    resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
+    memory_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr, argp);
 #endif
 
     RECORD_RESULT(ptr_result_u, *result);
@@ -1282,7 +1360,7 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
     result->pptr_result_u.ptr.ptr = (ptr)pptr.ptr;
     result->pptr_result_u.ptr.xsize = pptr.xsize;
     result->pptr_result_u.ptr.ysize = pptr.ysize;
-    resource_mg_create(&rm_memory, pptr.ptr);
+    memory_mg_create(&rm_memory, pptr.ptr, width*depth*height);
 
     RECORD_RESULT(integer, result->err);
     return 1;
@@ -1347,7 +1425,7 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
     result->err = cudaMallocPitch((void*)&result->ptrsz_result_u.data.p,
                                   &result->ptrsz_result_u.data.s,
                                   width, height);
-    resource_mg_create(&rm_memory, (void*)result->ptrsz_result_u.data.p);
+    memory_mg_create(&rm_memory, (void*)result->ptrsz_result_u.data.p, width*height);
 
     RECORD_RESULT(integer, result->err);
     return 1;
@@ -1363,7 +1441,7 @@ bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, i
 
     LOGE(LOG_DEBUG, "cudaMemAdvise");
     *result = cudaMemAdvise(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       count, advice, device);
 
     RECORD_RESULT(integer, *result);
@@ -1388,7 +1466,7 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
 
     LOGE(LOG_DEBUG, "cudaMemPrefetchAsync");
     *result = cudaMemPrefetchAsync(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       count, dstDevice, (void*)stream);
 
     RECORD_RESULT(integer, *result);
@@ -1420,7 +1498,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     }
 #endif
     *result = cudaMemcpy(
-      resource_mg_get(&rm_memory, (void*)ptr),
+      memory_mg_get(&rm_memory, (void*)ptr),
       mem.mem_data_val,
       size,
       cudaMemcpyHostToDevice);
@@ -1523,8 +1601,8 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
 
     LOGE(LOG_DEBUG, "cudaMemcpyDtoD(%p, %p, %zu)", (void*)dst, (void*)src, size);
     *result = cudaMemcpy(
-      resource_mg_get(&rm_memory, (void*)dst),
-      resource_mg_get(&rm_memory, (void*)src),
+      memory_mg_get(&rm_memory, (void*)dst),
+      memory_mg_get(&rm_memory, (void*)src),
       size, cudaMemcpyDeviceToDevice);
 
     RECORD_RESULT(integer, *result);
@@ -1579,7 +1657,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
         struct ib_thread_info *info = malloc(sizeof(struct ib_thread_info));
         info->index = index;
         info->host_ptr = hainfo[index].server_ptr;
-//        info->device_ptr = resource_mg_get(&rm_memory, (void*)device_ptr);
+//        info->device_ptr = memory_mg_get(&rm_memory, (void*)device_ptr);
         info->size = size;
         info->result = 0;
         if (pthread_create(&thread, NULL, ib_thread, info) != 0) {
@@ -1630,14 +1708,14 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
 
     if (kind == cudaMemcpyHostToDevice) {
         *result = cudaMemcpy(
-          resource_mg_get(&rm_memory, (void*)device_ptr),
+          memory_mg_get(&rm_memory, (void*)device_ptr),
           hainfo[index].server_ptr,
           size,
           kind);
     } else if (kind == cudaMemcpyDeviceToHost) {
         *result = cudaMemcpy(
           hainfo[index].server_ptr,
-          resource_mg_get(&rm_memory, (void*)device_ptr),
+          memory_mg_get(&rm_memory, (void*)device_ptr),
           size,
           kind);
     }
@@ -1661,7 +1739,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
 #endif
     result->err = cudaMemcpy(
       result->mem_result_u.data.mem_data_val,
-      resource_mg_get(&rm_memory, (void*)ptr),
+      memory_mg_get(&rm_memory, (void*)ptr),
       size,
       cudaMemcpyDeviceToHost);
 #ifdef WITH_MEMCPY_REGISTER
@@ -1730,7 +1808,7 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
     RECORD_ARG(3, count);
     LOGE(LOG_DEBUG, "cudaMemset");
     *result = cudaMemset(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       value,
       count);
     RECORD_RESULT(integer, *result);
@@ -1747,7 +1825,7 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
     RECORD_ARG(5, width);
     LOGE(LOG_DEBUG, "cudaMemset2D");
     *result = cudaMemset2D(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       pitch,
       value,
       width,
@@ -1767,7 +1845,7 @@ bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t wi
     RECORD_ARG(6, stream);
     LOGE(LOG_DEBUG, "cudaMemset2DAsync");
     *result = cudaMemset2DAsync(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       pitch,
       value,
       width,
@@ -1790,7 +1868,7 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     RECORD_ARG(8, width);
     LOGE(LOG_DEBUG, "cudaMemset3D");
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = resource_mg_get(&rm_memory, (void*)devPtr),
+                                  .ptr = memory_mg_get(&rm_memory, (void*)devPtr),
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
@@ -1815,7 +1893,7 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
     RECORD_ARG(9, stream);
     LOGE(LOG_DEBUG, "cudaMemset3DAsync");
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = resource_mg_get(&rm_memory, (void*)devPtr),
+                                  .ptr = memory_mg_get(&rm_memory, (void*)devPtr),
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
@@ -1836,7 +1914,7 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
     RECORD_ARG(3, stream);
     LOGE(LOG_DEBUG, "cudaMemsetAsync");
     *result = cudaMemsetAsync(
-      resource_mg_get(&rm_memory, (void*)devPtr),
+      memory_mg_get(&rm_memory, (void*)devPtr),
       value,
       count,
       resource_mg_get(&rm_streams, (void*)stream));

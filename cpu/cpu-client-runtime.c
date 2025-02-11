@@ -556,7 +556,23 @@ cudaError_t cudaStreamDestroy(cudaStream_t stream)
     return result;
 }
 
-DEF_FN(cudaError_t, cudaStreamEndCapture, cudaStream_t, stream, cudaGraph_t*, pGraph)
+cudaError_t cudaStreamEndCapture(cudaStream_t stream, cudaGraph_t* pGraph)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval_1;
+    retval_1 = cuda_stream_end_capture_1((ptr)stream, &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pGraph = (void*)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
+
 #if CUDART_VERSION >= 11000
 DEF_FN(cudaError_t, cudaStreamGetAttribute, cudaStream_t, hStream, enum cudaStreamAttrID, attr, union cudaStreamAttrValue*, value_out )
 #endif
@@ -641,6 +657,7 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    LOGE(LOG_DEBUG, "cudaStreamSynchronize(%p)", stream);
     retval_1 = cuda_stream_synchronize_1((ptr)stream, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -2004,12 +2021,60 @@ DEF_FN(cudaError_t, cudaGraphDestroyNode, cudaGraphNode_t, node)
 DEF_FN(cudaError_t, cudaGraphExecDestroy, cudaGraphExec_t, graphExec)
 DEF_FN(cudaError_t, cudaGraphExecKernelNodeSetParams, cudaGraphExec_t, hGraphExec, cudaGraphNode_t, node, const struct cudaKernelNodeParams*, pNodeParams)
 DEF_FN(cudaError_t, cudaGraphGetEdges, cudaGraph_t, graph, cudaGraphNode_t*, from, cudaGraphNode_t*, to, size_t*, numEdges)
-DEF_FN(cudaError_t, cudaGraphGetNodes, cudaGraph_t, graph, cudaGraphNode_t*, nodes, size_t*, numNodes)
+
+cudaError_t cudaGraphGetNodes(cudaGraph_t graph, cudaGraphNode_t* nodes, size_t* numNodes)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval;
+    if (numNodes == NULL) {
+        return cudaErrorInvalidValue;
+    }
+    LOGE(LOG_DEBUG, "cudaGraphGetNodes(%p, %p, %zu)", graph, nodes, *numNodes);
+    retval = cuda_graph_get_nodes_1((ptr)graph, (nodes == NULL), *numNodes, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        if (result.mem_result_u.data.mem_data_len < sizeof(size_t)) {
+            LOGE(LOG_ERROR, "data is too small to store result");
+            return cudaErrorUnknown;
+        }
+        *numNodes = *(size_t*)result.mem_result_u.data.mem_data_val;
+        if (nodes != NULL) {
+            if (result.mem_result_u.data.mem_data_len < sizeof(size_t) + *numNodes * sizeof(cudaGraphNode_t)) {
+                LOGE(LOG_ERROR, "data is too small to store result");
+                return cudaErrorUnknown;
+            }
+            memcpy(nodes, result.mem_result_u.data.mem_data_val + sizeof(size_t), *numNodes * sizeof(cudaGraphNode_t));
+            LOGE(LOG_DEBUG, "cudaGraphGetNodes: %zu nodes", *numNodes);
+        }
+    }
+    return result.err;
+}
+
 DEF_FN(cudaError_t, cudaGraphGetRootNodes, cudaGraph_t, graph, cudaGraphNode_t*, pRootNodes, size_t*, pNumRootNodes)
 DEF_FN(cudaError_t, cudaGraphHostNodeGetParams, cudaGraphNode_t, node, struct cudaHostNodeParams*, pNodeParams)
 DEF_FN(cudaError_t, cudaGraphHostNodeSetParams, cudaGraphNode_t, node, const struct cudaHostNodeParams*, pNodeParams)
 #if CUDART_VERSION >= 12000
-DEF_FN(cudaError_t, cudaGraphInstantiate, cudaGraphExec_t*, pGraphExec, cudaGraph_t, graph, unsigned long long, flags)
+cudaError_t cudaGraphInstantiate(cudaGraphExec_t* pGraphExec, cudaGraph_t graph, unsigned long long flags)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif //WITH_API_CNT
+    ptr_result result;
+    enum clnt_stat retval;
+    retval = cuda_graph_instantiate_1((ptr)graph, flags, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
+    }
+    if (result.err == 0) {
+        *pGraphExec = (cudaGraphExec_t)result.ptr_result_u.ptr;
+    }
+    return result.err;
+}
 #else
 DEF_FN(cudaError_t, cudaGraphInstantiate, cudaGraphExec_t*, pGraphExec, cudaGraph_t, graph, cudaGraphNode_t*, pErrorNode, char*, pLogBuffer, size_t, bufferSize)
 #endif

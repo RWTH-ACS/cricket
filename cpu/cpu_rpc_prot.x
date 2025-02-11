@@ -279,7 +279,7 @@ program RPC_CD_PROG {
         ptr_result   CUDA_STREAM_CREATE_WITH_FLAGS(int)                         = 256;
         ptr_result   CUDA_STREAM_CREATE_WITH_PRIORITY(int, int)                 = 257;
         int          CUDA_STREAM_DESTROY(ptr)                                   = 258;
-        /*ptr_result CUDA_STREAM_END_CAPTURE(ptr)                               = 259;*/
+        ptr_result   CUDA_STREAM_END_CAPTURE(ptr)                               = 259;
         /* ?         CUDA_STREAM_GET_ATTRIBUTE(ptr, int)                        = 260;*/
         /* ?         CUDA_STREAM_GET_CAPTURE_INFO(ptr)                          = 261;*/
         int_result   CUDA_STREAM_GET_FLAGS(ptr)                                 = 262;
@@ -291,6 +291,8 @@ program RPC_CD_PROG {
         int          CUDA_STREAM_WAIT_EVENT(ptr, ptr, int)                      = 268;
         int_result   CUDA_THREAD_EXCHANGE_STREAM_CAPTURE_MODE(int)              = 269;
         int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                        = 270;
+        ptr_result   CUDA_GRAPH_INSTANTIATE(ptr, size_t)                        = 271;
+        mem_result   CUDA_GRAPH_GET_NODES(ptr, bool, size_t)                    = 272;
 
         /* ### Event Management ### */
         ptr_result   CUDA_EVENT_CREATE(void)                                    = 280;

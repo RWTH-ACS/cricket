@@ -44,7 +44,7 @@ static void* mt_memcpy_copy_thread(void* targs)
         }
 
         cudaError_t res = cudaMemcpy(
-          resource_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
+          memory_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
           args->server->mem_ptr+mem_offset,
           mem_this_thread,
           cudaMemcpyHostToDevice);
@@ -54,7 +54,7 @@ static void* mt_memcpy_copy_thread(void* targs)
     } else if (args->server->dir == MT_MEMCPY_DTOH) {
         cudaError_t res = cudaMemcpy(
             args->server->mem_ptr+mem_offset,
-            resource_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
+            memory_mg_get(&rm_memory, args->server->dev_ptr)+mem_offset,
             mem_this_thread,
             cudaMemcpyDeviceToHost);
         if (res != cudaSuccess) {

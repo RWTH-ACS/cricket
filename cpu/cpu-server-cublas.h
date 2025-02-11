@@ -3,7 +3,7 @@
 
 #include "resource-mg.h"
 
-int cublas_init(int restore, resource_mg *memory);
+int cublas_init(int restore);
 resource_mg *cublas_get_rm(void);
 int cublas_deinit(void);
 

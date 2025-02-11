@@ -8,6 +8,17 @@ typedef struct resource_mg_map_elem_t {
     void* cuda_address;
 } resource_mg_map_elem;
 
+typedef struct memory_mg_map_elem_t {
+    void* client_address;
+    void* cuda_address;
+    size_t size;
+} memory_mg_map_elem;
+
+typedef struct memory_mg_new_elem_t {
+    void* cuda_address;
+    size_t size;
+} memory_mg_new_elem;
+
 typedef struct resource_mg_t {
     /* Restored resources where client address != cuda address
      * are stored here. This is a sorted list, enabling binary searching.
@@ -22,13 +33,18 @@ typedef struct resource_mg_t {
     int bypass;
 } resource_mg;
 
+typedef struct memory_mg_t {
+    resource_mg rm;
+} memory_mg;
+
 
 //Runtime API RMs
 resource_mg rm_streams;
 resource_mg rm_events;
 resource_mg rm_arrays;
-resource_mg rm_memory;
+memory_mg   rm_memory;
 resource_mg rm_kernels;
+resource_mg rm_graphs;
 
 //Driver API RMs
 resource_mg rm_modules;
@@ -72,5 +88,13 @@ int resource_mg_create(resource_mg *mg, void* cuda_address);
 void* resource_mg_get(resource_mg *mg, void* client_address);
 
 void resource_mg_print(resource_mg *mg);
+
+int memory_mg_init(memory_mg *mg, int bypass);
+void memory_mg_free(memory_mg *mg);
+int memory_mg_add_sorted(memory_mg *mg, void* client_address, void* cuda_address, size_t size);
+int memory_mg_create(memory_mg *mg, void* cuda_address, size_t size);
+void* memory_mg_get(memory_mg *mg, void* client_address);
+void memory_mg_print(memory_mg *mg);
+
 
 #endif //_RESOURCE_MG_H_

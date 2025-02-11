@@ -884,10 +884,10 @@ bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc,           cudn
         (cudnnPoolingDescriptor_t)resource_mg_get(&rm_cudnn_poolings, (void*)poolingDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -912,10 +912,10 @@ bool_t rpc_cudnnactivationforward_1_svc(ptr handle, ptr activationDesc, cudnn_sc
         (cudnnActivationDescriptor_t)resource_mg_get(&rm_cudnn_activations, (void*)activationDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -942,10 +942,10 @@ bool_t rpc_cudnnlrncrosschannelforward_1_svc(ptr handle, ptr normDesc, int lrnMo
         (cudnnLRNMode_t)lrnMode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -972,10 +972,10 @@ bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scali
         (cudnnSoftmaxMode_t)mode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1183,16 +1183,16 @@ bool_t rpc_cudnnconvolutionforward_1_svc(ptr handle, cudnn_scaling_t alpha, ptr 
         (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (cudnnFilterDescriptor_t)resource_mg_get(&rm_cudnn_filters, (void*)wDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)w),
+        (const void*)memory_mg_get(&rm_memory, (void*)w),
         (cudnnConvolutionDescriptor_t)resource_mg_get(&rm_cudnn_convs, (void*)convDesc),
         algo,
-        (void*)resource_mg_get(&rm_memory, (void*)workSpace),
+        (void*)memory_mg_get(&rm_memory, (void*)workSpace),
         workSpaceSizeInBytes,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1215,10 +1215,10 @@ bool_t rpc_cudnnaddtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr aDesc, pt
         (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)aDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)A),
+        (const void*)memory_mg_get(&rm_memory, (void*)A),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)cDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)C));
+        (void*)memory_mg_get(&rm_memory, (void*)C));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1241,10 +1241,10 @@ bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDe
         (cudnnHandle_t)resource_mg_get(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)resource_mg_get(&rm_memory, (void*)x),
+        (const void*)memory_mg_get(&rm_memory, (void*)x),
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)resource_mg_get(&rm_memory, (void*)y));
+        (void*)memory_mg_get(&rm_memory, (void*)y));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;

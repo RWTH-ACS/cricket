@@ -239,6 +239,7 @@ bool_t rpc_cudeviceget_1_svc(int ordinal, ptr_result *result, struct svc_req *rq
     RECORD_SINGLE_ARG(ordinal);
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
+    result->ptr_result_u.ptr = 0;
     result->err = cuDeviceGet((CUdevice*)&result->ptr_result_u.ptr, ordinal);
     if (resource_mg_create(&rm_devices, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "failed to add kernel to resource manager");
@@ -555,7 +556,7 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_mg_get(&rm_memory, *(void**)cuda_args[i]);
+        *(void**)cuda_args[i] = memory_mg_get(&rm_memory, *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 

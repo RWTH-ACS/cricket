@@ -4,6 +4,7 @@
 #include <link.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h> //sigaction
 
 // For TCP socket
 #include <arpa/inet.h>
@@ -174,7 +175,7 @@ void __attribute__((constructor)) init_rpc(void)
     rpc_connect();
 
     initialized = 1;
-    if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
+    if (signal(SIGUSR2, repair_connection) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
         exit(1);
     }

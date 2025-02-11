@@ -241,6 +241,27 @@ static int cr_restore_cublas(api_record_t *record, resource_mg *rm_cublas)
     return 0;
 }
 
+static int cr_restore_device(api_record_t *record, resource_mg *rm_devices)
+{
+    ptr device;
+    ptr_result res = record->result.ptr_result_u;
+    if (record->function != rpc_cuDeviceGet && record->arg_size != sizeof(int)) {
+        LOGE(LOG_ERROR, "got a record that is not of type rpc_cudeviceget or unexpected argument size");
+        return 0;
+    }
+    int ordinal = *(int*)record->arguments;
+    CUresult err = cuDeviceGet((CUdevice*)&device, ordinal);
+    if (err != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "cuDeviceGet failed: %d", res);
+        return 1;
+    }
+    if (resource_mg_add_sorted(rm_devices, (void*)res.ptr_result_u.ptr, (void*)device) != 0) {
+        LOGE(LOG_ERROR, "error adding to event resource manager");
+        return 1;
+    }
+    return 0;
+}
+
 static int cr_restore_events(api_record_t *record, resource_mg *rm_events)
 {
     cudaEvent_t new_event = NULL;
@@ -367,7 +388,7 @@ out:
     return result;
 }
 
-static int cr_restore_memory(const char *path, api_record_t *record, resource_mg *rm_memory)
+static int cr_restore_memory(const char *path, api_record_t *record, memory_mg *rm_memory)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -423,9 +444,9 @@ static int cr_restore_memory(const char *path, api_record_t *record, resource_mg
                                (void*)result.ptr_result_u.ptr, 
                                cuda_ptr);
 
-    if (resource_mg_add_sorted(rm_memory, 
+    if (memory_mg_add_sorted(rm_memory, 
                                (void*)result.ptr_result_u.ptr, 
-                               cuda_ptr) != 0) {
+                               cuda_ptr, mem_size) != 0) {
         LOGE(LOG_ERROR, "error adding memory resource to resource manager");
         return 1;
     }
@@ -831,12 +852,14 @@ extern void rpc_dispatch(struct svc_req *rqstp, xdrproc_t *ret_arg, xdrproc_t *r
 int cr_call_record(api_record_t *record)
 {
     struct svc_req rqstp;
+    SVCXPRT rq_xprt = {.xp_fd = 0};
     xdrproc_t arg;
     xdrproc_t res;
     size_t res_sz;
     bool_t retval;
     void *result;
     bool_t (*fun)(char *, void *, struct svc_req *);
+    rqstp.rq_xprt = &rq_xprt;
 
     rqstp.rq_proc = record->function;
     rpc_dispatch(&rqstp, &arg, &res, &res_sz, &fun);
@@ -847,10 +870,11 @@ int cr_call_record(api_record_t *record)
 }
 
 static int cr_restore_resources(const char *path, api_record_t *record,
-                                resource_mg *rm_memory, resource_mg *rm_streams,
+                                memory_mg *rm_memory, resource_mg *rm_streams,
                                 resource_mg *rm_events, resource_mg *rm_arrays,
                                 resource_mg *rm_cusolver,
-                                resource_mg *rm_cublas, resource_mg *rm_modules)
+                                resource_mg *rm_cublas, resource_mg *rm_modules,
+                                resource_mg *rm_devices)
 {
     int ret = 1;
     switch (record->function) {
@@ -864,6 +888,7 @@ static int cr_restore_resources(const char *path, api_record_t *record,
     case CUDA_MEMCPY_DTOD:
     case CUDA_MEMCPY_DTOH:
     case CUDA_MEMCPY_TO_SYMBOL:
+    case CUDA_MEMSET:
         break;
     case rpc_elf_load:
         if (cr_restore_elf(path, record, rm_modules) != 0) {
@@ -927,6 +952,16 @@ static int cr_restore_resources(const char *path, api_record_t *record,
             goto cleanup;
         }
         break;
+    case rpc_cuDeviceGet:
+        if (cr_restore_device(record, rm_devices) != 0) {
+            LOGE(LOG_ERROR, "error restoring device");
+            goto cleanup;
+        }
+        break;
+    case rpc_cuCtxCreate_v3:
+    case rpc_cuctxdestroy:
+        // ignore for now
+        break;
     default:
         if (cr_call_record(record) != 0) {
             LOGE(LOG_ERROR, "calling record function failed");
@@ -988,10 +1023,11 @@ int cr_launch_kernel(void)
     return ret;
 }
 
-int cr_restore(const char *path, resource_mg *rm_memory,
+int cr_restore(const char *path, memory_mg *rm_memory,
                resource_mg *rm_streams, resource_mg *rm_events,
                resource_mg *rm_arrays, resource_mg *rm_cusolver,
-               resource_mg *rm_cublas, resource_mg *rm_modules)
+               resource_mg *rm_cublas, resource_mg *rm_modules,
+               resource_mg *rm_devices)
 {
     FILE *fp = NULL;
     char *file_name;
@@ -1031,7 +1067,7 @@ int cr_restore(const char *path, resource_mg *rm_memory,
         api_records_print_records(record);
         if (cr_restore_resources(path, record, rm_memory, rm_streams, rm_events,
                                  rm_arrays, rm_cusolver, rm_cublas,
-                                 rm_modules) != 0) {
+                                 rm_modules, rm_devices) != 0) {
             LOGE(LOG_ERROR, "error restoring resources");
             goto cleanup;
         }

@@ -3,7 +3,7 @@
 
 #include "resource-mg.h"
 
-int cusolver_init(int restore, resource_mg *streams, resource_mg *memory);
+int cusolver_init(int restore, resource_mg *streams);
 resource_mg *cusolver_get_rm(void);
 int cusolver_deinit(void);
 

@@ -19,7 +19,7 @@
 #include "gsched.h"
 
 
-int cublaslt_init(int bypass, resource_mg *memory)
+int cublaslt_init(int bypass)
 {
     int ret = 0;
     ret &= resource_mg_init(&rm_cublaslt, bypass);
@@ -190,18 +190,18 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
         (cublasLtHandle_t)resource_mg_get(&rm_cublaslt, (void*)lightHandle),
         (cublasLtMatmulDesc_t)resource_mg_get(&rm_cublaslt, (void*)computeDesc),
         &alpha,
-        resource_mg_get(&rm_memory, (void*)A),
+        memory_mg_get(&rm_memory, (void*)A),
         (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Adesc),
-        resource_mg_get(&rm_memory, (void*)B),
+        memory_mg_get(&rm_memory, (void*)B),
         (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Bdesc),
         &beta,
-        resource_mg_get(&rm_memory, (void*)C),
+        memory_mg_get(&rm_memory, (void*)C),
         (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Cdesc),
-        resource_mg_get(&rm_memory, (void*)D),
+        memory_mg_get(&rm_memory, (void*)D),
         (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Ddesc),
         // (const cublasLtMatmulAlgo_t *)algo,
 	NULL,
-        resource_mg_get(&rm_memory, (void*)workspace),
+        memory_mg_get(&rm_memory, (void*)workspace),
         workspaceSizeInBytes,
        (cudaStream_t)resource_mg_get(&rm_streams, (void*)stream)
     );
