@@ -101,9 +101,20 @@ int cricket_server_checkpoint(int dump_memory)
 
 static void signal_checkpoint(int signo)
 {
+    LOG(LOG_INFO, "checkpointing requested.");
     if (cricket_server_checkpoint(1) != 0) {
         LOGE(LOG_ERROR, "failed to create checkpoint");
     }
+}
+
+static void signal_checkpoint_stop(int signo)
+{
+    LOG(LOG_INFO, "checkpointing and stopping requested.");
+    if (cricket_server_checkpoint(1) != 0) {
+        LOGE(LOG_ERROR, "failed to create checkpoint");
+    }
+    LOG(LOG_INFO, "stopping server...");
+    svc_exit();
 }
 
 bool_t rpc_checkpoint_1_svc(int *result, struct svc_req *rqstp)
@@ -316,6 +327,10 @@ void cricket_main(size_t prog_num, size_t vers_num)
 
 
     if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
+        LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+        goto cleanup00;
+    }
+    if (signal(SIGUSR2, signal_checkpoint_stop) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
         goto cleanup00;
     }
