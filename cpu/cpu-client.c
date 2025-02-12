@@ -175,7 +175,7 @@ void __attribute__((constructor)) init_rpc(void)
     rpc_connect();
 
     initialized = 1;
-    if (signal(SIGUSR2, repair_connection) == SIG_ERR) {
+    if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
         exit(1);
     }
@@ -237,14 +237,14 @@ void *dlopen(const char *filename, int flag)
     int has_kernel = 0;
     LOG(LOG_DBG(1), "intercepted dlopen(%s, %d)", filename, flag);
 
-    if (filename == NULL) {
-        return dlopen_orig(filename, flag);
-    }
-
     if (dlopen_orig == NULL) {
         if ((dlopen_orig = dlsym(RTLD_NEXT, "dlopen")) == NULL) {
             LOGE(LOG_ERROR, "[dlopen] dlsym failed");
         }
+    }
+
+    if (filename == NULL) {
+        return dlopen_orig(filename, flag);
     }
 
     static const char *replace_libs[] = {
@@ -296,6 +296,25 @@ int dlclose(void *handle)
         return 0;
     } else {
         return dlclose_orig(handle);
+    }
+}
+
+static int (*sigaction_orig)(int, const struct sigaction *, struct sigaction *) = NULL;
+
+int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+    LOG(LOG_DEBUG, "intercepted sigaction(%d)", signum);
+
+    if (sigaction_orig == NULL) {
+        if ((sigaction_orig = dlsym(RTLD_NEXT, "sigaction")) == NULL) {
+            LOGE(LOG_ERROR, "[sigaction] dlsym failed");
+            return -1;
+        }
+    }
+    if (signum != SIGUSR1) {
+        return sigaction_orig(signum, act, oldact);
+    } else {
+        return 0;
     }
 }
 
