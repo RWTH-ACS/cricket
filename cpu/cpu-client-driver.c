@@ -252,6 +252,7 @@ CUresult cuDeviceGetUuid(CUuuid* uuid, CUdevice dev)
 {
 	enum clnt_stat retval;
     mem_result result;
+    result.mem_result_u.data.mem_data_val = malloc(16);
     retval = rpc_cudevicegetuuid_1(dev, &result, clnt);
     printf("[rpc] %s = %d, result (uuid)\n", __FUNCTION__, result.err);
 
