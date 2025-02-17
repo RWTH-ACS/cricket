@@ -855,6 +855,7 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
 bool_t cuda_func_get_attributes_1_svc(ptr func, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaFuncGetAttributes");
+    LOGE(LOG_WARNING, "cudaFuncGetAttributes is probably not working correctly.");
     result->mem_result_u.data.mem_data_val =
         malloc(sizeof(struct cudaFuncAttributes));
     result->mem_result_u.data.mem_data_len = sizeof(struct cudaFuncAttributes);
@@ -873,7 +874,7 @@ bool_t cuda_func_set_attributes_1_svc(ptr func, int attr, int value, int *result
     RECORD_ARG(2, attr);
     RECORD_ARG(3, value);
     LOGE(LOG_DEBUG, "cudaFuncSetAttributes");
-    *result = cudaFuncSetAttribute((void*)func, attr, value);
+    *result = cuFuncSetAttribute((CUfunction)resource_mg_get(&rm_functions, (void*)func), attr, value);
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -884,7 +885,7 @@ bool_t cuda_func_set_cache_config_1_svc(ptr func, int cacheConfig, int *result, 
     RECORD_ARG(1, func);
     RECORD_ARG(2, cacheConfig);
     LOGE(LOG_DEBUG, "cudaFuncSetCacheConfig");
-    *result = cudaFuncSetCacheConfig((void*)func, cacheConfig);
+    *result = cuFuncSetCacheConfig((CUfunction)resource_mg_get(&rm_functions, (void*)func), cacheConfig);
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -895,7 +896,7 @@ bool_t cuda_func_set_shared_mem_config_1_svc(ptr func, int config, int *result, 
     RECORD_ARG(1, func);
     RECORD_ARG(2, config);
     LOGE(LOG_DEBUG, "cudaFuncSetSharedMemConfig");
-    *result = cudaFuncSetSharedMemConfig((void*)func, config);
+    *result = cuFuncSetSharedMemConfig((CUfunction)resource_mg_get(&rm_functions, (void*)func), config);
     RECORD_RESULT(integer, *result);
     return 1;
 }
