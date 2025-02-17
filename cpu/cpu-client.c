@@ -55,19 +55,42 @@ static void rpc_connect(void)
     unsigned long prog = 0, vers = 0;
 
     char envvar[] = "REMOTE_GPU_ADDRESS";
+    char envvar_file[] = "CRICKET_ADDRESS_IN_FILE";
 
-    if (!getenv(envvar)) {
+    if (getenv(envvar_file)) {
+        FILE *f = fopen(getenv(envvar_file), "r");
+        if (f == NULL) {
+            LOGE(LOG_ERROR, "error opening file %s", getenv(envvar_file));
+            exit(1);
+        }
+        if (fgets(server, 256, f) == NULL) {
+            LOGE(LOG_ERROR, "error reading file %s", getenv(envvar_file));
+            exit(1);
+        }
+        fclose(f);
+        // Remove trainling newlines
+        server[strcspn(server, "\r\n")] = 0;
+    } else if (getenv(envvar)) {
+        if (strncpy(server, getenv(envvar), 256) == NULL) {
+            LOGE(LOG_ERROR, "strncpy failed.");
+            exit(1);
+        }
+    } else {
         LOG(LOG_ERROR,
             "Environment variable %s does not exist. It must contain the "
             "address where the server application is listening.",
             envvar);
         exit(1);
     }
-    if (strncpy(server, getenv(envvar), 256) == NULL) {
-        LOGE(LOG_ERROR, "strncpy failed.");
-        exit(1);
+    char* port_str = strchr(server, ':');
+    uint16_t port = 0;
+    if (port_str != NULL) {
+        *port_str = '\0';
+        port_str++;
+        port = atoi(port_str);
     }
-    LOG(LOG_INFO, "connection to host \"%s\"", server);
+
+    LOG(LOG_INFO, "connecting to host \"%s\" port: %d", server, port);
 
 #ifdef WITH_IB
 
@@ -111,7 +134,7 @@ static void rpc_connect(void)
         LOG(LOG_INFO, "connecting via TCP...");
         isock = RPC_ANYSOCK;
         sock_in.sin_family = AF_INET;
-        sock_in.sin_port = 0;
+        sock_in.sin_port = (port == 0 ? 0 : htons(port));
         if ((hp = gethostbyname(server)) == 0) {
             LOGE(LOG_ERROR, "error resolving hostname: %s", server);
             exit(1);
