@@ -160,6 +160,19 @@ int server_runtime_restore(const char *path)
                      (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
     LOGE(LOG_INFO, "time: %f", time);
 
+    char *cmplt_file = NULL;
+    if (asprintf(&cmplt_file, "%s/complete", path) == -1) {
+        LOGE(LOG_ERROR, "asprintf failed");
+        return 1;
+    }
+    FILE *f = fopen(cmplt_file, "w");
+    if (f == NULL) {
+        LOGE(LOG_ERROR, "fopen failed");
+        return 1;
+    }
+    fclose(f);
+    free(cmplt_file);
+
     return 0;
 }
 
