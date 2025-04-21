@@ -1935,10 +1935,20 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
     RECORD_RESULT(integer, *result);
     return 1;
 }
-/* cudaMipmappedArrayGetSparseProperties ( cudaArraySparseProperties* sparseProperties, cudaMipmappedArray_t mipmap ) is not implemented */
-/* make_cudaExtent ( size_t w, size_t h, size_t d ) should be implemented on the client side */
-/* make_cudaPitchedPtr ( void* d, size_t p, size_t xsz, size_t ysz ) should be implemented on the client side */
-/* make_cudaPos ( size_t x, size_t y, size_t z ) should be implemented on the client side */
+bool_t cuda_pointer_get_attributess_1_svc(ptr ptr, mem_result *result,
+                                          struct svc_req *rqstp)
+{
+    LOGE(LOG_DEBUG, "cudaPointerGetAttributes");
+    result->mem_result_u.data.mem_data_val =
+        malloc(sizeof(struct cudaPointerAttributes));
+    result->mem_result_u.data.mem_data_len =
+        sizeof(struct cudaPointerAttributes);
+    result->err = cudaPointerGetAttributes(
+        (struct cudaPointerAttributes *)result->mem_result_u.data.mem_data_val,
+        memory_mg_get(&rm_memory, (void *)ptr));
+
+    return 1;
+}
 
 /* Peer Device Memory Access */
 bool_t cuda_device_can_access_peer_1_svc(int device, int peerDevice, int_result *result, struct svc_req *rqstp)

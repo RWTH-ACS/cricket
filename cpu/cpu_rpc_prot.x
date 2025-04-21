@@ -359,6 +359,7 @@ program RPC_CD_PROG {
         /*mem_result CUDA_MEM_RANGE_GET_ATTRIBUTE(int, ptr, size_t)             = 425;*/
         /*mem_result CUDA_MEM_RANGE_GET_ATTRIBUTES(mem_data, size_t, 
                           ptr, size_t)                                          = 426;*/
+        mem_result   CUDA_POINTER_GET_ATTRIBUTES(ptr)                           = 427;
 
         /* ### CUDA_MEMCPY Family ### */
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)                    = 440;

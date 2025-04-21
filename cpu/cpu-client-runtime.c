@@ -1910,7 +1910,25 @@ DEF_FN(struct cudaExtent, make_cudaExtent, size_t, w, size_t, h, size_t, d)
 DEF_FN(struct cudaPitchedPtr, make_cudaPitchedPtr, void*, d, size_t, p, size_t, xsz, size_t, ysz)
 DEF_FN(struct cudaPos, make_cudaPos, size_t, x, size_t, y, size_t, z)
 
-DEF_FN(cudaError_t, cudaPointerGetAttributes, struct cudaPointerAttributes*, attributes, const void*, ptr)
+cudaError_t cudaPointerGetAttributes(struct cudaPointerAttributes *attributes,
+                                     const void *pointer)
+{
+#ifdef WITH_API_CNT
+    api_call_cnt++;
+#endif // WITH_API_CNT
+    mem_result result;
+    enum clnt_stat retval;
+    retval = cuda_pointer_get_attributes_1((ptr)pointer, &result, clnt);
+    if (retval != RPC_SUCCESS) {
+        clnt_perror(clnt, "call failed");
+    }
+    if (result.err == 0 && result.mem_result_u.data.mem_data_len ==
+                               sizeof(struct cudaPointerAttributes)) {
+        memcpy(attributes, result.mem_result_u.data.mem_data_val,
+               sizeof(struct cudaPointerAttributes));
+    }
+    return result.err;
+}
 
 cudaError_t cudaDeviceCanAccessPeer(int* canAccessPeer, int device, int peerDevice)
 {
