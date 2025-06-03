@@ -662,6 +662,33 @@ bool_t rpc_cumemgetallocationgranularity_1_svc(mem_data prop, int option, sz_res
     return 1;
 }
 
+bool_t rpc_cuoccupancymaxactiveblockspermultiprocessor_1_svc(
+    ptr func, int blockSize, size_t dynamicSMemSize, int_result *result,
+    struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &result->int_result_u.data,
+        (CUfunction)resource_mg_get(&rm_functions, (void *)func), blockSize,
+        dynamicSMemSize);
+    GSCHED_RELEASE;
+    return 1;
+}
+bool_t rpc_cuoccupancymaxactiveblockspermultiprocessorwithflags_1_svc(
+    ptr func, int blockSize, size_t dynamicSMemSize, int flags,
+    int_result *result, struct svc_req *rqstp)
+{
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    GSCHED_RETAIN;
+    result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
+        &result->int_result_u.data,
+        (CUfunction)resource_mg_get(&rm_functions, (void *)func), blockSize,
+        dynamicSMemSize, flags);
+    GSCHED_RELEASE;
+    return 1;
+}
+
 /* ################## START OF HIDDEN FUNCTIONS IMPL ######################## */
 
 /*

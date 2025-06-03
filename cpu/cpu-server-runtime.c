@@ -1119,7 +1119,9 @@ bool_t cuda_occupancy_available_dsmpb_1_svc(ptr func, int numBlocks,
 #if CUDART_VERSION >= 11000
     LOGE(LOG_DEBUG, "cudaOccupancyAvailableDynamicSMemPerBlock");
     result->err = cudaOccupancyAvailableDynamicSMemPerBlock(
-        &result->u64_result_u.u64, (void *)func, numBlocks, blockSize);
+        &result->u64_result_u.u64,
+        (CUfunction)resource_mg_get(&rm_functions, (void *)func), numBlocks,
+        blockSize);
     return 1;
 #else
     LOGE(LOG_ERROR, "compiled without CUDA 11 support");
@@ -1134,7 +1136,9 @@ bool_t cuda_occupancy_max_active_bpm_1_svc(ptr func, int blockSize,
 {
     LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
     result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-        &result->int_result_u.data, (void *)func, blockSize, dynamicSMemSize);
+        &result->int_result_u.data,
+        (CUfunction)resource_mg_get(&rm_functions, (void *)func), blockSize,
+        dynamicSMemSize);
     return 1;
 }
 
@@ -1146,8 +1150,9 @@ bool_t cuda_occupancy_max_active_bpm_with_flags_1_svc(ptr func, int blockSize,
 {
     LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags");
     result->err = cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
-        &result->int_result_u.data, (void *)func, blockSize, dynamicSMemSize,
-        flags);
+        &result->int_result_u.data,
+        (CUfunction)resource_mg_get(&rm_functions, (void *)func), blockSize,
+        dynamicSMemSize, flags);
     return 1;
 }
 

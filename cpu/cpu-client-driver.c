@@ -865,14 +865,41 @@ DEF_FN(CUresult, cuGraphicsResourceSetMapFlags, CUgraphicsResource, resource, un
     cd_client_hidden_incr();
     return result.err;
 }*/
-DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessor, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize)
-DEF_FN(CUresult, cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, int*, numBlocks, CUfunction, func, int, blockSize, size_t, dynamicSMemSize, unsigned int, flags)
-DEF_FN(CUresult, cuMemAdvise, CUdeviceptr, devPtr, size_t, count, CUmem_advise, advice, CUdevice, device)
-DEF_FN(CUresult, cuMemPrefetchAsync, CUdeviceptr, devPtr, size_t, count, CUdevice, dstDevice, CUstream, hStream)
-DEF_FN(CUresult, cuMemPrefetchAsync_ptsz, CUdeviceptr, devPtr, size_t, count, CUdevice, dstDevice, CUstream, hStream)
-DEF_FN(CUresult, cuMemRangeGetAttribute, void*, data, size_t, dataSize, CUmem_range_attribute, attribute, CUdeviceptr, devPtr, size_t, count)
-DEF_FN(CUresult, cuMemRangeGetAttributes, void**, data, size_t*, dataSizes, CUmem_range_attribute*, attributes, size_t, numAttributes, CUdeviceptr, devPtr, size_t, count)
-CUresult cuGetErrorString(CUresult error, const char** pStr)
+CUresult cuOccupancyMaxActiveBlocksPerMultiprocessor(int *numBlocks,
+                                                     CUfunction func,
+                                                     int blockSize,
+                                                     size_t dynamicSMemSize)
+{
+    enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cuoccupancymaxactiveblockspermultiprocessor_1(
+        (ptr)func, blockSize, dynamicSMemSize, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%p, %p, %d, %zu) = %d", __FUNCTION__, numBlocks,
+         func, blockSize, dynamicSMemSize, result.err);
+    if (retval != RPC_SUCCESS) {
+        fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    *numBlocks = result.int_result_u.data;
+    return result.err;
+}
+CUresult cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(
+    int *numBlocks, CUfunction func, int blockSize, size_t dynamicSMemSize,
+    unsigned int flags)
+{
+    enum clnt_stat retval;
+    int_result result;
+    retval = rpc_cuoccupancymaxactiveblockspermultiprocessorwithflags_1(
+        (ptr)func, blockSize, dynamicSMemSize, flags, &result, clnt);
+    LOGE(LOG_DEBUG, "[rpc] %s(%p, %p, %d, %zu, %u) = %d", __FUNCTION__,
+         numBlocks, func, blockSize, dynamicSMemSize, flags, result.err);
+    if (retval != RPC_SUCCESS) {
+        fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+        return CUDA_ERROR_UNKNOWN;
+    }
+    *numBlocks = result.int_result_u.data;
+    return result.err;
+}
 {
 	enum clnt_stat retval;
     str_result result;
