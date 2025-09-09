@@ -2139,7 +2139,7 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream,
 /* make_cudaPos ( size_t x, size_t y, size_t z ) should be implemented on the
  * client side */
 
-bool_t cuda_pointer_get_attributess_1_svc(ptr ptr, mem_result *result,
+bool_t cuda_pointer_get_attributes_1_svc(ptr ptr, mem_result *result,
                                           struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "cudaPointerGetAttributes");
